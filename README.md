@@ -1,10 +1,11 @@
+<img width="1774" height="887" src="https://github.com/user-attachments/assets/eccffc6c-2cce-404e-82fd-e6b72a483e33" />
+
+
 # Pixelpipe
 
 Pixelpipe is a small Windows tray app for mounting your PixelDrain filesystem as a Windows drive through rclone.
 
 It is built around one goal: make PixelDrain filesystem access feel like a normal drive, without keeping a console window open.
-
-![Pixelpipe tray menu mockup](docs/assets/tray-menu-mockup.svg)
 
 ## Features
 
