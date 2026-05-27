@@ -5,6 +5,7 @@ cd /d "%~dp0"
 set "OUT=%USERPROFILE%\Desktop\Pixelpipe.exe"
 set "SRC=%~dp0src\Pixelpipe.cs"
 set "ICO=%~dp0assets\pixelpipe.ico"
+set "MANIFEST=%~dp0app.manifest"
 
 set "CSC="
 if exist "%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\csc.exe" set "CSC=%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
@@ -31,7 +32,7 @@ if not exist "%ICO%" (
 )
 
 echo Building Pixelpipe.exe...
-"%CSC%" /nologo /target:winexe /platform:anycpu /optimize+ /out:"%OUT%" /win32icon:"%ICO%" /reference:System.dll /reference:System.Core.dll /reference:System.Drawing.dll /reference:System.Windows.Forms.dll /reference:System.Web.Extensions.dll /reference:System.Security.dll /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll /reference:Microsoft.CSharp.dll "%SRC%"
+"%CSC%" /nologo /target:winexe /platform:anycpu /optimize+ /out:"%OUT%" /win32icon:"%ICO%" /win32manifest:"%MANIFEST%" /reference:System.dll /reference:System.Core.dll /reference:System.Drawing.dll /reference:System.Windows.Forms.dll /reference:System.Web.Extensions.dll /reference:System.Security.dll /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll /reference:Microsoft.CSharp.dll "%SRC%"
 
 if errorlevel 1 (
   echo.

@@ -1,40 +1,75 @@
 # Troubleshooting
 
-## Cleanly stop a stuck rclone mount
-
-Open Administrator PowerShell only for cleanup:
-
-```powershell
-Get-Process rclone -ErrorAction SilentlyContinue | Stop-Process -Force
-cmd /c "net use P: /delete /y"
-mountvol P: /D 2>$null
-Remove-PSDrive P -Force -ErrorAction SilentlyContinue
-```
-
-Then restart the tray app normally, not as Administrator.
-
-## Verify rclone config
-
-```powershell
-rclone listremotes
-rclone about Pixeldrain: --json
-rclone lsd Pixeldrain:
-```
-
-## Verify WinFsp
-
-Check for:
+Start with:
 
 ```text
-C:\Program Files (x86)\WinFsp\bin\winfsp-x64.dll
+Right-click Pixelpipe tray icon -> Diagnostics / repair...
 ```
 
-or reinstall:
+Copy the diagnostics output when reporting a bug.
 
-```powershell
-winget install -e --id WinFsp.WinFsp
+## rclone is missing
+
+Use one of these from the tray menu:
+
+```text
+Setup / dependencies -> Download portable rclone now
+Setup / dependencies -> Install/update rclone with winget
 ```
 
-## Explorer visibility
+Portable rclone is installed to:
 
-If `Test-Path P:\` is true but “This PC” does not show the drive, restart Explorer or use the tray’s `Open P:\` entry. Do not run the tray app elevated unless you intentionally want an elevated mount.
+```text
+%USERPROFILE%\Apps\rclone\rclone.exe
+```
+
+## WinFsp is missing
+
+Use:
+
+```text
+Setup / dependencies -> Install WinFsp with winget
+```
+
+After WinFsp installation, restart Windows if mounting still fails.
+
+## winget is missing
+
+Pixelpipe opens the Microsoft winget/App Installer help path. Install App Installer from Microsoft, then reopen Pixelpipe.
+
+## P: does not show up
+
+Check these first:
+
+1. Make sure Pixelpipe is not running as Administrator.
+2. Open Diagnostics / repair and confirm WinFsp is installed.
+3. Confirm the selected drive letter is not already used.
+4. Try `Drive letter -> X:` or `Z:`.
+5. Keep `Mount mode -> Network drive` selected.
+6. Check the rclone log from the tray menu.
+
+## rclone gets stuck
+
+Use:
+
+```text
+Unmount Pixelpipe
+Diagnostics / repair -> Clear stale drive
+```
+
+If Windows refuses to release a wedged WinFsp mount, restart Windows.
+
+## Quota shows unavailable
+
+Check:
+
+1. PixelDrain API key is saved.
+2. API key is valid.
+3. Windows can reach `pixeldrain.com` over HTTPS.
+4. Your account exposes quota fields through the API.
+
+Pixelpipe also has a curl fallback for older .NET TLS behavior.
+
+## Bandwidth limit does not change live
+
+Live bandwidth changes require the current rclone mount to be running with RC enabled. Pixelpipe starts its own mounts with RC enabled. If an old manually-started rclone process is running, unmount it and remount from Pixelpipe.

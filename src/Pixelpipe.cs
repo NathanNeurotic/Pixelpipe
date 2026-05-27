@@ -45,9 +45,8 @@ namespace Pixelpipe
 
     internal sealed class TrayContext : ApplicationContext
     {
-        private const string RemoteName = "Pixeldrain:";
-        private const string DriveLetter = "P:";
-        private const string DriveRoot = "P:\\";
+        private const string DefaultRemoteName = "Pixeldrain:";
+        private const string DefaultDriveLetter = "P:";
         private const string RcAddress = "127.0.0.1:55729";
         private const string AppName = "Pixelpipe";
         private const string LegacyAppName = "PixeldrainAioMountTray";
@@ -89,6 +88,14 @@ namespace Pixelpipe
         private readonly ToolStripMenuItem openRcloneConfigItem;
         private readonly ToolStripMenuItem openWingetHelpItem;
         private readonly List<ToolStripMenuItem> bandwidthChoices;
+        private readonly ToolStripMenuItem driveMenu;
+        private readonly ToolStripMenuItem mountModeMenu;
+        private readonly ToolStripMenuItem autoRemountItem;
+        private readonly ToolStripMenuItem settingsItem;
+        private readonly ToolStripMenuItem repairItem;
+        private readonly ToolStripMenuItem openSettingsFileItem;
+        private readonly ToolStripMenuItem checkUpdatesItem;
+        private readonly ToolStripMenuItem customBandwidthItem;
         private readonly System.Windows.Forms.Timer timer;
 
         private Process mountProcess;
@@ -97,9 +104,18 @@ namespace Pixelpipe
         private DateTime lastAboutRefreshUtc = DateTime.MinValue;
         private DateTime lastAccountRefreshUtc = DateTime.MinValue;
         private string selectedBandwidth;
+        private string driveLetter;
+        private string remoteName;
+        private string mountMode;
+        private bool autoRemount;
+        private bool desiredMounted;
+        private int remountAttempts;
+        private DateTime remountWindowUtc = DateTime.MinValue;
         private string rclonePath;
         private string logDir;
         private string logFile;
+        private string settingsDir;
+        private string settingsFile;
         private string statusText = "Status: not mounted";
         private string storageText = "Storage: not checked";
         private string transferQuotaText = "Transfer quota: API key not set";
@@ -111,14 +127,23 @@ namespace Pixelpipe
 
         public TrayContext(string[] args)
         {
-            logDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), AppName);
+            settingsDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), AppName);
+            settingsFile = Path.Combine(settingsDir, "settings.json");
+            logDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), AppName, "logs");
             logFile = Path.Combine(logDir, "rclone-mount.log");
+            Directory.CreateDirectory(settingsDir);
             Directory.CreateDirectory(logDir);
 
             selectedBandwidth = LoadSetting("BandwidthLimit", "off");
+            driveLetter = NormalizeDriveLetter(LoadSetting("DriveLetter", DefaultDriveLetter));
+            remoteName = NormalizeRemoteName(LoadSetting("RemoteName", DefaultRemoteName));
+            mountMode = LoadSetting("MountMode", "network");
+            autoRemount = String.Equals(LoadSetting("AutoRemount", "0"), "1", StringComparison.OrdinalIgnoreCase);
+            desiredMounted = false;
             rclonePath = FindRclonePath();
 
             menu = new ContextMenuStrip();
+            ApplyTrayMenuTheme(menu);
             menu.Opening += delegate { UpdateMenuText(); QueueRefresh(false, false); RefreshDependencyStatusAsync(false); };
 
             statusItem = DisabledItem(statusText);
@@ -132,7 +157,7 @@ namespace Pixelpipe
             mountLowItem = new ToolStripMenuItem("Mount Pixelpipe - low overhead", null, delegate { Mount(false); });
             mountFullItem = new ToolStripMenuItem("Mount Pixelpipe - full cache", null, delegate { Mount(true); });
             unmountItem = new ToolStripMenuItem("Unmount Pixelpipe", null, delegate { Unmount(); });
-            openDriveItem = new ToolStripMenuItem("Open P:\\", null, delegate { OpenDrive(); });
+            openDriveItem = new ToolStripMenuItem("Open drive", null, delegate { OpenDrive(); });
             refreshItem = new ToolStripMenuItem("Refresh usage now", null, delegate { QueueRefresh(true, true); });
             logItem = new ToolStripMenuItem("Open rclone log", null, delegate { OpenLog(); });
             diagnosticsItem = new ToolStripMenuItem("Copy diagnostics", null, delegate { CopyDiagnostics(); });
@@ -142,6 +167,7 @@ namespace Pixelpipe
             bandwidthChoices = new List<ToolStripMenuItem>();
             bandwidthMenu = new ToolStripMenuItem("Set bandwidth limit");
             AddBandwidthChoice("off", "Unlimited");
+            AddBandwidthChoice("512K", "512 KB/s");
             AddBandwidthChoice("1M", "1 MB/s");
             AddBandwidthChoice("5M", "5 MB/s");
             AddBandwidthChoice("10M", "10 MB/s");
@@ -149,6 +175,27 @@ namespace Pixelpipe
             AddBandwidthChoice("50M", "50 MB/s");
             AddBandwidthChoice("100M", "100 MB/s");
             AddBandwidthChoice("250M", "250 MB/s");
+            bandwidthMenu.DropDownItems.Add(new ToolStripSeparator());
+            customBandwidthItem = new ToolStripMenuItem("Custom...", null, delegate { SetCustomBandwidth(); });
+            bandwidthMenu.DropDownItems.Add(customBandwidthItem);
+
+            driveMenu = new ToolStripMenuItem("Drive letter");
+            AddDriveChoice("P:");
+            AddDriveChoice("X:");
+            AddDriveChoice("Y:");
+            AddDriveChoice("Z:");
+            driveMenu.DropDownItems.Add(new ToolStripSeparator());
+            driveMenu.DropDownItems.Add(new ToolStripMenuItem("Custom...", null, delegate { SetCustomDriveLetter(); }));
+
+            mountModeMenu = new ToolStripMenuItem("Mount mode");
+            mountModeMenu.DropDownItems.Add(new ToolStripMenuItem("Network drive - recommended", null, delegate { SetMountMode("network"); }) { Tag = "network" });
+            mountModeMenu.DropDownItems.Add(new ToolStripMenuItem("Fixed drive", null, delegate { SetMountMode("fixed"); }) { Tag = "fixed" });
+
+            autoRemountItem = new ToolStripMenuItem("Auto-remount if rclone exits", null, delegate { ToggleAutoRemount(); });
+            settingsItem = new ToolStripMenuItem("Settings...", null, delegate { ShowSettingsWindow(); });
+            repairItem = new ToolStripMenuItem("Diagnostics / repair...", null, delegate { ShowDiagnosticsWindow(); });
+            openSettingsFileItem = new ToolStripMenuItem("Open settings file", null, delegate { OpenSettingsFile(); });
+            checkUpdatesItem = new ToolStripMenuItem("Check for updates", null, delegate { CheckForUpdates(); });
 
             apiKeyMenu = new ToolStripMenuItem("PixelDrain API key");
             apiKeyStatusItem = DisabledItem(ApiKeyConfigured() ? "API key: configured" : "API key: not set");
@@ -193,11 +240,18 @@ namespace Pixelpipe
             menu.Items.Add(openDriveItem);
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(bandwidthMenu);
+            menu.Items.Add(driveMenu);
+            menu.Items.Add(mountModeMenu);
+            menu.Items.Add(autoRemountItem);
             menu.Items.Add(apiKeyMenu);
             menu.Items.Add(setupMenu);
+            menu.Items.Add(settingsItem);
             menu.Items.Add(refreshItem);
             menu.Items.Add(logItem);
+            menu.Items.Add(openSettingsFileItem);
+            menu.Items.Add(repairItem);
             menu.Items.Add(diagnosticsItem);
+            menu.Items.Add(checkUpdatesItem);
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(startupItem);
             menu.Items.Add(exitItem);
@@ -211,7 +265,7 @@ namespace Pixelpipe
 
             timer = new System.Windows.Forms.Timer();
             timer.Interval = 7000;
-            timer.Tick += delegate { QueueRefresh(false, false); };
+            timer.Tick += delegate { MonitorMountHealth(); QueueRefresh(false, false); };
             timer.Start();
 
             UpdateMenuText();
@@ -399,7 +453,7 @@ namespace Pixelpipe
             {
                 if (!RcloneAvailable()) return false;
                 string remotes = RunRcloneCapture("listremotes", 5000);
-                return remotes.IndexOf("Pixeldrain:", StringComparison.OrdinalIgnoreCase) >= 0;
+                return remotes.IndexOf(remoteName, StringComparison.OrdinalIgnoreCase) >= 0;
             }
             catch { return false; }
         }
@@ -561,11 +615,11 @@ namespace Pixelpipe
                 return;
             }
 
-            string result = RunRcloneCapture("config create Pixeldrain pixeldrain api_key " + QuoteArg(apiKey) + " root_folder_id me --non-interactive", 12000);
+            string result = RunRcloneCapture("config create " + QuoteArg(RemoteNameBare()) + " pixeldrain api_key " + QuoteArg(apiKey) + " root_folder_id me --non-interactive", 12000);
             if (result.IndexOf("Error", StringComparison.OrdinalIgnoreCase) >= 0 || result.IndexOf("unknown", StringComparison.OrdinalIgnoreCase) >= 0)
             {
                 // Older pixeldrain backend examples used directory_id; retry for compatibility.
-                result = RunRcloneCapture("config create Pixeldrain pixeldrain api_key " + QuoteArg(apiKey) + " directory_id me --non-interactive", 12000);
+                result = RunRcloneCapture("config create " + QuoteArg(RemoteNameBare()) + " pixeldrain api_key " + QuoteArg(apiKey) + " directory_id me --non-interactive", 12000);
             }
 
             if (RemoteConfigured())
@@ -704,12 +758,12 @@ namespace Pixelpipe
 
             if (!RemoteConfigured())
             {
-                DialogResult r = MessageBox.Show("The rclone remote named Pixeldrain: is not configured.\n\nCreate it now using a PixelDrain API key?",
+                DialogResult r = MessageBox.Show("The configured rclone remote is not configured.\n\nCreate it now using a PixelDrain API key?",
                                                 "Pixelpipe setup", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
                 if (r == DialogResult.Yes) ConfigurePixeldrainRemoteFromPrompt();
                 if (!RemoteConfigured())
                 {
-                    MessageBox.Show("Pixeldrain: is still not configured. The mount cannot start until rclone has a PixelDrain remote.",
+                    MessageBox.Show("The configured Pixeldrain remote is still not configured. The mount cannot start until rclone has a PixelDrain remote.",
                                     "Pixelpipe", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return;
                 }
@@ -723,11 +777,12 @@ namespace Pixelpipe
 
             Directory.CreateDirectory(logDir);
             mountUsesFullCache = fullCache;
+            desiredMounted = true;
 
             string cacheMode = fullCache ? "full" : "writes";
-            string args = "mount " + RemoteName + " " + DriveLetter +
+            string args = "mount " + remoteName + " " + driveLetter +
                           " --links" +
-                          " --network-mode" +
+                          (String.Equals(mountMode, "network", StringComparison.OrdinalIgnoreCase) ? " --network-mode" : "") +
                           " --vfs-cache-mode " + cacheMode +
                           " --dir-cache-time 10m" +
                           " --poll-interval 1m" +
@@ -753,7 +808,7 @@ namespace Pixelpipe
                 psi.WorkingDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 
                 mountProcess = Process.Start(psi);
-                statusText = "Status: mounting P:\\";
+                statusText = "Status: mounting " + GetDriveRoot();
                 UpdateMenuText();
 
                 ThreadPool.QueueUserWorkItem(delegate
@@ -770,13 +825,13 @@ namespace Pixelpipe
                                     string tail = TailLog(2200);
                                     statusText = "Status: mount failed";
                                     UpdateMenuText();
-                                    MessageBox.Show("rclone exited immediately.\n\nMost likely causes:\n- WinFsp is missing\n- P: is already in use\n- PixelDrain remote is not configured\n- rclone is being forced to run elevated\n\nLog tail:\n" + tail,
+                                    MessageBox.Show("rclone exited immediately.\n\nMost likely causes:\n- WinFsp is missing\n- selected drive letter is already in use\n- PixelDrain remote is not configured\n- rclone is being forced to run elevated\n\nLog tail:\n" + tail,
                                                     "Pixelpipe mount error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                                 }
                                 else
                                 {
-                                    statusText = "Status: mounted on P:\\";
-                                    ShowBalloon("Pixeldrain mounted on P:\\");
+                                    statusText = "Status: mounted on " + GetDriveRoot();
+                                    ShowBalloon("Pixeldrain mounted on " + GetDriveRoot());
                                     QueueRefresh(true, true);
                                 }
                             }
@@ -800,17 +855,36 @@ namespace Pixelpipe
         {
             try
             {
+                desiredMounted = false;
                 if (IsMounted())
                 {
-                    // Ask rclone to quit cleanly first.
-                    RunRcloneCapture("rc core/quit --rc-addr " + RcAddress + " --rc-no-auth", 1500);
-                    Thread.Sleep(500);
-                    try
+                    // 1. Ask rclone to unmount the drive cleanly through RC.
+                    RunRcloneCapture("rc mount/unmount mountPoint=" + driveLetter + " --rc-addr " + RcAddress + " --rc-no-auth", 2500);
+                    Thread.Sleep(600);
+
+                    // 2. Ask the rclone process to exit cleanly.
+                    if (IsMounted()) RunRcloneCapture("rc core/quit --rc-addr " + RcAddress + " --rc-no-auth", 2500);
+                    Thread.Sleep(900);
+
+                    // 3. If it is still alive, ask before force-killing.
+                    if (IsMounted())
                     {
-                        if (mountProcess != null && !mountProcess.HasExited) mountProcess.Kill();
+                        DialogResult force = MessageBox.Show("rclone did not exit after a clean unmount request.\n\nForce-kill it now? This is normally safe as a last resort, but clean unmount is preferred.",
+                                                            "Pixelpipe unmount", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+                        if (force == DialogResult.Yes)
+                        {
+                            try { if (mountProcess != null && !mountProcess.HasExited) mountProcess.Kill(); } catch { }
+                        }
+                        else
+                        {
+                            statusText = "Status: unmount still pending";
+                            UpdateMenuText();
+                            return;
+                        }
                     }
-                    catch { }
                 }
+
+                CleanStaleDriveMappings(false);
                 statusText = "Status: not mounted";
                 speedText = "Current speed: not mounted";
                 sessionText = "Session traffic: not mounted";
@@ -829,11 +903,11 @@ namespace Pixelpipe
             {
                 if (!IsMounted())
                 {
-                    MessageBox.Show("P:\\ is not mounted by this tray app.\n\nUse Mount Pixelpipe first, then try again. If rclone is running but P:\\ still does not appear, open the rclone log from the tray menu.",
+                    MessageBox.Show(GetDriveRoot() + " is not mounted by this tray app.\n\nUse Mount Pixelpipe first, then try again. If rclone is running but the drive still does not appear, open the rclone log from the tray menu.",
                                     "Pixelpipe", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     return;
                 }
-                Process.Start("explorer.exe", DriveRoot);
+                Process.Start("explorer.exe", GetDriveRoot());
             }
             catch (Exception ex)
             {
@@ -900,7 +974,7 @@ namespace Pixelpipe
                         localStats = "Session traffic: unavailable";
                         localSpeed = "Current speed: unavailable";
                     }
-                    localStatus = mountUsesFullCache ? "Status: mounted on P:\\ - full cache" : "Status: mounted on P:\\ - low overhead";
+                    localStatus = mountUsesFullCache ? "Status: mounted on " + GetDriveRoot() + " - full cache" : "Status: mounted on " + GetDriveRoot() + " - low overhead";
                 }
                 else
                 {
@@ -912,7 +986,7 @@ namespace Pixelpipe
                 bool refreshAbout = forceAbout || (DateTime.UtcNow - lastAboutRefreshUtc).TotalSeconds > 120;
                 if (refreshAbout)
                 {
-                    string about = RunRcloneCapture("about " + RemoteName + " --json", 7000);
+                    string about = RunRcloneCapture("about " + remoteName + " --json", 7000);
                     if (!String.IsNullOrEmpty(about))
                     {
                         long used = ExtractLong(about, "used");
@@ -1042,14 +1116,7 @@ namespace Pixelpipe
 
         private void ClearApiKey()
         {
-            try
-            {
-                using (RegistryKey key = SettingsKey(true))
-                {
-                    key.DeleteValue("PixeldrainApiKeyProtected", false);
-                }
-            }
-            catch { }
+            try { DeleteSetting("PixeldrainApiKeyProtected"); } catch { }
             transferQuotaText = "Transfer quota: API key not set";
             UpdateMenuText();
             ShowBalloon("PixelDrain API key cleared.");
@@ -1061,10 +1128,7 @@ namespace Pixelpipe
             {
                 byte[] plain = Encoding.UTF8.GetBytes(apiKey ?? "");
                 byte[] protectedBytes = ProtectedData.Protect(plain, null, DataProtectionScope.CurrentUser);
-                using (RegistryKey key = SettingsKey(true))
-                {
-                    key.SetValue("PixeldrainApiKeyProtected", Convert.ToBase64String(protectedBytes), RegistryValueKind.String);
-                }
+                SaveSetting("PixeldrainApiKeyProtected", Convert.ToBase64String(protectedBytes));
             }
             catch (Exception ex)
             {
@@ -1363,7 +1427,11 @@ namespace Pixelpipe
             mountFullItem.Enabled = !mounted;
             unmountItem.Enabled = mounted;
             openDriveItem.Enabled = mounted;
+            openDriveItem.Text = "Open " + GetDriveRoot();
             startupItem.Checked = StartupEnabled();
+            autoRemountItem.Checked = autoRemount;
+            UpdateDriveMenuChecks();
+            UpdateMountModeChecks();
             apiKeyStatusItem.Text = ApiKeyConfigured() ? "API key: configured" : "API key: not set";
             clearApiKeyItem.Enabled = ApiKeyConfigured();
             setupStatusItem.Text = setupStatusText;
@@ -1377,7 +1445,7 @@ namespace Pixelpipe
                 string tag = bandwidthChoices[i].Tag as string;
                 bandwidthChoices[i].Checked = String.Equals(tag, selectedBandwidth, StringComparison.OrdinalIgnoreCase);
             }
-            tray.Text = mounted ? "Pixelpipe mounted on P:" : "Pixelpipe not mounted";
+            tray.Text = mounted ? "Pixelpipe mounted on " + driveLetter : "Pixelpipe not mounted";
         }
 
         private void ShowBalloon(string message)
@@ -1434,8 +1502,11 @@ namespace Pixelpipe
             sb.AppendLine("Running elevated: " + IsAdministrator());
             sb.AppendLine("rclone path: " + rclonePath);
             sb.AppendLine("mount process running: " + IsMounted());
-            sb.AppendLine("drive: " + DriveLetter);
-            sb.AppendLine("remote: " + RemoteName);
+            sb.AppendLine("drive: " + driveLetter);
+            sb.AppendLine("remote: " + remoteName);
+            sb.AppendLine("mount mode: " + mountMode);
+            sb.AppendLine("auto-remount: " + autoRemount);
+            sb.AppendLine("settings file: " + settingsFile);
             sb.AppendLine("rc address: " + RcAddress);
             sb.AppendLine("log file: " + logFile);
             sb.AppendLine();
@@ -1463,8 +1534,57 @@ namespace Pixelpipe
             return Registry.CurrentUser.OpenSubKey(@"Software\" + LegacyAppName, false);
         }
 
+        private Dictionary<string, string> ReadSettingsJson()
+        {
+            try
+            {
+                if (String.IsNullOrWhiteSpace(settingsFile))
+                {
+                    string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), AppName);
+                    settingsFile = Path.Combine(dir, "settings.json");
+                }
+                if (!File.Exists(settingsFile)) return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                string json = File.ReadAllText(settingsFile, Encoding.UTF8);
+                JavaScriptSerializer js = new JavaScriptSerializer();
+                Dictionary<string, object> obj = js.DeserializeObject(json) as Dictionary<string, object>;
+                Dictionary<string, string> result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                if (obj != null)
+                {
+                    foreach (KeyValuePair<string, object> kv in obj)
+                        result[kv.Key] = kv.Value == null ? "" : Convert.ToString(kv.Value, System.Globalization.CultureInfo.InvariantCulture);
+                }
+                return result;
+            }
+            catch { return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase); }
+        }
+
+        private void WriteSettingsJson(Dictionary<string, string> values)
+        {
+            try
+            {
+                Directory.CreateDirectory(settingsDir ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), AppName));
+                JavaScriptSerializer js = new JavaScriptSerializer();
+                File.WriteAllText(settingsFile, PrettyJson(js.Serialize(values)), Encoding.UTF8);
+            }
+            catch { }
+        }
+
+        private string PrettyJson(string compact)
+        {
+            // Keep this dependency-free; valid compact JSON is better than a fragile formatter.
+            return compact;
+        }
+
         private string LoadProtectedSetting(string name)
         {
+            try
+            {
+                Dictionary<string, string> json = ReadSettingsJson();
+                string value;
+                if (json.TryGetValue(name, out value)) return value;
+            }
+            catch { }
+
             try
             {
                 using (RegistryKey key = SettingsKey(false))
@@ -1498,12 +1618,405 @@ namespace Pixelpipe
         {
             try
             {
-                using (RegistryKey key = SettingsKey(true))
-                {
-                    key.SetValue(name, value, RegistryValueKind.String);
-                }
+                Dictionary<string, string> json = ReadSettingsJson();
+                json[name] = value ?? "";
+                WriteSettingsJson(json);
             }
             catch { }
+        }
+
+        private void DeleteSetting(string name)
+        {
+            try
+            {
+                Dictionary<string, string> json = ReadSettingsJson();
+                if (json.Remove(name)) WriteSettingsJson(json);
+            }
+            catch { }
+            try
+            {
+                using (RegistryKey key = SettingsKey(true)) { key.DeleteValue(name, false); }
+            }
+            catch { }
+        }
+
+        private string NormalizeDriveLetter(string value)
+        {
+            if (String.IsNullOrWhiteSpace(value)) return DefaultDriveLetter;
+            string v = value.Trim().ToUpperInvariant();
+            if (v.Length == 1 && v[0] >= 'A' && v[0] <= 'Z') return v + ":";
+            if (v.Length >= 2 && v[1] == ':' && v[0] >= 'A' && v[0] <= 'Z') return v.Substring(0, 2);
+            return DefaultDriveLetter;
+        }
+
+        private string NormalizeRemoteName(string value)
+        {
+            if (String.IsNullOrWhiteSpace(value)) return DefaultRemoteName;
+            string v = value.Trim();
+            return v.EndsWith(":") ? v : v + ":";
+        }
+
+        private string RemoteNameBare()
+        {
+            string v = remoteName ?? DefaultRemoteName;
+            return v.EndsWith(":") ? v.Substring(0, v.Length - 1) : v;
+        }
+
+        private string GetDriveRoot()
+        {
+            return NormalizeDriveLetter(driveLetter) + "\\";
+        }
+
+        private void AddDriveChoice(string letter)
+        {
+            ToolStripMenuItem item = new ToolStripMenuItem(letter, null, delegate(object sender, EventArgs e)
+            {
+                ToolStripMenuItem clicked = sender as ToolStripMenuItem;
+                if (clicked != null) SetDriveLetterInternal(Convert.ToString(clicked.Tag), true);
+            });
+            item.Tag = letter;
+            driveMenu.DropDownItems.Add(item);
+        }
+
+        private void SetDriveLetterInternal(string value, bool notify)
+        {
+            string normalized = NormalizeDriveLetter(value);
+            if (IsMounted())
+            {
+                MessageBox.Show("Unmount Pixelpipe before changing the drive letter.", "Pixelpipe", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            driveLetter = normalized;
+            SaveSetting("DriveLetter", driveLetter);
+            UpdateMenuText();
+            if (notify) ShowBalloon("Drive letter set to " + driveLetter);
+        }
+
+        private void SetCustomDriveLetter()
+        {
+            string value = PromptForValue("Custom drive letter", "Enter a drive letter such as P: or X:", driveLetter);
+            if (value != null) SetDriveLetterInternal(value, true);
+        }
+
+        private void SetMountMode(string value)
+        {
+            if (IsMounted())
+            {
+                MessageBox.Show("Unmount Pixelpipe before changing mount mode.", "Pixelpipe", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            mountMode = String.Equals(value, "fixed", StringComparison.OrdinalIgnoreCase) ? "fixed" : "network";
+            SaveSetting("MountMode", mountMode);
+            UpdateMenuText();
+            ShowBalloon("Mount mode: " + mountMode);
+        }
+
+        private void ToggleAutoRemount()
+        {
+            autoRemount = !autoRemount;
+            SaveSetting("AutoRemount", autoRemount ? "1" : "0");
+            UpdateMenuText();
+            ShowBalloon(autoRemount ? "Auto-remount enabled." : "Auto-remount disabled.");
+        }
+
+        private void UpdateDriveMenuChecks()
+        {
+            if (driveMenu == null) return;
+            foreach (ToolStripItem tsi in driveMenu.DropDownItems)
+            {
+                ToolStripMenuItem item = tsi as ToolStripMenuItem;
+                if (item != null && item.Tag != null)
+                    item.Checked = String.Equals(NormalizeDriveLetter(Convert.ToString(item.Tag)), driveLetter, StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
+        private void UpdateMountModeChecks()
+        {
+            if (mountModeMenu == null) return;
+            foreach (ToolStripItem tsi in mountModeMenu.DropDownItems)
+            {
+                ToolStripMenuItem item = tsi as ToolStripMenuItem;
+                if (item != null && item.Tag != null)
+                    item.Checked = String.Equals(Convert.ToString(item.Tag), mountMode, StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
+        private void SetCustomBandwidth()
+        {
+            string value = PromptForValue("Custom bandwidth limit", "Examples: 512K, 1M, 10M, 50M. Use off for unlimited.", selectedBandwidth);
+            if (value == null) return;
+            value = value.Trim();
+            if (value.Length == 0) return;
+            SetBandwidth(value);
+        }
+
+        private string PromptForValue(string title, string message, string current)
+        {
+            using (Form form = new Form())
+            using (Label label = new Label())
+            using (TextBox textBox = new TextBox())
+            using (Button ok = new Button())
+            using (Button cancel = new Button())
+            {
+                form.Text = title;
+                form.StartPosition = FormStartPosition.CenterScreen;
+                form.FormBorderStyle = FormBorderStyle.FixedDialog;
+                form.MinimizeBox = false;
+                form.MaximizeBox = false;
+                form.Width = 520;
+                form.Height = 160;
+                form.BackColor = Color.FromArgb(18, 22, 28);
+                form.ForeColor = Color.WhiteSmoke;
+
+                label.Left = 12;
+                label.Top = 12;
+                label.Width = 480;
+                label.Height = 36;
+                label.Text = message;
+                label.ForeColor = Color.WhiteSmoke;
+
+                textBox.Left = 12;
+                textBox.Top = 54;
+                textBox.Width = 480;
+                textBox.Text = current ?? "";
+                textBox.SelectAll();
+
+                ok.Text = "Save";
+                ok.Left = 316;
+                ok.Top = 88;
+                ok.Width = 84;
+                ok.DialogResult = DialogResult.OK;
+                cancel.Text = "Cancel";
+                cancel.Left = 408;
+                cancel.Top = 88;
+                cancel.Width = 84;
+                cancel.DialogResult = DialogResult.Cancel;
+
+                form.Controls.Add(label);
+                form.Controls.Add(textBox);
+                form.Controls.Add(ok);
+                form.Controls.Add(cancel);
+                form.AcceptButton = ok;
+                form.CancelButton = cancel;
+                return form.ShowDialog() == DialogResult.OK ? textBox.Text : null;
+            }
+        }
+
+        private void MonitorMountHealth()
+        {
+            try
+            {
+                if (!autoRemount || !desiredMounted || mountProcess == null) return;
+                bool exited = false;
+                try { exited = mountProcess.HasExited; } catch { exited = true; }
+                if (!exited) return;
+
+                DateTime now = DateTime.UtcNow;
+                if ((now - remountWindowUtc).TotalMinutes > 5)
+                {
+                    remountWindowUtc = now;
+                    remountAttempts = 0;
+                }
+                remountAttempts++;
+                if (remountAttempts > 3)
+                {
+                    desiredMounted = false;
+                    statusText = "Status: auto-remount stopped after repeated failures";
+                    UpdateMenuText();
+                    ShowBalloon("Auto-remount stopped after repeated failures. Open diagnostics.");
+                    return;
+                }
+                statusText = "Status: rclone exited; auto-remounting...";
+                UpdateMenuText();
+                Mount(mountUsesFullCache);
+            }
+            catch { }
+        }
+
+        private void CleanStaleDriveMappings(bool show)
+        {
+            try { RunProcessCapture("cmd.exe", "/c net use " + driveLetter + " /delete /y", 2500); } catch { }
+            try { RunProcessCapture("mountvol.exe", driveLetter + " /D", 2500); } catch { }
+            if (show) ShowBalloon("Stale mapping cleanup attempted for " + driveLetter);
+        }
+
+        private void ApplyTrayMenuTheme(ContextMenuStrip strip)
+        {
+            try
+            {
+                strip.Renderer = new PixelpipeMenuRenderer();
+                strip.BackColor = Color.FromArgb(14, 18, 24);
+                strip.ForeColor = Color.FromArgb(230, 237, 243);
+                strip.Font = new Font("Segoe UI", 9.25f, FontStyle.Regular);
+                strip.ShowImageMargin = false;
+                strip.Padding = new Padding(8, 8, 8, 8);
+            }
+            catch { }
+        }
+
+        private void OpenSettingsFile()
+        {
+            try
+            {
+                Directory.CreateDirectory(settingsDir);
+                if (!File.Exists(settingsFile)) SaveSetting("CreatedBy", AppName);
+                Process.Start("notepad.exe", Quote(settingsFile));
+            }
+            catch (Exception ex) { MessageBox.Show(ex.Message, "Pixelpipe", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+        }
+
+        private void CheckForUpdates()
+        {
+            try { Process.Start("https://github.com/NathanNeurotic/Pixelpipe/releases/latest"); }
+            catch (Exception ex) { MessageBox.Show(ex.Message, "Pixelpipe update check", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+        }
+
+        private void ShowSettingsWindow()
+        {
+            using (Form form = new Form())
+            using (Label title = new Label())
+            using (Label remoteLabel = new Label())
+            using (TextBox remoteBox = new TextBox())
+            using (Label driveLabel = new Label())
+            using (TextBox driveBox = new TextBox())
+            using (CheckBox networkBox = new CheckBox())
+            using (CheckBox remountBox = new CheckBox())
+            using (Button save = new Button())
+            using (Button cancel = new Button())
+            {
+                form.Text = "Pixelpipe settings";
+                form.StartPosition = FormStartPosition.CenterScreen;
+                form.FormBorderStyle = FormBorderStyle.FixedDialog;
+                form.MinimizeBox = false;
+                form.MaximizeBox = false;
+                form.Width = 540;
+                form.Height = 300;
+                form.BackColor = Color.FromArgb(18, 22, 28);
+                form.ForeColor = Color.WhiteSmoke;
+
+                title.Text = "Pixelpipe settings";
+                title.Font = new Font("Segoe UI", 13f, FontStyle.Bold);
+                title.Left = 14; title.Top = 14; title.Width = 480; title.Height = 30;
+
+                remoteLabel.Text = "rclone remote name";
+                remoteLabel.Left = 14; remoteLabel.Top = 58; remoteLabel.Width = 200;
+                remoteBox.Left = 180; remoteBox.Top = 54; remoteBox.Width = 320; remoteBox.Text = remoteName;
+
+                driveLabel.Text = "Drive letter";
+                driveLabel.Left = 14; driveLabel.Top = 94; driveLabel.Width = 200;
+                driveBox.Left = 180; driveBox.Top = 90; driveBox.Width = 80; driveBox.Text = driveLetter;
+
+                networkBox.Text = "Mount as network drive (recommended for This PC visibility)";
+                networkBox.Left = 14; networkBox.Top = 132; networkBox.Width = 470;
+                networkBox.Checked = String.Equals(mountMode, "network", StringComparison.OrdinalIgnoreCase);
+                networkBox.ForeColor = Color.WhiteSmoke;
+
+                remountBox.Text = "Auto-remount if rclone exits unexpectedly";
+                remountBox.Left = 14; remountBox.Top = 162; remountBox.Width = 470;
+                remountBox.Checked = autoRemount;
+                remountBox.ForeColor = Color.WhiteSmoke;
+
+                save.Text = "Save"; save.Left = 324; save.Top = 216; save.Width = 84; save.DialogResult = DialogResult.OK;
+                cancel.Text = "Cancel"; cancel.Left = 416; cancel.Top = 216; cancel.Width = 84; cancel.DialogResult = DialogResult.Cancel;
+
+                form.Controls.Add(title); form.Controls.Add(remoteLabel); form.Controls.Add(remoteBox); form.Controls.Add(driveLabel); form.Controls.Add(driveBox);
+                form.Controls.Add(networkBox); form.Controls.Add(remountBox); form.Controls.Add(save); form.Controls.Add(cancel);
+                form.AcceptButton = save; form.CancelButton = cancel;
+
+                if (form.ShowDialog() == DialogResult.OK)
+                {
+                    if (IsMounted())
+                    {
+                        MessageBox.Show("Unmount Pixelpipe before changing remote, drive, or mount mode.", "Pixelpipe", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        return;
+                    }
+                    remoteName = NormalizeRemoteName(remoteBox.Text);
+                    driveLetter = NormalizeDriveLetter(driveBox.Text);
+                    mountMode = networkBox.Checked ? "network" : "fixed";
+                    autoRemount = remountBox.Checked;
+                    SaveSetting("RemoteName", remoteName);
+                    SaveSetting("DriveLetter", driveLetter);
+                    SaveSetting("MountMode", mountMode);
+                    SaveSetting("AutoRemount", autoRemount ? "1" : "0");
+                    UpdateMenuText();
+                    ShowBalloon("Settings saved.");
+                }
+            }
+        }
+
+        private void ShowDiagnosticsWindow()
+        {
+            Form form = new Form();
+            form.Text = "Pixelpipe diagnostics / repair";
+            form.StartPosition = FormStartPosition.CenterScreen;
+            form.Width = 760;
+            form.Height = 560;
+            form.BackColor = Color.FromArgb(18, 22, 28);
+            form.ForeColor = Color.WhiteSmoke;
+
+            TextBox box = new TextBox();
+            box.Multiline = true;
+            box.ReadOnly = true;
+            box.ScrollBars = ScrollBars.Vertical;
+            box.Font = new Font("Consolas", 9f);
+            box.Left = 12; box.Top = 12; box.Width = 720; box.Height = 360;
+            box.Text = BuildDiagnosticsText();
+
+            Button refresh = new Button(); refresh.Text = "Refresh"; refresh.Left = 12; refresh.Top = 390; refresh.Width = 90;
+            refresh.Click += delegate { box.Text = BuildDiagnosticsText(); };
+            Button copy = new Button(); copy.Text = "Copy"; copy.Left = 110; copy.Top = 390; copy.Width = 90;
+            copy.Click += delegate { Clipboard.SetText(box.Text); };
+            Button installRclone = new Button(); installRclone.Text = "Install rclone"; installRclone.Left = 208; installRclone.Top = 390; installRclone.Width = 110;
+            installRclone.Click += delegate { DownloadRclonePortableWithUi(); box.Text = BuildDiagnosticsText(); };
+            Button installWinFsp = new Button(); installWinFsp.Text = "Install WinFsp"; installWinFsp.Left = 326; installWinFsp.Top = 390; installWinFsp.Width = 110;
+            installWinFsp.Click += delegate { InstallWinFspWithWinget(); };
+            Button configRemote = new Button(); configRemote.Text = "Configure remote"; configRemote.Left = 444; configRemote.Top = 390; configRemote.Width = 120;
+            configRemote.Click += delegate { ConfigurePixeldrainRemoteFromPrompt(); box.Text = BuildDiagnosticsText(); };
+            Button cleanup = new Button(); cleanup.Text = "Clear stale drive"; cleanup.Left = 572; cleanup.Top = 390; cleanup.Width = 130;
+            cleanup.Click += delegate { CleanStaleDriveMappings(true); box.Text = BuildDiagnosticsText(); };
+
+            Button restart = new Button(); restart.Text = "Restart mount"; restart.Left = 12; restart.Top = 430; restart.Width = 120;
+            restart.Click += delegate { bool full = mountUsesFullCache; Unmount(); Mount(full); };
+            Button logs = new Button(); logs.Text = "Open logs"; logs.Left = 140; logs.Top = 430; logs.Width = 100;
+            logs.Click += delegate { try { Directory.CreateDirectory(logDir); Process.Start(logDir); } catch { } };
+            Button settings = new Button(); settings.Text = "Open settings"; settings.Left = 248; settings.Top = 430; settings.Width = 110;
+            settings.Click += delegate { OpenSettingsFile(); };
+            Button close = new Button(); close.Text = "Close"; close.Left = 612; close.Top = 470; close.Width = 90;
+            close.Click += delegate { form.Close(); };
+
+            form.Controls.Add(box); form.Controls.Add(refresh); form.Controls.Add(copy); form.Controls.Add(installRclone); form.Controls.Add(installWinFsp);
+            form.Controls.Add(configRemote); form.Controls.Add(cleanup); form.Controls.Add(restart); form.Controls.Add(logs); form.Controls.Add(settings); form.Controls.Add(close);
+            form.Show();
+        }
+
+        private string BuildDiagnosticsText()
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.AppendLine("Pixelpipe diagnostics");
+            sb.AppendLine("Generated: " + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+            sb.AppendLine("Status: " + statusText);
+            sb.AppendLine("Storage: " + storageText);
+            sb.AppendLine("Transfer quota: " + transferQuotaText);
+            sb.AppendLine("Session: " + sessionText);
+            sb.AppendLine("Speed: " + speedText);
+            sb.AppendLine("Bandwidth: " + DisplayLimit(selectedBandwidth));
+            sb.AppendLine("Running elevated: " + IsAdministrator());
+            sb.AppendLine("rclone available: " + RcloneAvailable());
+            sb.AppendLine("rclone path: " + rclonePath);
+            sb.AppendLine("WinFsp installed: " + WinFspInstalled());
+            sb.AppendLine("remote configured: " + RemoteConfigured());
+            sb.AppendLine("mount process running: " + IsMounted());
+            sb.AppendLine("drive: " + driveLetter);
+            sb.AppendLine("remote: " + remoteName);
+            sb.AppendLine("mount mode: " + mountMode);
+            sb.AppendLine("auto-remount: " + autoRemount);
+            sb.AppendLine("rc address: " + RcAddress);
+            sb.AppendLine("settings file: " + settingsFile);
+            sb.AppendLine("log file: " + logFile);
+            sb.AppendLine();
+            sb.AppendLine("Last rclone log tail:");
+            sb.AppendLine(TailLog(4000));
+            return sb.ToString();
         }
 
         private bool StartupEnabled()
@@ -1571,5 +2084,36 @@ namespace Pixelpipe
             }
             catch { }
         }
+    }
+
+    internal sealed class PixelpipeMenuRenderer : ToolStripProfessionalRenderer
+    {
+        public PixelpipeMenuRenderer() : base(new PixelpipeColorTable()) { }
+
+        protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
+        {
+            if (!e.Item.Enabled) e.TextColor = Color.FromArgb(128, 139, 150);
+            else e.TextColor = Color.FromArgb(230, 237, 243);
+            base.OnRenderItemText(e);
+        }
+
+        protected override void OnRenderSeparator(ToolStripSeparatorRenderEventArgs e)
+        {
+            Rectangle rect = new Rectangle(8, e.Item.Height / 2, e.Item.Width - 16, 1);
+            using (Pen p = new Pen(Color.FromArgb(48, 54, 61))) e.Graphics.DrawLine(p, rect.Left, rect.Top, rect.Right, rect.Top);
+        }
+    }
+
+    internal sealed class PixelpipeColorTable : ProfessionalColorTable
+    {
+        public override Color ToolStripDropDownBackground { get { return Color.FromArgb(14, 18, 24); } }
+        public override Color ImageMarginGradientBegin { get { return Color.FromArgb(14, 18, 24); } }
+        public override Color ImageMarginGradientMiddle { get { return Color.FromArgb(14, 18, 24); } }
+        public override Color ImageMarginGradientEnd { get { return Color.FromArgb(14, 18, 24); } }
+        public override Color MenuItemSelected { get { return Color.FromArgb(31, 111, 235); } }
+        public override Color MenuItemBorder { get { return Color.FromArgb(88, 166, 255); } }
+        public override Color MenuBorder { get { return Color.FromArgb(48, 54, 61); } }
+        public override Color SeparatorDark { get { return Color.FromArgb(48, 54, 61); } }
+        public override Color SeparatorLight { get { return Color.FromArgb(48, 54, 61); } }
     }
 }

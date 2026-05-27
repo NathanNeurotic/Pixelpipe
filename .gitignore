@@ -1,10 +1,22 @@
+# Build output
+dist/
 bin/
 obj/
-dist/
+*.exe
+*.pdb
+*.zip
+*.msi
+*.log
+
+# Local settings / editor noise
+.vs/
+.vscode/
+.idea/
 *.user
 *.suo
-*.log
-*.zip
-*.exe
-.vs/
-.DS_Store
+*.tmp
+
+# Do not commit local secrets/config dumps
+settings.json
+*.key
+*.token

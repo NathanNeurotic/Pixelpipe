@@ -1,151 +1,254 @@
-<img width="1774" height="887" src="https://github.com/user-attachments/assets/dd2e7ad4-2456-429e-8791-72813bae058d" />
-
-
 # Pixelpipe
-*for https://pixeldrain.com/*
-A small Windows tray utility that mounts your PixelDrain filesystem as a drive through rclone, with live storage/traffic status, transfer quota display, bandwidth limit controls, startup auto-mount, and first-launch dependency setup.
+
+Pixelpipe is a small Windows tray app for mounting your PixelDrain filesystem as a Windows drive through rclone.
+
+It is built around one goal: make PixelDrain filesystem access feel like a normal drive, without keeping a console window open.
+
+![Pixelpipe tray menu mockup](docs/assets/tray-menu-mockup.svg)
 
 ## Features
 
-- Mount/unmount your PixelDrain rclone remote `Pixeldrain:` as `P:\` from the system tray.
-- First-launch setup wizard for rclone, WinFsp, PixelDrain remote configuration, and optional API key storage.
-- Downloads portable rclone to `%USERPROFILE%\Apps\rclone\rclone.exe` when rclone is missing.
-- Uses winget for optional rclone/WinFsp installation paths.
-- Prompts for a PixelDrain API key for quota display and stores it encrypted with Windows DPAPI for the current Windows user.
-- Shows storage usage, monthly transfer quota, session traffic, current speed, and bandwidth limit in the tray menu.
-- Supports live rclone bandwidth limit changes through rclone RC.
-- Uses `--network-mode` so the mount is more likely to show in Windows “This PC”.
-- Normal-user startup support. Do not run as Administrator unless you intentionally want an elevated-only mount.
+- Mount and unmount PixelDrain from the Windows system tray.
+- First-run setup wizard for rclone, WinFsp, the PixelDrain rclone remote, drive letter, startup behavior, and optional API key.
+- Dependency checks for rclone, WinFsp, and winget.
+- Portable rclone download fallback when rclone is missing.
+- Optional winget install paths for rclone and WinFsp.
+- Optional PixelDrain API key storage for account usage and transfer quota display.
+- API key is encrypted for the current Windows user with DPAPI.
+- Live tray menu status for mount state, storage usage, transfer quota, session traffic, current speed, and bandwidth limit.
+- Live rclone bandwidth control through rclone RC.
+- Drive-letter selector. Defaults to `P:` but supports custom letters.
+- Network-drive mount mode by default for better `This PC` visibility.
+- Fixed-drive mount mode as an alternate option.
+- Auto-remount option if rclone exits unexpectedly.
+- Themed dark tray menu instead of the generic plain Windows menu look.
+- Diagnostics / repair window with copyable diagnostics, dependency repair actions, stale drive cleanup, log access, and restart mount action.
+- Normal-user startup support.
+- GitHub Actions rolling release build on every push.
+- Optional Inno Setup installer script.
 
 ## Requirements
 
-- Windows 10/11.
-- PixelDrain filesystem access. PixelDrain’s rclone backend is for the paid/prepaid filesystem feature, not normal free one-off PixelDrain links.
-- WinFsp for Windows filesystem mounting.
-- rclone with PixelDrain backend support.
+Pixelpipe is for Windows 10/11.
 
-The app can help install/configure the pieces, but WinFsp is a system filesystem driver and may require UAC/admin approval.
+Under the hood it uses:
+
+- rclone
+- WinFsp
+- A configured rclone PixelDrain remote
+- PixelDrain filesystem access
+
+Pixelpipe does not turn normal public PixelDrain file links into a writable filesystem. It is meant for PixelDrain's filesystem feature as exposed through rclone's PixelDrain backend.
 
 ## Quick start
 
-1. Download or build `Pixelpipe.exe`.
-2. Run it normally. Do **not** run as Administrator.
-3. On first launch, follow the setup prompts.
-4. Right-click the tray icon and choose `Mount Pixelpipe - low overhead`.
-5. Open `P:\` from the tray menu or from Windows Explorer.
+Download `Pixelpipe.exe` from the latest release or rolling release, then run it normally.
 
-## Building from source
+Do not run Pixelpipe as Administrator unless you specifically need an elevated mount. Admin-mounted drives can be hidden from normal File Explorer.
 
-Double-click:
+On first launch, Pixelpipe checks:
 
-```bat
-Build-Pixelpipe.bat
-```
+1. rclone
+2. WinFsp
+3. the `Pixeldrain:` rclone remote
+4. optional PixelDrain API key for quota display
+5. drive letter
+6. startup preference
 
-The output is written to:
+The default drive letter is:
 
 ```text
-%USERPROFILE%\Desktop\Pixelpipe.exe
+P:
 ```
 
-Or from PowerShell:
+## First-run setup behavior
+
+If rclone is missing, Pixelpipe can:
+
+- download the portable Windows rclone build into `%USERPROFILE%\Apps\rclone`, or
+- attempt installation through winget.
+
+If WinFsp is missing, Pixelpipe can attempt installation through winget. A restart may be required after installing WinFsp.
+
+If winget is missing, Pixelpipe opens the Microsoft App Installer / winget help path instead of pretending it can silently repair Windows package management.
+
+## API key and quota display
+
+The PixelDrain API key is optional.
+
+Without it:
+
+- mounting can still work if your rclone remote is already configured;
+- transfer quota display will be unavailable.
+
+With it:
+
+- Pixelpipe can configure the rclone remote;
+- Pixelpipe can show transfer quota and recent transfer usage;
+- the key is encrypted with Windows DPAPI for the current Windows user.
+
+The encrypted key is stored in:
+
+```text
+%APPDATA%\Pixelpipe\settings.json
+```
+
+The raw key is not intentionally written to logs or plain config by Pixelpipe. rclone may store its own obscured remote credentials in rclone's config.
+
+## Tray menu
+
+The tray menu contains:
+
+```text
+Status
+Storage usage
+Transfer quota
+Session traffic
+Current speed
+Bandwidth limit
+
+Mount / Unmount
+Open drive
+Bandwidth limit profiles
+Drive letter selector
+Mount mode selector
+Auto-remount toggle
+PixelDrain API key controls
+Setup / dependencies
+Settings
+Refresh usage
+Open log
+Open settings file
+Diagnostics / repair
+Copy diagnostics
+Check for updates
+Startup toggle
+Exit
+```
+
+## Bandwidth limits
+
+Built-in profiles include:
+
+```text
+Unlimited
+1 MB/s
+5 MB/s
+10 MB/s
+25 MB/s
+50 MB/s
+100 MB/s
+250 MB/s
+Custom...
+```
+
+When mounted, Pixelpipe changes the live rclone bandwidth limit through rclone RC. When unmounted, the value is saved and applied to the next mount.
+
+## Settings and logs
+
+Settings:
+
+```text
+%APPDATA%\Pixelpipe\settings.json
+```
+
+Logs:
+
+```text
+%LOCALAPPDATA%\Pixelpipe\logs\
+```
+
+Main rclone log:
+
+```text
+%LOCALAPPDATA%\Pixelpipe\logs\rclone-mount.log
+```
+
+## Building locally
+
+From the repo root:
 
 ```powershell
 .\scripts\build-release.ps1
 ```
 
-The project intentionally uses classic .NET Framework WinForms and `csc.exe` so it can build on a stock Windows machine without a heavyweight project system.
-
-## First-launch setup behavior
-
-On first run, the app checks:
-
-- `rclone.exe`
-- WinFsp
-- the `Pixeldrain:` rclone remote
-- optional PixelDrain API key for quota display
-
-If rclone is missing, the app can download the official portable Windows AMD64 rclone zip and copy `rclone.exe` to:
+Or double-click:
 
 ```text
-%USERPROFILE%\Apps\rclone\rclone.exe
+Build-Pixelpipe.bat
 ```
 
-If WinFsp is missing, the app offers to install it through winget:
+The double-click build writes:
+
+```text
+%USERPROFILE%\Desktop\Pixelpipe.exe
+```
+
+The release build writes:
+
+```text
+dist\Pixelpipe.exe
+```
+
+## Building the installer
+
+Install Inno Setup 6, then run:
 
 ```powershell
-winget install -e --id WinFsp.WinFsp --accept-package-agreements --accept-source-agreements
+.\scripts\build-release.ps1
+.\scripts\build-installer.ps1
 ```
 
-If winget is missing, the app opens Microsoft’s winget/App Installer help and Store page.
+Expected installer output:
 
-## PixelDrain API key
+```text
+dist\Pixelpipe-Setup.exe
+```
 
-The API key is used for two separate things:
+## Rolling release CI
 
-1. rclone remote configuration for your PixelDrain filesystem.
-2. Optional transfer quota display in the tray menu.
+The GitHub Actions workflow builds on every push to `main` or `master`.
 
-When saved for quota display, the key is encrypted with Windows DPAPI using `DataProtectionScope.CurrentUser`. That means the stored secret is tied to the current Windows user profile.
+Push builds update the `rolling` prerelease and upload:
 
-## Bandwidth limits
+```text
+Pixelpipe.exe
+Pixelpipe-Windows-x64.zip
+Pixelpipe-Setup.exe, if installer build succeeds
+SHA256SUMS.txt
+```
 
-The tray menu can set live limits such as:
-
-- Unlimited
-- 1 MB/s
-- 5 MB/s
-- 10 MB/s
-- 25 MB/s
-- 50 MB/s
-- 100 MB/s
-- 250 MB/s
-
-The running rclone mount is started with rclone Remote Control enabled on localhost, and the app sends `core/bwlimit` updates to that local rclone instance.
+Pull requests build artifacts only and do not publish a release.
 
 ## Troubleshooting
 
-### P:\ does not appear in This PC
-
-Make sure the tray app was started normally, not as Administrator. Elevated mounts can be invisible to normal Explorer.
-
-Then use:
-
-```powershell
-Test-Path P:\
-net use
-Get-Process rclone
-```
-
-Also check the tray menu:
+Use:
 
 ```text
-Open rclone log
-Copy diagnostics
+Right-click tray icon -> Diagnostics / repair...
 ```
 
-### Mount fails immediately
+That window can:
 
-Common causes:
+- check rclone;
+- check WinFsp;
+- check the rclone remote;
+- copy diagnostics;
+- open logs;
+- configure the remote;
+- clear stale drive mappings;
+- restart the mount.
 
-- WinFsp is missing.
-- `P:` is already in use.
-- `Pixeldrain:` is not configured in rclone.
-- `rclone.exe` is set to “Run this program as administrator” in Compatibility settings.
-- PixelDrain filesystem plan/API key does not have filesystem access.
-
-### The app asks to install dependencies but nothing happens
-
-Open `Setup / dependencies` from the tray menu and run the installers manually. WinFsp installation may need UAC approval.
+More details are in [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
 
 ## Security notes
 
-- The app does not bundle rclone or WinFsp binaries.
-- Portable rclone download uses the official rclone current Windows AMD64 zip URL.
-- API key storage uses Windows DPAPI for the current Windows user.
-- rclone RC is bound to `127.0.0.1` only.
-- No telemetry is included.
+- Pixelpipe should run as your normal Windows user.
+- Do not run it as Administrator by default.
+- API key storage uses Windows DPAPI for the current user.
+- Builds are unsigned unless you sign them yourself.
+- Unsigned EXEs downloaded from GitHub may trigger SmartScreen.
 
 ## License
 
-MIT. See `LICENSE`.
+MIT. See [LICENSE](LICENSE).
