@@ -1,5 +1,8 @@
-# Pixelpipe
+<img width="1774" height="887" src="https://github.com/user-attachments/assets/dd2e7ad4-2456-429e-8791-72813bae058d" />
 
+
+# Pixelpipe
+*for https://pixeldrain.com/*
 A small Windows tray utility that mounts your PixelDrain filesystem as a drive through rclone, with live storage/traffic status, transfer quota display, bandwidth limit controls, startup auto-mount, and first-launch dependency setup.
 
 ## Features
