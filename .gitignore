@@ -1,0 +1,10 @@
+bin/
+obj/
+dist/
+*.user
+*.suo
+*.log
+*.zip
+*.exe
+.vs/
+.DS_Store

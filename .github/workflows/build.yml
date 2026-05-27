@@ -1,0 +1,21 @@
+name: Build Windows EXE
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        shell: pwsh
+        run: .\scripts\build-release.ps1
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pixelpipe
+          path: dist/Pixelpipe.exe
