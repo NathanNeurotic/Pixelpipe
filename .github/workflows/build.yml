@@ -1,4 +1,4 @@
-name: Build Windows EXE
+name: Build and Rolling Release
 
 on:
   push:
@@ -6,16 +6,102 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: windows-latest
+
     steps:
-      - uses: actions/checkout@v4
-      - name: Build
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build Pixelpipe
         shell: pwsh
         run: .\scripts\build-release.ps1
-      - name: Upload artifact
+
+      - name: Prepare release files
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $Dist = Join-Path $PWD 'dist'
+          $Exe = Join-Path $Dist 'Pixelpipe.exe'
+          if (!(Test-Path $Exe)) { throw "Build output missing: $Exe" }
+
+          $Zip = Join-Path $Dist 'Pixelpipe-Windows-x64.zip'
+          if (Test-Path $Zip) { Remove-Item $Zip -Force }
+          Compress-Archive -Path $Exe, README.md, LICENSE -DestinationPath $Zip -Force
+
+          Push-Location $Dist
+          Get-FileHash Pixelpipe.exe -Algorithm SHA256 |
+            ForEach-Object { "$($_.Hash)  Pixelpipe.exe" } |
+            Set-Content SHA256SUMS.txt -Encoding ASCII
+          Get-FileHash Pixelpipe-Windows-x64.zip -Algorithm SHA256 |
+            ForEach-Object { "$($_.Hash)  Pixelpipe-Windows-x64.zip" } |
+            Add-Content SHA256SUMS.txt -Encoding ASCII
+          Pop-Location
+
+      - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Pixelpipe
-          path: dist/Pixelpipe.exe
+          name: Pixelpipe-${{ github.sha }}
+          path: |
+            dist/Pixelpipe.exe
+            dist/Pixelpipe-Windows-x64.zip
+            dist/SHA256SUMS.txt
+
+      - name: Publish rolling release
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COMMIT_SHA: ${{ github.sha }}
+          REPO: ${{ github.repository }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $Tag = 'rolling'
+          $Short = $env:COMMIT_SHA.Substring(0, 7)
+          $ReleaseName = "Pixelpipe Rolling Release ($Short)"
+          $Notes = @"
+          Automated rolling build from commit $env:COMMIT_SHA.
+
+          This is rebuilt on every push to main/master. It is intended for testers and early users.
+
+          Files:
+          - Pixelpipe.exe: standalone tray app
+          - Pixelpipe-Windows-x64.zip: app + README + LICENSE
+          - SHA256SUMS.txt: checksum file
+          "@
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -f $Tag $env:COMMIT_SHA
+          git push origin "refs/tags/$Tag" --force
+
+          gh release view $Tag --repo $env:REPO *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $Tag `
+              dist/Pixelpipe.exe `
+              dist/Pixelpipe-Windows-x64.zip `
+              dist/SHA256SUMS.txt `
+              --repo $env:REPO `
+              --title $ReleaseName `
+              --notes $Notes `
+              --prerelease
+          } else {
+            gh release edit $Tag `
+              --repo $env:REPO `
+              --title $ReleaseName `
+              --notes $Notes `
+              --prerelease
+
+            gh release upload $Tag `
+              dist/Pixelpipe.exe `
+              dist/Pixelpipe-Windows-x64.zip `
+              dist/SHA256SUMS.txt `
+              --repo $env:REPO `
+              --clobber
+          }
