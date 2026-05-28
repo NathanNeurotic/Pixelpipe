@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.1
+
+Tray submenu placement, take 2.
+
+Fixed:
+
+- Tray submenus (Setup / dependencies, Tools / diagnostics, Bandwidth limit, Add cloud remote, profile submenus) were still opening at the top-left corner of the desktop on some setups instead of next to their parent item. The previous fix re-anchored via `dropDown.Location = ...` in the `DropDownOpened` event, but WinForms' submenu host appears to ignore post-show `Location` writes in this configuration. Repositioning now hooks both `DropDownOpening` (before the popup is shown) and `DropDownOpened`, forces a layout pass so the dropdown size is known, and as a final hammer calls `user32.SetWindowPos` directly with the computed coordinates. Detailed values are written to `pixelpipe-ui.log` on every submenu open so any remaining placement failure is diagnosable from the log.
+
 ## 0.3.0
 
 Tray menu placement, refactor, and tests.
