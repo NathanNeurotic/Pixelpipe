@@ -265,6 +265,62 @@ namespace Pixelpipe
             return value.Substring(0, max) + "...";
         }
 
+        // Parses an "N UNIT/s" string (e.g. "12.4 MB/s") into bytes/second. Returns 0
+        // for unparseable or negative inputs like "unavailable" or "—".
+        internal static double ParseBytesPerSec(string text)
+        {
+            if (String.IsNullOrEmpty(text)) return 0;
+            Match m = Regex.Match(text, @"(-?\d+(?:\.\d+)?)\s*(B|KB|MB|GB|TB|PB)\s*/\s*s", RegexOptions.IgnoreCase);
+            if (!m.Success) return 0;
+            double v;
+            if (!Double.TryParse(m.Groups[1].Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out v)) return 0;
+            return v < 0 ? 0 : v * UnitMultiplier(m.Groups[2].Value);
+        }
+
+        // Parses an "N UNIT" string (e.g. "1.11 GB") into bytes. Returns 0 for
+        // unparseable or negative.
+        internal static long ParseBytes(string text)
+        {
+            if (String.IsNullOrEmpty(text)) return 0;
+            Match m = Regex.Match(text, @"(-?\d+(?:\.\d+)?)\s*(B|KB|MB|GB|TB|PB)", RegexOptions.IgnoreCase);
+            if (!m.Success) return 0;
+            double v;
+            if (!Double.TryParse(m.Groups[1].Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out v)) return 0;
+            v *= UnitMultiplier(m.Groups[2].Value);
+            if (v < 0) v = 0;
+            if (v > Int64.MaxValue) v = Int64.MaxValue;
+            return (long)v;
+        }
+
+        // Parses a percentage out of a storage line like
+        // "1.11 GB / 7.28 TB used (0.5%, 7.27 TB left, 30d)". Returns 0..100, clamped.
+        internal static int ParseStoragePercent(string text)
+        {
+            if (String.IsNullOrEmpty(text)) return 0;
+            Match m = Regex.Match(text, @"\((\d+(?:\.\d+)?)\s*%");
+            if (!m.Success) return 0;
+            double v;
+            if (!Double.TryParse(m.Groups[1].Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out v)) return 0;
+            int clamped = (int)Math.Round(v);
+            if (clamped < 0) clamped = 0;
+            if (clamped > 100) clamped = 100;
+            return clamped;
+        }
+
+        private static double UnitMultiplier(string unit)
+        {
+            switch ((unit ?? "").ToUpperInvariant())
+            {
+                case "B": return 1d;
+                case "KB": return 1024d;
+                case "MB": return 1024d * 1024;
+                case "GB": return 1024d * 1024 * 1024;
+                case "TB": return 1024d * 1024 * 1024 * 1024;
+                case "PB": return 1024d * 1024 * 1024 * 1024 * 1024;
+                default: return 1d;
+            }
+        }
+
         private string Quote(string s)
         {
             if (s == null) return "\"\"";

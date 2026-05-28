@@ -29,6 +29,9 @@ namespace Pixelpipe.Tests
             Run("IsValidBandwidth", TestIsValidBandwidth);
             Run("ScrubSecrets", TestScrubSecrets);
             Run("BoxProvider", TestBoxProvider);
+            Run("ParseBytesPerSec", TestParseBytesPerSec);
+            Run("ParseBytes", TestParseBytes);
+            Run("ParseStoragePercent", TestParseStoragePercent);
 
             Console.WriteLine();
             Console.WriteLine(total - failures + " / " + total + " passed");
@@ -292,6 +295,41 @@ namespace Pixelpipe.Tests
             AssertEqual("dropbox", TrayContext.NormalizeProvider("dropbox", ""));
             AssertEqual("Box", TrayContext.DisplayProvider("box"));
             AssertEqual("Dropbox", TrayContext.DisplayProvider("dropbox"));
+        }
+
+        private static void TestParseBytesPerSec()
+        {
+            AssertEqual(0d, TrayContext.ParseBytesPerSec(""));
+            AssertEqual(0d, TrayContext.ParseBytesPerSec(null));
+            AssertEqual(0d, TrayContext.ParseBytesPerSec("unavailable"));
+            AssertEqual(0d, TrayContext.ParseBytesPerSec("—")); // em-dash placeholder
+            AssertEqual(0d, TrayContext.ParseBytesPerSec("-5 MB/s")); // negative clamped to 0
+            AssertEqual(512d, TrayContext.ParseBytesPerSec("512 B/s"));
+            AssertEqual(1024d, TrayContext.ParseBytesPerSec("1 KB/s"));
+            AssertEqual(1024d * 1024, TrayContext.ParseBytesPerSec("1 MB/s"));
+            AssertEqual(12.5 * 1024 * 1024, TrayContext.ParseBytesPerSec("12.5 MB/s"));
+        }
+
+        private static void TestParseBytes()
+        {
+            AssertEqual(0L, TrayContext.ParseBytes(""));
+            AssertEqual(0L, TrayContext.ParseBytes(null));
+            AssertEqual(0L, TrayContext.ParseBytes("not mounted"));
+            AssertEqual(512L, TrayContext.ParseBytes("512 B"));
+            AssertEqual(1024L, TrayContext.ParseBytes("1 KB"));
+            AssertEqual(1024L * 1024 * 1024, TrayContext.ParseBytes("1 GB"));
+            AssertEqual((long)(1.11 * 1024 * 1024 * 1024), TrayContext.ParseBytes("1.11 GB"));
+        }
+
+        private static void TestParseStoragePercent()
+        {
+            AssertEqual(0, TrayContext.ParseStoragePercent(""));
+            AssertEqual(0, TrayContext.ParseStoragePercent(null));
+            AssertEqual(0, TrayContext.ParseStoragePercent("1.11 GB used"));
+            AssertEqual(0, TrayContext.ParseStoragePercent("1.11 GB / 7.28 TB used (0%, 7.27 TB left, 30d)"));
+            AssertEqual(50, TrayContext.ParseStoragePercent("3 GB / 6 GB used (50%, 3 GB left, 30d)"));
+            AssertEqual(99, TrayContext.ParseStoragePercent("x (99.4%)"));
+            AssertEqual(100, TrayContext.ParseStoragePercent("(150%)")); // clamped
         }
 
         private static void AssertEqual(object expected, object actual)

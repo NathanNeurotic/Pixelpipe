@@ -12,6 +12,9 @@ src/Pixelpipe.Profiles.cs     Profile CRUD, manage-remotes window
 src/Pixelpipe.Mount.cs        Mount/unmount, bandwidth, health monitor
 src/Pixelpipe.Refresh.cs      Profile refresh, transfer quota, DPAPI API key
 src/Pixelpipe.Diagnostics.cs  Diagnostics window, logs, startup toggle, updates
+src/Pixelpipe.MainWindow.cs   Tabbed main window + per-profile dashboard cards
+src/Pixelpipe.SetupWizard.cs  Multi-step first-launch wizard
+src/Pixelpipe.QuickControl.cs Always-on-top quick controls popup
 src/Pixelpipe.Settings.cs     JSON + legacy registry settings persistence
 src/Pixelpipe.Helpers.cs      Pure helpers, process capture, dialog primitives
 src/TrayMenu.cs               Tray menu construction, theming, placement, smoke test

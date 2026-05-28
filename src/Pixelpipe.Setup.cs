@@ -22,7 +22,6 @@ namespace Pixelpipe
                 if (firstRun || (missingRequired && !skipMissingChecks))
                 {
                     RunFirstLaunchSetup(false);
-                    SaveSetting("FirstLaunchSetupDone", "1");
                 }
             }
             catch (Exception ex) { LogUiIssue("first launch setup", ex); }
@@ -32,49 +31,11 @@ namespace Pixelpipe
         {
             try
             {
-                string intro = "Pixelpipe will check rclone, WinFsp, and your rclone remotes. Continue?";
-                if (!manual)
-                {
-                    intro += "\r\n\r\n(Click No to skip these prompts; you can re-run the wizard from Setup / dependencies later.)";
-                }
-                DialogResult introResult = MessageBox.Show(intro, "Pixelpipe setup", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-                if (introResult != DialogResult.Yes)
-                {
-                    if (!manual) SaveSetting("SkipMissingDepWizard", "1");
-                    return;
-                }
-                SaveSetting("SkipMissingDepWizard", "0");
-
-                if (!RcloneAvailable())
-                {
-                    DialogResult r = MessageBox.Show("rclone was not found.\r\n\r\nYes = download portable rclone to your user profile.\r\nNo = try installing through winget instead.\r\nCancel = skip rclone setup.", "Pixelpipe setup", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
-                    if (r == DialogResult.Yes) DownloadRclonePortableWithUi();
-                    else if (r == DialogResult.No) InstallRcloneWithWinget();
-                }
-
-                if (!WinFspInstalled())
-                {
-                    DialogResult r = MessageBox.Show("WinFsp was not detected. rclone mount needs WinFsp on Windows.\r\n\r\nInstall WinFsp using winget now?", "Pixelpipe setup", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-                    if (r == DialogResult.Yes) InstallWinFspWithWinget();
-                }
-
-                if (RcloneAvailable() && !AnyRemoteConfigured())
-                {
-                    DialogResult r = MessageBox.Show("No configured Pixelpipe rclone remote was found.\r\n\r\nYes = configure Pixeldrain now.\r\nNo = open rclone config so you can add Google Drive, MEGA, OneDrive, S3, WebDAV, SFTP, or another backend.", "Pixelpipe setup", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
-                    if (r == DialogResult.Yes) ConfigurePixeldrainRemoteFromPrompt(GetPrimaryProfile());
-                    else if (r == DialogResult.No) OpenRcloneConfigTerminal();
-                }
-
-                if (!ApiKeyConfigured())
-                {
-                    DialogResult r = MessageBox.Show("Optional: save a PixelDrain API key for monthly transfer quota display?\r\n\r\nThis is stored encrypted with Windows DPAPI for your Windows user only.", "Pixelpipe quota setup", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-                    if (r == DialogResult.Yes) SetApiKeyFromPrompt();
-                }
-
+                ShowSetupWizard(manual);
                 setupStatusText = GetDependencyStatusLine();
                 SaveProfiles();
                 RebuildMenu();
-                ShowBalloon("Setup check complete.");
+                if (manual) ShowBalloon("Setup check complete.");
             }
             catch (Exception ex)
             {

@@ -99,6 +99,8 @@ namespace Pixelpipe
             quotaItem = AddDisabledRef(transferQuotaText);
             menu.Items.Add(new ToolStripSeparator());
 
+            InsertWindowShortcuts();
+
             for (int i = 0; i < profiles.Count; i++)
             {
                 RemoteProfile p = profiles[i];
@@ -133,6 +135,16 @@ namespace Pixelpipe
             menu.Items.Add(MenuAction("Exit", delegate { ExitApp(); }));
 
             UpdateTrayTooltip();
+        }
+
+        // Tray menu helper actions: surface the two new windows. We add them at the
+        // top so they're easy to find without scrolling the menu.
+        // (Wired into RebuildMenu above via the "open Pixelpipe..." separator block.)
+        private void InsertWindowShortcuts()
+        {
+            menu.Items.Add(MenuAction("Open Pixelpipe window...", delegate { ShowMainWindow(); }));
+            menu.Items.Add(MenuAction("Quick controls...", delegate { ShowQuickControl(); }));
+            menu.Items.Add(new ToolStripSeparator());
         }
 
         private ProfileMenuRefs BuildProfileMenu(RemoteProfile p)

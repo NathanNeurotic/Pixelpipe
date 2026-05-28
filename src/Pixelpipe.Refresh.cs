@@ -38,6 +38,8 @@ namespace Pixelpipe
                     {
                         Interlocked.Exchange(ref refreshingFlag, 0);
                         UpdateMenuLiveState();
+                        UpdateMainWindowLiveState();
+                        UpdateQuickControlLiveState();
                     });
                 }
             });

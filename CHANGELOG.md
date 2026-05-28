@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.5.0
+
+GUI windows. Pixelpipe is no longer tray-only; the tray menu and the new windows are full peers and you can do everything from either.
+
+Added:
+
+- **Main window** (`Open Pixelpipe window...` in the tray) with four tabs:
+  - *Profiles*: one card per profile with a live status pill, drive letter, status line, storage gauge (parsed from the `(N%)` field), session traffic, current speed, and big Mount / Mount-full / Unmount / Open buttons. Plus top-bar Mount-all / Unmount-all / Manage remotes / Refresh now.
+  - *Diagnostics*: the existing diagnostics text + buttons (Copy / Refresh / Open log folder / Open settings file / rclone config). Auto-refreshes while you're on the tab.
+  - *Logs*: dropdown to pick `pixelpipe-ui.log` or any profile's rclone log, tail viewer.
+  - *Settings*: bandwidth combobox + custom-bandwidth button, auto-mount-at-startup toggle, verbose-logging toggle, re-run-setup-wizard button, check-for-updates button.
+- **Setup wizard** replaces the old MessageBox chain. Four steps (rclone → WinFsp → rclone remote → optional PixelDrain API key) with Skip/Back/Next/Cancel and a live "Current state" panel showing each dependency. Runs on first launch automatically (unless the user has previously checked "don't show again"); re-runnable from `Setup / dependencies → Run first-time setup wizard` or the Settings tab.
+- **Quick controls popup** (`Quick controls...` in the tray): compact always-on-top window showing aggregate speed (large), aggregate session traffic, a bandwidth dropdown, and a one-line live entry per profile. Sized for a screen corner during active transfers.
+- Tray menu: two new shortcuts at the top — `Open Pixelpipe window...` and `Quick controls...`.
+
+Changed:
+
+- Refresh worker now also pushes live state to the main window and quick controls in addition to the tray menu. All three update in place (no rebuilds while open).
+- `Pixelpipe.Helpers.cs` gained shared `ParseBytesPerSec`, `ParseBytes`, and `ParseStoragePercent` helpers used by the main window and quick controls.
+- Three new tests for the parse helpers (21 tests total, was 18).
+
 ## 0.4.3
 
 Fixed:
