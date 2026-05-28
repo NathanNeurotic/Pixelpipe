@@ -61,9 +61,10 @@ namespace Pixelpipe
             {
                 Dictionary<string, object> root = ReadSettingsRoot();
                 List<object> list = new List<object>();
-                for (int i = 0; i < profiles.Count; i++)
+                RemoteProfile[] snapshot = SnapshotProfiles();
+                for (int i = 0; i < snapshot.Length; i++)
                 {
-                    RemoteProfile p = profiles[i];
+                    RemoteProfile p = snapshot[i];
                     Dictionary<string, object> d = new Dictionary<string, object>();
                     d["Id"] = p.Id;
                     d["Label"] = p.Label;
@@ -84,16 +85,34 @@ namespace Pixelpipe
 
         private Dictionary<string, object> ReadSettingsRoot()
         {
+            Dictionary<string, object> root;
+            if (TryReadSettingsRoot(settingsFile, out root)) return root;
+
+            string backupFile = settingsFile + ".bak";
+            if (TryReadSettingsRoot(backupFile, out root))
+            {
+                LogUiWarn("read settings", "loaded backup settings file after primary file could not be read");
+                return root;
+            }
+
+            return new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        private bool TryReadSettingsRoot(string path, out Dictionary<string, object> root)
+        {
+            root = null;
             try
             {
-                if (!File.Exists(settingsFile)) return new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
-                string json = File.ReadAllText(settingsFile, Encoding.UTF8);
+                if (!File.Exists(path)) return false;
+                string json = File.ReadAllText(path, Encoding.UTF8);
                 JavaScriptSerializer js = new JavaScriptSerializer();
                 Dictionary<string, object> parsed = js.DeserializeObject(json) as Dictionary<string, object>;
-                if (parsed != null) return new Dictionary<string, object>(parsed, StringComparer.OrdinalIgnoreCase);
+                if (parsed == null) return false;
+                root = new Dictionary<string, object>(parsed, StringComparer.OrdinalIgnoreCase);
+                return true;
             }
-            catch (Exception ex) { LogUiIssue("read settings", ex); }
-            return new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+            catch (Exception ex) { LogUiIssue("read settings " + Path.GetFileName(path), ex); }
+            return false;
         }
 
         private void WriteSettingsRoot(Dictionary<string, object> root)
@@ -102,9 +121,35 @@ namespace Pixelpipe
             {
                 Directory.CreateDirectory(settingsDir);
                 JavaScriptSerializer js = new JavaScriptSerializer();
-                File.WriteAllText(settingsFile, js.Serialize(root), Encoding.UTF8);
+                WriteAllTextAtomic(settingsFile, js.Serialize(root), Encoding.UTF8);
             }
             catch (Exception ex) { LogUiIssue("write settings", ex); }
+        }
+
+        internal static void WriteAllTextAtomic(string path, string text, Encoding encoding)
+        {
+            string temp = path + ".tmp";
+            string backup = path + ".bak";
+            File.WriteAllText(temp, text ?? "", encoding);
+            try
+            {
+                if (File.Exists(path))
+                {
+                    try { File.Copy(path, backup, true); } catch { }
+                    try
+                    {
+                        File.Replace(temp, path, backup, true);
+                        return;
+                    }
+                    catch { }
+                    File.Delete(path);
+                }
+                File.Move(temp, path);
+            }
+            finally
+            {
+                try { if (File.Exists(temp)) File.Delete(temp); } catch { }
+            }
         }
 
         private string LoadSettingRaw(string name)

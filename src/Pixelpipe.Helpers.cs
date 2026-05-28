@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
 
@@ -112,6 +113,12 @@ namespace Pixelpipe
         {
             if (String.IsNullOrEmpty(value) || String.Equals(value, "off", StringComparison.OrdinalIgnoreCase)) return "Unlimited";
             return value + "/s";
+        }
+
+        internal static string NormalizeBandwidthLimit(string value)
+        {
+            string v = String.IsNullOrWhiteSpace(value) ? "off" : value.Trim();
+            return IsValidBandwidth(v) ? v : "off";
         }
 
         internal static string NormalizeDriveLetter(string value)
@@ -323,14 +330,40 @@ namespace Pixelpipe
 
         private string Quote(string s)
         {
-            if (s == null) return "\"\"";
-            return "\"" + s.Replace("\"", "\\\"") + "\"";
+            return QuoteArg(s);
         }
 
-        private string QuoteArg(string value)
+        internal static string QuoteArg(string value)
         {
             if (value == null) return "\"\"";
-            return "\"" + value.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
+            StringBuilder sb = new StringBuilder();
+            sb.Append('"');
+            int backslashes = 0;
+            for (int i = 0; i < value.Length; i++)
+            {
+                char c = value[i];
+                if (c == '\\')
+                {
+                    backslashes++;
+                    continue;
+                }
+                if (c == '"')
+                {
+                    sb.Append('\\', backslashes * 2 + 1);
+                    sb.Append('"');
+                    backslashes = 0;
+                    continue;
+                }
+                if (backslashes > 0)
+                {
+                    sb.Append('\\', backslashes);
+                    backslashes = 0;
+                }
+                sb.Append(c);
+            }
+            if (backslashes > 0) sb.Append('\\', backslashes * 2);
+            sb.Append('"');
+            return sb.ToString();
         }
 
         private Form MakeDialog(string title, int width, int height)
@@ -345,23 +378,69 @@ namespace Pixelpipe
             form.Height = height;
             form.BackColor = Color.FromArgb(18, 22, 28);
             form.ForeColor = Color.WhiteSmoke;
+            form.Font = new Font("Segoe UI", 9.25f);
+            form.AutoScaleMode = AutoScaleMode.Dpi;
             return form;
+        }
+
+        private Button MakeDialogButton(string text, DialogResult result)
+        {
+            Button b = new Button();
+            b.Text = text;
+            b.DialogResult = result;
+            b.AutoSize = true;
+            b.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            b.MinimumSize = new Size(84, 30);
+            b.Padding = new Padding(10, 3, 10, 3);
+            b.Margin = new Padding(4, 0, 0, 0);
+            return b;
         }
 
         private string PromptForValue(string title, string message, string current)
         {
             using (Form form = MakeDialog(title, 540, 170))
-            using (Label label = new Label())
-            using (TextBox textBox = new TextBox())
-            using (Button ok = new Button())
-            using (Button cancel = new Button())
             {
-                label.Left = 12; label.Top = 12; label.Width = 500; label.Height = 36; label.Text = message; label.ForeColor = Color.WhiteSmoke;
-                textBox.Left = 12; textBox.Top = 54; textBox.Width = 500; textBox.Text = current ?? ""; textBox.SelectAll();
-                ok.Text = "Save"; ok.Left = 336; ok.Top = 88; ok.Width = 84; ok.DialogResult = DialogResult.OK;
-                cancel.Text = "Cancel"; cancel.Left = 428; cancel.Top = 88; cancel.Width = 84; cancel.DialogResult = DialogResult.Cancel;
-                form.Controls.Add(label); form.Controls.Add(textBox); form.Controls.Add(ok); form.Controls.Add(cancel);
+                TableLayoutPanel root = new TableLayoutPanel();
+                root.Dock = DockStyle.Fill;
+                root.ColumnCount = 1;
+                root.RowCount = 3;
+                root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                root.Padding = new Padding(12);
+                root.BackColor = form.BackColor;
+
+                Label label = new Label();
+                label.AutoSize = true;
+                label.Dock = DockStyle.Fill;
+                label.MaximumSize = new Size(500, 0);
+                label.Text = message;
+                label.ForeColor = Color.WhiteSmoke;
+                label.Margin = new Padding(0, 0, 0, 10);
+
+                TextBox textBox = new TextBox();
+                textBox.Dock = DockStyle.Top;
+                textBox.Text = current ?? "";
+                textBox.Margin = new Padding(0, 0, 0, 14);
+
+                FlowLayoutPanel footer = new FlowLayoutPanel();
+                footer.Dock = DockStyle.Fill;
+                footer.AutoSize = true;
+                footer.FlowDirection = FlowDirection.RightToLeft;
+                footer.WrapContents = false;
+                footer.Margin = new Padding(0);
+
+                Button cancel = MakeDialogButton("Cancel", DialogResult.Cancel);
+                Button ok = MakeDialogButton("Save", DialogResult.OK);
+                footer.Controls.Add(cancel);
+                footer.Controls.Add(ok);
+
+                root.Controls.Add(label, 0, 0);
+                root.Controls.Add(textBox, 0, 1);
+                root.Controls.Add(footer, 0, 2);
+                form.Controls.Add(root);
                 form.AcceptButton = ok; form.CancelButton = cancel;
+                textBox.SelectAll();
                 return form.ShowDialog() == DialogResult.OK ? textBox.Text : null;
             }
         }
@@ -369,18 +448,48 @@ namespace Pixelpipe
         private string ChooseFromList(string title, string message, string[] options)
         {
             using (Form form = MakeDialog(title, 520, 380))
-            using (Label label = new Label())
-            using (ListBox list = new ListBox())
-            using (Button ok = new Button())
-            using (Button cancel = new Button())
             {
-                label.Left = 12; label.Top = 12; label.Width = 480; label.Height = 30; label.Text = message; label.ForeColor = Color.WhiteSmoke;
-                list.Left = 12; list.Top = 48; list.Width = 480; list.Height = 240; list.BackColor = Color.FromArgb(14, 18, 24); list.ForeColor = Color.WhiteSmoke;
+                TableLayoutPanel root = new TableLayoutPanel();
+                root.Dock = DockStyle.Fill;
+                root.ColumnCount = 1;
+                root.RowCount = 3;
+                root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                root.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+                root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                root.Padding = new Padding(12);
+                root.BackColor = form.BackColor;
+
+                Label label = new Label();
+                label.AutoSize = true;
+                label.Dock = DockStyle.Fill;
+                label.Text = message;
+                label.ForeColor = Color.WhiteSmoke;
+                label.Margin = new Padding(0, 0, 0, 10);
+
+                ListBox list = new ListBox();
+                list.Dock = DockStyle.Fill;
+                list.BackColor = Color.FromArgb(14, 18, 24);
+                list.ForeColor = Color.WhiteSmoke;
+                list.Margin = new Padding(0, 0, 0, 14);
                 for (int i = 0; i < options.Length; i++) list.Items.Add(options[i]);
                 if (list.Items.Count > 0) list.SelectedIndex = 0;
-                ok.Text = "Select"; ok.Left = 316; ok.Top = 302; ok.Width = 84; ok.DialogResult = DialogResult.OK;
-                cancel.Text = "Cancel"; cancel.Left = 408; cancel.Top = 302; cancel.Width = 84; cancel.DialogResult = DialogResult.Cancel;
-                form.Controls.Add(label); form.Controls.Add(list); form.Controls.Add(ok); form.Controls.Add(cancel);
+
+                FlowLayoutPanel footer = new FlowLayoutPanel();
+                footer.Dock = DockStyle.Fill;
+                footer.AutoSize = true;
+                footer.FlowDirection = FlowDirection.RightToLeft;
+                footer.WrapContents = false;
+                footer.Margin = new Padding(0);
+
+                Button cancel = MakeDialogButton("Cancel", DialogResult.Cancel);
+                Button ok = MakeDialogButton("Select", DialogResult.OK);
+                footer.Controls.Add(cancel);
+                footer.Controls.Add(ok);
+
+                root.Controls.Add(label, 0, 0);
+                root.Controls.Add(list, 0, 1);
+                root.Controls.Add(footer, 0, 2);
+                form.Controls.Add(root);
                 form.AcceptButton = ok; form.CancelButton = cancel;
                 return form.ShowDialog() == DialogResult.OK && list.SelectedItem != null ? list.SelectedItem.ToString() : null;
             }

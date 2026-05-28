@@ -28,7 +28,8 @@ namespace Pixelpipe
             sb.AppendLine("rclone available: " + RcloneAvailable());
             sb.AppendLine("rclone path: " + rclonePath);
             sb.AppendLine("WinFsp installed: " + WinFspInstalled());
-            sb.AppendLine("configured profiles: " + profiles.Count.ToString());
+            RemoteProfile[] snapshot = SnapshotProfiles();
+            sb.AppendLine("configured profiles: " + snapshot.Length.ToString());
             sb.AppendLine("any remote configured: " + AnyRemoteConfigured());
             sb.AppendLine("bandwidth: " + DisplayLimit(selectedBandwidth));
             sb.AppendLine("PixelDrain API key configured: " + ApiKeyConfigured());
@@ -37,9 +38,9 @@ namespace Pixelpipe
             sb.AppendLine("log dir: " + logDir);
             sb.AppendLine("ui log: " + uiLogFile);
             sb.AppendLine();
-            for (int i = 0; i < profiles.Count; i++)
+            for (int i = 0; i < snapshot.Length; i++)
             {
-                RemoteProfile p = profiles[i];
+                RemoteProfile p = snapshot[i];
                 sb.AppendLine("Profile " + (i + 1).ToString() + ": " + p.Label);
                 sb.AppendLine("  provider: " + p.Provider);
                 sb.AppendLine("  remote: " + p.Remote);

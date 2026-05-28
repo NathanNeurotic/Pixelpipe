@@ -245,35 +245,92 @@ namespace Pixelpipe
         private void EditProfile(RemoteProfile p)
         {
             if (p == null) return;
-            using (Form form = MakeDialog("Edit remote profile", 560, 360))
-            using (Label title = new Label())
-            using (Label labelL = new Label())
-            using (TextBox labelBox = new TextBox())
-            using (Label providerL = new Label())
-            using (TextBox providerBox = new TextBox())
-            using (Label remoteL = new Label())
-            using (TextBox remoteBox = new TextBox())
-            using (Label driveL = new Label())
-            using (TextBox driveBox = new TextBox())
-            using (CheckBox networkBox = new CheckBox())
-            using (CheckBox autoBox = new CheckBox())
-            using (Button save = new Button())
-            using (Button cancel = new Button())
+            using (Form form = MakeDialog("Edit remote profile", 600, 390))
             {
-                title.Text = "Remote profile"; title.Font = new Font("Segoe UI", 13f, FontStyle.Bold); title.Left = 14; title.Top = 14; title.Width = 480; title.Height = 30; title.ForeColor = Color.WhiteSmoke;
-                labelL.Text = "Label"; labelL.Left = 14; labelL.Top = 58; labelL.Width = 150; labelL.ForeColor = Color.WhiteSmoke;
-                labelBox.Left = 170; labelBox.Top = 54; labelBox.Width = 340; labelBox.Text = p.Label;
-                providerL.Text = "Provider"; providerL.Left = 14; providerL.Top = 92; providerL.Width = 150; providerL.ForeColor = Color.WhiteSmoke;
-                providerBox.Left = 170; providerBox.Top = 88; providerBox.Width = 340; providerBox.Text = p.Provider;
-                remoteL.Text = "rclone remote"; remoteL.Left = 14; remoteL.Top = 126; remoteL.Width = 150; remoteL.ForeColor = Color.WhiteSmoke;
-                remoteBox.Left = 170; remoteBox.Top = 122; remoteBox.Width = 340; remoteBox.Text = p.Remote;
-                driveL.Text = "Drive letter"; driveL.Left = 14; driveL.Top = 160; driveL.Width = 150; driveL.ForeColor = Color.WhiteSmoke;
-                driveBox.Left = 170; driveBox.Top = 156; driveBox.Width = 80; driveBox.Text = p.DriveLetter;
-                networkBox.Text = "Mount as network drive"; networkBox.Left = 14; networkBox.Top = 198; networkBox.Width = 470; networkBox.Checked = String.Equals(p.MountMode, "network", StringComparison.OrdinalIgnoreCase); networkBox.ForeColor = Color.WhiteSmoke;
-                autoBox.Text = "Auto-mount this profile at startup"; autoBox.Left = 14; autoBox.Top = 228; autoBox.Width = 470; autoBox.Checked = p.AutoMount; autoBox.ForeColor = Color.WhiteSmoke;
-                save.Text = "Save"; save.Left = 334; save.Top = 276; save.Width = 84; save.DialogResult = DialogResult.OK;
-                cancel.Text = "Cancel"; cancel.Left = 426; cancel.Top = 276; cancel.Width = 84; cancel.DialogResult = DialogResult.Cancel;
-                form.Controls.Add(title); form.Controls.Add(labelL); form.Controls.Add(labelBox); form.Controls.Add(providerL); form.Controls.Add(providerBox); form.Controls.Add(remoteL); form.Controls.Add(remoteBox); form.Controls.Add(driveL); form.Controls.Add(driveBox); form.Controls.Add(networkBox); form.Controls.Add(autoBox); form.Controls.Add(save); form.Controls.Add(cancel);
+                form.MinimumSize = new Size(560, 360);
+
+                TableLayoutPanel root = new TableLayoutPanel();
+                root.Dock = DockStyle.Fill;
+                root.ColumnCount = 1;
+                root.RowCount = 3;
+                root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                root.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+                root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                root.Padding = new Padding(14);
+                root.BackColor = form.BackColor;
+
+                Label title = new Label();
+                title.Text = "Remote profile";
+                title.Font = new Font("Segoe UI", 13f, FontStyle.Bold);
+                title.AutoSize = true;
+                title.ForeColor = Color.WhiteSmoke;
+                title.Margin = new Padding(0, 0, 0, 14);
+
+                TableLayoutPanel grid = new TableLayoutPanel();
+                grid.Dock = DockStyle.Fill;
+                grid.AutoSize = true;
+                grid.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+                grid.ColumnCount = 2;
+                grid.RowCount = 6;
+                grid.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+                grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+                grid.BackColor = form.BackColor;
+
+                TextBox labelBox = new TextBox();
+                labelBox.Dock = DockStyle.Fill;
+                labelBox.Text = p.Label;
+
+                TextBox providerBox = new TextBox();
+                providerBox.Dock = DockStyle.Fill;
+                providerBox.Text = p.Provider;
+
+                TextBox remoteBox = new TextBox();
+                remoteBox.Dock = DockStyle.Fill;
+                remoteBox.Text = p.Remote;
+
+                TextBox driveBox = new TextBox();
+                driveBox.Width = 90;
+                driveBox.Text = p.DriveLetter;
+
+                CheckBox networkBox = new CheckBox();
+                networkBox.AutoSize = true;
+                networkBox.Text = "Mount as network drive";
+                networkBox.Checked = String.Equals(p.MountMode, "network", StringComparison.OrdinalIgnoreCase);
+                networkBox.ForeColor = Color.WhiteSmoke;
+                networkBox.Margin = new Padding(0, 8, 0, 4);
+
+                CheckBox autoBox = new CheckBox();
+                autoBox.AutoSize = true;
+                autoBox.Text = "Auto-mount this profile at startup";
+                autoBox.Checked = p.AutoMount;
+                autoBox.ForeColor = Color.WhiteSmoke;
+                autoBox.Margin = new Padding(0, 4, 0, 0);
+
+                AddEditRow(grid, 0, "Label", labelBox);
+                AddEditRow(grid, 1, "Provider", providerBox);
+                AddEditRow(grid, 2, "rclone remote", remoteBox);
+                AddEditRow(grid, 3, "Drive letter", driveBox);
+                grid.Controls.Add(networkBox, 0, 4);
+                grid.SetColumnSpan(networkBox, 2);
+                grid.Controls.Add(autoBox, 0, 5);
+                grid.SetColumnSpan(autoBox, 2);
+
+                FlowLayoutPanel footer = new FlowLayoutPanel();
+                footer.Dock = DockStyle.Fill;
+                footer.AutoSize = true;
+                footer.FlowDirection = FlowDirection.RightToLeft;
+                footer.WrapContents = false;
+                footer.Margin = new Padding(0, 14, 0, 0);
+
+                Button cancel = MakeDialogButton("Cancel", DialogResult.Cancel);
+                Button save = MakeDialogButton("Save", DialogResult.OK);
+                footer.Controls.Add(cancel);
+                footer.Controls.Add(save);
+
+                root.Controls.Add(title, 0, 0);
+                root.Controls.Add(grid, 0, 1);
+                root.Controls.Add(footer, 0, 2);
+                form.Controls.Add(root);
                 form.AcceptButton = save; form.CancelButton = cancel;
                 if (form.ShowDialog() == DialogResult.OK)
                 {
@@ -290,6 +347,22 @@ namespace Pixelpipe
                     ShowBalloon("Profile saved.");
                 }
             }
+        }
+
+        private void AddEditRow(TableLayoutPanel grid, int row, string labelText, Control editor)
+        {
+            Label label = new Label();
+            label.Text = labelText;
+            label.AutoSize = true;
+            label.Anchor = AnchorStyles.Left;
+            label.ForeColor = Color.WhiteSmoke;
+            label.Margin = new Padding(0, 0, 18, 10);
+
+            editor.Margin = new Padding(0, 0, 0, 10);
+            editor.Anchor = AnchorStyles.Left | AnchorStyles.Right;
+
+            grid.Controls.Add(label, 0, row);
+            grid.Controls.Add(editor, 1, row);
         }
 
         private void ToggleProfileAutoMount(RemoteProfile p)
@@ -327,42 +400,5 @@ namespace Pixelpipe
             ShowMainWindow("Profiles");
         }
 
-        private void ShowManageRemotesWindow_Legacy_Unused()
-        {
-            Form form = new Form();
-            form.Text = "Pixelpipe remote profiles";
-            form.StartPosition = FormStartPosition.CenterScreen;
-            form.Width = 780;
-            form.Height = 520;
-            form.BackColor = Color.FromArgb(18, 22, 28);
-            form.ForeColor = Color.WhiteSmoke;
-            ListView list = new ListView();
-            list.View = View.Details;
-            list.FullRowSelect = true;
-            list.Left = 12; list.Top = 12; list.Width = 740; list.Height = 360;
-            list.Columns.Add("Label", 160); list.Columns.Add("Provider", 110); list.Columns.Add("Remote", 170); list.Columns.Add("Drive", 60); list.Columns.Add("Mode", 90); list.Columns.Add("Startup", 70); list.Columns.Add("Status", 130);
-            list.BackColor = Color.FromArgb(14, 18, 24); list.ForeColor = Color.WhiteSmoke;
-            for (int i = 0; i < profiles.Count; i++)
-            {
-                RemoteProfile p = profiles[i];
-                ListViewItem item = new ListViewItem(p.Label);
-                item.SubItems.Add(DisplayProvider(p.Provider));
-                item.SubItems.Add(p.Remote);
-                item.SubItems.Add(p.DriveLetter);
-                item.SubItems.Add(p.MountMode);
-                item.SubItems.Add(p.AutoMount ? "yes" : "no");
-                item.SubItems.Add(p.StatusText);
-                item.Tag = p;
-                list.Items.Add(item);
-            }
-            Button add = new Button(); add.Text = "Add existing"; add.Left = 12; add.Top = 392; add.Width = 110; add.Click += delegate { AddExistingRemoteProfile(); form.Close(); };
-            Button import = new Button(); import.Text = "Import remotes"; import.Left = 130; import.Top = 392; import.Width = 120; import.Click += delegate { ImportExistingRemotes(); form.Close(); };
-            Button edit = new Button(); edit.Text = "Edit selected"; edit.Left = 258; edit.Top = 392; edit.Width = 120; edit.Click += delegate { if (list.SelectedItems.Count > 0) { EditProfile((RemoteProfile)list.SelectedItems[0].Tag); form.Close(); } };
-            Button primary = new Button(); primary.Text = "Set primary"; primary.Left = 386; primary.Top = 392; primary.Width = 110; primary.Click += delegate { if (list.SelectedItems.Count > 0) { MakePrimaryProfile((RemoteProfile)list.SelectedItems[0].Tag); form.Close(); } };
-            Button close = new Button(); close.Text = "Close"; close.Left = 662; close.Top = 432; close.Width = 90; close.Click += delegate { form.Close(); };
-            form.Controls.Add(list); form.Controls.Add(add); form.Controls.Add(import); form.Controls.Add(edit); form.Controls.Add(primary); form.Controls.Add(close);
-            form.FormClosed += delegate { form.Dispose(); };
-            form.Show();
-        }
     }
 }

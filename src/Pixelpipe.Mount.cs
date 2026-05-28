@@ -123,7 +123,7 @@ namespace Pixelpipe
             p.DesiredMounted = true;
             p.LastError = "";
             string cacheMode = fullCache ? "full" : "writes";
-            string args = "mount " + NormalizeRemoteName(p.Remote) + " " + NormalizeDriveLetter(p.DriveLetter) +
+            string args = "mount " + QuoteArg(NormalizeRemoteName(p.Remote)) + " " + QuoteArg(NormalizeDriveLetter(p.DriveLetter)) +
                           " --links" +
                           (String.Equals(p.MountMode, "network", StringComparison.OrdinalIgnoreCase) ? " --network-mode" : "") +
                           " --vfs-cache-mode " + cacheMode +
@@ -135,7 +135,7 @@ namespace Pixelpipe
                           " --volname " + QuoteArg(p.Label) +
                           " --rc --rc-no-auth --rc-addr 127.0.0.1:" + p.RcPort.ToString() +
                           " --log-level INFO" +
-                          " --log-file " + Quote(p.LogFile);
+                          " --log-file " + QuoteArg(p.LogFile);
 
             if (!String.Equals(selectedBandwidth, "off", StringComparison.OrdinalIgnoreCase)) args += " --bwlimit " + selectedBandwidth;
 
@@ -212,7 +212,7 @@ namespace Pixelpipe
             string quitResult = "";
             try
             {
-                unmountResult = RunRcloneCapture("rc mount/unmount mountPoint=" + p.DriveLetter + " --rc-addr 127.0.0.1:" + p.RcPort.ToString() + " --rc-no-auth", 2500);
+                unmountResult = RunRcloneCapture("rc mount/unmount " + QuoteArg("mountPoint=" + NormalizeDriveLetter(p.DriveLetter)) + " --rc-addr 127.0.0.1:" + p.RcPort.ToString() + " --rc-no-auth", 2500);
                 Thread.Sleep(800);
                 if (IsMounted(p)) quitResult = RunRcloneCapture("rc core/quit --rc-addr 127.0.0.1:" + p.RcPort.ToString() + " --rc-no-auth", 2500);
                 Thread.Sleep(1200);
@@ -343,7 +343,7 @@ namespace Pixelpipe
 
         private void SetBandwidth(string value)
         {
-            selectedBandwidth = String.IsNullOrWhiteSpace(value) ? "off" : value.Trim();
+            selectedBandwidth = NormalizeBandwidthLimit(value);
             SaveSetting("BandwidthLimit", selectedBandwidth);
             RebuildMenu();
 
@@ -388,9 +388,10 @@ namespace Pixelpipe
         {
             try
             {
-                for (int i = 0; i < profiles.Count; i++)
+                RemoteProfile[] snapshot = SnapshotProfiles();
+                for (int i = 0; i < snapshot.Length; i++)
                 {
-                    RemoteProfile p = profiles[i];
+                    RemoteProfile p = snapshot[i];
                     if (!p.AutoMount || !p.DesiredMounted || p.MountProcess == null) continue;
                     bool exited = false;
                     try { exited = p.MountProcess.HasExited; } catch { exited = true; }

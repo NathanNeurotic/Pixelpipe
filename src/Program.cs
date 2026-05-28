@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Net;
+using System.Threading;
 using System.Windows.Forms;
 
 namespace Pixelpipe
@@ -28,23 +29,37 @@ namespace Pixelpipe
                 return;
             }
 
-            // Trap any exception that would otherwise terminate the process. The default
-            // .NET WinForms handler shows a dialog and tears the app down; for a tray
-            // app that means the icon vanishes and the user thinks Pixelpipe "randomly
-            // closed". Log everything to pixelpipe-ui.log and keep running where we can.
-            Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
-            Application.ThreadException += delegate(object sender, System.Threading.ThreadExceptionEventArgs e)
+            bool createdNew;
+            using (Mutex singleInstance = new Mutex(true, @"Local\Pixelpipe.TrayApp", out createdNew))
             {
-                LogCrash("UI thread exception", e.Exception);
-            };
-            AppDomain.CurrentDomain.UnhandledException += delegate(object sender, UnhandledExceptionEventArgs e)
-            {
-                LogCrash("AppDomain unhandled" + (e.IsTerminating ? " (terminating)" : ""), e.ExceptionObject as Exception);
-            };
+                if (!createdNew)
+                {
+                    if (!HasArg(args, "/automount"))
+                    {
+                        MessageBox.Show("Pixelpipe is already running in the system tray.", "Pixelpipe", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                    return;
+                }
 
-            Application.EnableVisualStyles();
-            Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new TrayContext(args));
+                // Trap any exception that would otherwise terminate the process. The default
+                // .NET WinForms handler shows a dialog and tears the app down; for a tray
+                // app that means the icon vanishes and the user thinks Pixelpipe "randomly
+                // closed". Log everything to pixelpipe-ui.log and keep running where we can.
+                Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+                Application.ThreadException += delegate(object sender, ThreadExceptionEventArgs e)
+                {
+                    LogCrash("UI thread exception", e.Exception);
+                };
+                AppDomain.CurrentDomain.UnhandledException += delegate(object sender, UnhandledExceptionEventArgs e)
+                {
+                    LogCrash("AppDomain unhandled" + (e.IsTerminating ? " (terminating)" : ""), e.ExceptionObject as Exception);
+                };
+
+                Application.EnableVisualStyles();
+                Application.SetCompatibleTextRenderingDefault(false);
+                Application.Run(new TrayContext(args));
+                GC.KeepAlive(singleInstance);
+            }
         }
 
         internal static bool HasArg(string[] args, string wanted)

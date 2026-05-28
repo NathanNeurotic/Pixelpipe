@@ -723,6 +723,7 @@ namespace Pixelpipe
             private readonly Button mountFull;
             private readonly Button unmount;
             private readonly Button openDrive;
+            private readonly Button testBtn;
             private readonly Button editBtn;
             private readonly Button setPrimaryBtn;
             private readonly Button autoMountBtn;
@@ -838,10 +839,12 @@ namespace Pixelpipe
                 secondary.Margin = new Padding(0, 4, 0, 0);
                 secondary.BackColor = CardBg;
 
+                testBtn = MainWindow.MakeAction("Test", delegate { owner.TestProfile(Profile); });
                 editBtn = MainWindow.MakeAction("Edit", delegate { owner.EditProfile(Profile); });
                 setPrimaryBtn = MainWindow.MakeAction("Set primary", delegate { owner.MakePrimaryProfile(Profile); });
                 autoMountBtn = MainWindow.MakeAction("Auto-mount: off", delegate { owner.ToggleProfileAutoMount(Profile); });
                 removeBtn = MainWindow.MakeAction("Remove", delegate { owner.RemoveProfile(Profile); });
+                secondary.Controls.Add(testBtn);
                 secondary.Controls.Add(editBtn);
                 secondary.Controls.Add(setPrimaryBtn);
                 secondary.Controls.Add(autoMountBtn);

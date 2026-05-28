@@ -175,6 +175,7 @@ namespace Pixelpipe
             r.MountFull = MenuAction("Mount - full cache", delegate { MountProfile(p, true); }, !IsMounted(p));
             r.Unmount = MenuAction("Unmount", delegate { UnmountProfile(p, false); }, IsMounted(p));
             r.OpenDriveItem = MenuAction("Open " + GetDriveRoot(p), delegate { OpenDrive(p); }, IsMounted(p));
+            r.ProfileItem.DropDownItems.Add(MenuAction("Test profile", delegate { TestProfile(p); }));
             r.ProfileItem.DropDownItems.Add(r.MountLow);
             r.ProfileItem.DropDownItems.Add(r.MountFull);
             r.ProfileItem.DropDownItems.Add(r.Unmount);

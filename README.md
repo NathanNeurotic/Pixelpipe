@@ -67,6 +67,7 @@ Pixelpipe ships both interfaces side by side; pick whichever you prefer.
 - Primary profile double-click toggle.
 - Add guided profiles for Pixeldrain, Google Drive, MEGA, OneDrive, Dropbox, Box, S3, WebDAV, SFTP, and custom rclone remotes.
 - Import existing rclone remotes with `rclone listremotes`.
+- Per-profile preflight checks for rclone, WinFsp, remote configuration, drive-letter availability, RC port availability, and backend storage response.
 - Per-profile drive letters.
 - Per-profile network/fixed drive mode.
 - Per-profile startup auto-mount.

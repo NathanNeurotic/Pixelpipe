@@ -54,7 +54,7 @@ namespace Pixelpipe
             Directory.CreateDirectory(logDir);
 
             rclonePath = FindRclonePath();
-            selectedBandwidth = LoadSetting("BandwidthLimit", "off");
+            selectedBandwidth = NormalizeBandwidthLimit(LoadSetting("BandwidthLimit", "off"));
             transferQuotaText = ApiKeyConfigured() ? "Transfer quota: not checked" : "Transfer quota: PixelDrain API key not set";
             setupStatusText = "Setup: not checked";
             verboseLogging = String.Equals(LoadSetting("VerboseLogging", "0"), "1", StringComparison.OrdinalIgnoreCase);
@@ -135,22 +135,25 @@ namespace Pixelpipe
 
         private void AssignRuntimeFields()
         {
-            for (int i = 0; i < profiles.Count; i++)
+            lock (profilesLock)
             {
-                RemoteProfile p = profiles[i];
-                if (String.IsNullOrWhiteSpace(p.Id)) p.Id = Guid.NewGuid().ToString("N");
-                if (String.IsNullOrWhiteSpace(p.Label)) p.Label = RemoteNameBare(p.Remote);
-                p.Remote = NormalizeRemoteName(p.Remote);
-                p.DriveLetter = NormalizeDriveLetter(p.DriveLetter);
-                p.MountMode = NormalizeMountMode(p.MountMode);
-                p.Provider = NormalizeProvider(p.Provider, p.Remote);
-                p.RcPort = ProfilePort(p);
-                p.StatusText = "not mounted";
-                p.StorageText = "storage not checked";
-                p.SessionText = "session not mounted";
-                p.SpeedText = "speed not mounted";
-                p.LastError = "";
-                p.LogFile = Path.Combine(logDir, SafeFileName(p.Label + "-" + p.DriveLetter.Replace(":", "")) + ".log");
+                for (int i = 0; i < profiles.Count; i++)
+                {
+                    RemoteProfile p = profiles[i];
+                    if (String.IsNullOrWhiteSpace(p.Id)) p.Id = Guid.NewGuid().ToString("N");
+                    if (String.IsNullOrWhiteSpace(p.Label)) p.Label = RemoteNameBare(p.Remote);
+                    p.Remote = NormalizeRemoteName(p.Remote);
+                    p.DriveLetter = NormalizeDriveLetter(p.DriveLetter);
+                    p.MountMode = NormalizeMountMode(p.MountMode);
+                    p.Provider = NormalizeProvider(p.Provider, p.Remote);
+                    p.RcPort = ProfilePort(p);
+                    p.StatusText = "not mounted";
+                    p.StorageText = "storage not checked";
+                    p.SessionText = "session not mounted";
+                    p.SpeedText = "speed not mounted";
+                    p.LastError = "";
+                    p.LogFile = Path.Combine(logDir, SafeFileName(p.Label + "-" + p.DriveLetter.Replace(":", "")) + ".log");
+                }
             }
         }
 
@@ -177,9 +180,10 @@ namespace Pixelpipe
         private string BuildGlobalStatus()
         {
             int mounted = 0;
-            for (int i = 0; i < profiles.Count; i++) if (IsMounted(profiles[i])) mounted++;
+            RemoteProfile[] snapshot = SnapshotProfiles();
+            for (int i = 0; i < snapshot.Length; i++) if (IsMounted(snapshot[i])) mounted++;
             if (mounted == 0) return "no remotes mounted";
-            return mounted.ToString() + " of " + profiles.Count.ToString() + " remotes mounted";
+            return mounted.ToString() + " of " + snapshot.Length.ToString() + " remotes mounted";
         }
 
         private Icon LoadAppIcon()
@@ -310,7 +314,8 @@ namespace Pixelpipe
                 if (result == DialogResult.Cancel) return;
                 if (result == DialogResult.Yes)
                 {
-                    for (int i = 0; i < profiles.Count; i++) if (IsMounted(profiles[i])) UnmountProfile(profiles[i], true);
+                    RemoteProfile[] snapshot = SnapshotProfiles();
+                    for (int i = 0; i < snapshot.Length; i++) if (IsMounted(snapshot[i])) UnmountProfile(snapshot[i], true);
                 }
             }
             tray.Visible = false;
