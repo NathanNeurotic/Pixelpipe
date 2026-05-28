@@ -92,16 +92,43 @@ namespace Pixelpipe
 
             ThreadPool.QueueUserWorkItem(delegate
             {
-                Thread.Sleep(900);
-                BeginUi(delegate { FirstLaunchSetupIfNeeded(); RefreshDependencyStatusAsync(true); });
+                try
+                {
+                    Thread.Sleep(900);
+                    BeginUi(delegate { FirstLaunchSetupIfNeeded(); RefreshDependencyStatusAsync(true); });
+                }
+                catch (Exception ex) { LogUiIssue("first-launch background", ex); }
             });
 
             if (Program.HasArg(args, "/automount"))
             {
                 ThreadPool.QueueUserWorkItem(delegate
                 {
-                    Thread.Sleep(5000);
-                    BeginUi(delegate { MountAutoProfiles(); });
+                    try
+                    {
+                        Thread.Sleep(5000);
+                        BeginUi(delegate { MountAutoProfiles(); });
+                    }
+                    catch (Exception ex) { LogUiIssue("automount background", ex); }
+                });
+            }
+            else if (!String.Equals(LoadSetting("WelcomeBalloonShown", "0"), "1", StringComparison.OrdinalIgnoreCase))
+            {
+                // Once per install, remind the user where the app lives. If the user
+                // closes the main window thinking it quit Pixelpipe, the tray icon is
+                // still there and this balloon makes that clear.
+                ThreadPool.QueueUserWorkItem(delegate
+                {
+                    try
+                    {
+                        Thread.Sleep(2000);
+                        BeginUi(delegate
+                        {
+                            ShowBalloon("Pixelpipe is in your system tray. Right-click the icon for the menu, or use Exit there to fully quit.");
+                            SaveSetting("WelcomeBalloonShown", "1");
+                        });
+                    }
+                    catch (Exception ex) { LogUiIssue("welcome balloon", ex); }
                 });
             }
         }

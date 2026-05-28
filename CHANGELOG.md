@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.5.3
+
+Fixed:
+
+- Pixelpipe could "randomly" close. Two known causes:
+  - The Maintenance group in the main window had an "Exit Pixelpipe" button right next to "Run setup wizard / Open log folder / Copy diagnostics". A misclick would fully quit the tray app, leaving the user wondering where the icon went. Removed; the only exit path is now the tray menu's Exit, where it sits next to the "stop all mounts first" prompts.
+  - An unhandled exception on a worker thread would terminate the process without a log entry (default .NET WinForms behavior). `Program.Main` now registers `Application.ThreadException` and `AppDomain.CurrentDomain.UnhandledException` handlers that write the exception type, message, and stack trace to `pixelpipe-ui.log` before the runtime tears anything down, and `SetUnhandledExceptionMode(CatchException)` keeps UI-thread exceptions from killing the app entirely.
+- Constructor's background work items (first-launch setup nudge, /automount delay) are now wrapped in try/catch as well, so a transient error there can't take the tray icon down.
+
+Added:
+
+- One-time welcome balloon: "Pixelpipe is in your system tray. Right-click the icon for the menu, or use Exit there to fully quit." Shows once per install on a non-/automount launch so users don't think closing the main window quit the app.
+
 ## 0.5.2
 
 The main window now has every action the tray menu has, and the profile cards no longer clip.
