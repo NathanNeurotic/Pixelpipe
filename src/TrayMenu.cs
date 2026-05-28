@@ -54,6 +54,7 @@ namespace Pixelpipe
             public ToolStripMenuItem ObjectsLabel;
             public ToolStripMenuItem TrafficLabel;
             public ToolStripMenuItem SpeedLabel;
+            public ToolStripMenuItem WatchLabel;
             public ToolStripMenuItem LastErrorLabel;
             public ToolStripMenuItem MountLow;
             public ToolStripMenuItem MountFull;
@@ -178,6 +179,8 @@ namespace Pixelpipe
             r.ObjectsLabel.Visible = pcap.SupportsFileCount && p.ObjectCount >= 0;
             r.TrafficLabel = DisabledItem("Traffic: " + p.SessionText);
             r.SpeedLabel = DisabledItem("Speed: " + p.SpeedText);
+            r.WatchLabel = DisabledItem(BuildWatchLabel(p));
+            r.WatchLabel.Visible = p.WatchFolderEnabled;
             r.LastErrorLabel = DisabledItem("Last error: " + TrimForMenu(p.LastError, 90));
             r.LastErrorLabel.Visible = !String.IsNullOrWhiteSpace(p.LastError);
 
@@ -190,6 +193,7 @@ namespace Pixelpipe
             r.ProfileItem.DropDownItems.Add(r.ObjectsLabel);
             r.ProfileItem.DropDownItems.Add(r.TrafficLabel);
             r.ProfileItem.DropDownItems.Add(r.SpeedLabel);
+            r.ProfileItem.DropDownItems.Add(r.WatchLabel);
             r.ProfileItem.DropDownItems.Add(r.LastErrorLabel);
             r.ProfileItem.DropDownItems.Add(new ToolStripSeparator());
             r.MountLow = MenuAction("Mount - low overhead", delegate { MountProfile(p, false); }, !IsMounted(p));
@@ -282,6 +286,11 @@ namespace Pixelpipe
                     }
                     r.TrafficLabel.Text = "Traffic: " + p.SessionText;
                     r.SpeedLabel.Text = "Speed: " + p.SpeedText;
+                    if (r.WatchLabel != null)
+                    {
+                        r.WatchLabel.Visible = p.WatchFolderEnabled;
+                        if (p.WatchFolderEnabled) r.WatchLabel.Text = BuildWatchLabel(p);
+                    }
                     bool hasError = !String.IsNullOrWhiteSpace(p.LastError);
                     r.LastErrorLabel.Visible = hasError;
                     if (hasError) r.LastErrorLabel.Text = "Last error: " + TrimForMenu(p.LastError, 90);
@@ -298,6 +307,15 @@ namespace Pixelpipe
                 UpdateTrayTooltip();
             }
             catch (Exception ex) { LogUiIssue("update live menu", ex); }
+        }
+
+        private static string BuildWatchLabel(RemoteProfile p)
+        {
+            if (p == null || !p.WatchFolderEnabled) return "Watch: off";
+            string mode = TrayContext.NormalizeWatchMode(p.WatchFolderMode);
+            string head = "Watch (" + mode + "): " + p.WatchQueueCount + " queued, " + p.WatchUploadingCount + " uploading";
+            if (p.WatchFailedTotal > 0) head += ", " + p.WatchFailedTotal + " failed";
+            return head;
         }
 
         private void UpdateTrayTooltip()

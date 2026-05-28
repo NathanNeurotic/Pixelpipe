@@ -59,6 +59,13 @@ namespace Pixelpipe
                 sb.AppendLine("  session: " + p.SessionText);
                 sb.AppendLine("  speed: " + p.SpeedText);
                 sb.AppendLine("  log: " + p.LogFile);
+                if (p.WatchFolderEnabled)
+                {
+                    sb.AppendLine("  watch folder: " + p.WatchFolderPath + " (" + TrayContext.NormalizeWatchMode(p.WatchFolderMode)
+                        + (String.IsNullOrEmpty(p.WatchFolderTargetDir) ? "" : ", subdir " + p.WatchFolderTargetDir) + ")");
+                    sb.AppendLine("  watch state: " + p.WatchQueueCount + " queued, " + p.WatchUploadingCount + " uploading, " + p.WatchUploadedTotal + " uploaded, " + p.WatchFailedTotal + " failed");
+                    if (!String.IsNullOrEmpty(p.WatchLastResult)) sb.AppendLine("  watch last: " + p.WatchLastResult);
+                }
                 if (!String.IsNullOrWhiteSpace(p.LastError)) sb.AppendLine("  last error: " + p.LastError);
                 if (!String.IsNullOrWhiteSpace(p.LastPreflightReport))
                 {

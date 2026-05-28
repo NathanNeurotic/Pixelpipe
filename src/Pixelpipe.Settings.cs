@@ -39,6 +39,12 @@ namespace Pixelpipe
                             p.ScheduleMountTime = ToStringValue(GetDictValue(d, "ScheduleMountTime"), "");
                             p.ScheduleUnmountTime = ToStringValue(GetDictValue(d, "ScheduleUnmountTime"), "");
                             p.ScheduleDays = ToStringValue(GetDictValue(d, "ScheduleDays"), "Mon,Tue,Wed,Thu,Fri,Sat,Sun");
+                            p.WatchFolderEnabled = ToBool(GetDictValue(d, "WatchFolderEnabled"));
+                            p.WatchFolderPath = ToStringValue(GetDictValue(d, "WatchFolderPath"), "");
+                            p.WatchFolderTargetDir = ToStringValue(GetDictValue(d, "WatchFolderTargetDir"), "");
+                            p.WatchFolderMode = NormalizeWatchMode(ToStringValue(GetDictValue(d, "WatchFolderMode"), "move"));
+                            long quiet = ToLong(GetDictValue(d, "WatchFolderQuietMs"));
+                            p.WatchFolderQuietMs = quiet > 0 ? (int)Math.Min(quiet, 600000) : 5000;
                             result.Add(p);
                         }
                     }
@@ -84,11 +90,20 @@ namespace Pixelpipe
                     d["ScheduleMountTime"] = p.ScheduleMountTime ?? "";
                     d["ScheduleUnmountTime"] = p.ScheduleUnmountTime ?? "";
                     d["ScheduleDays"] = String.IsNullOrWhiteSpace(p.ScheduleDays) ? "Mon,Tue,Wed,Thu,Fri,Sat,Sun" : p.ScheduleDays;
+                    d["WatchFolderEnabled"] = p.WatchFolderEnabled;
+                    d["WatchFolderPath"] = p.WatchFolderPath ?? "";
+                    d["WatchFolderTargetDir"] = p.WatchFolderTargetDir ?? "";
+                    d["WatchFolderMode"] = NormalizeWatchMode(p.WatchFolderMode);
+                    d["WatchFolderQuietMs"] = p.WatchFolderQuietMs > 0 ? p.WatchFolderQuietMs : 5000;
                     list.Add(d);
                 }
                 root["Profiles"] = list.ToArray();
                 root["BandwidthLimit"] = selectedBandwidth;
                 WriteSettingsRoot(root);
+                // Profile mutations might have added/removed/changed a watch
+                // folder; reconcile so the FileSystemWatcher set matches the
+                // new state before the timer's next tick.
+                ReconcileAllWatchers();
             }
             catch (Exception ex) { LogUiIssue("save profiles", ex); }
         }

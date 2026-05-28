@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.11.0
+
+Per-profile watch folder: drop a file into a local directory, Pixelpipe uploads it to the remote and (optionally) deletes the local copy.
+
+Added:
+
+- **Watch folder per profile.** Each profile gains `WatchFolderEnabled`, `WatchFolderPath`, `WatchFolderTargetDir`, `WatchFolderMode` (`move` / `copy`), and `WatchFolderQuietMs`. A `FileSystemWatcher` per enabled profile, plus a single 3-second drain timer, queues newly seen files and uploads each via `rclone moveto` (default — deletes the local copy after success) or `rclone copyto` (keeps it). Up to two parallel uploads per profile. Failed uploads retry with 30 s / 2 m / 10 m back-off, then drop after three attempts (the failure is recorded on the profile).
+- **Edit-profile dialog** gets a new "Watch folder (auto-upload)" group with a folder picker, target-subdir field, move/copy dropdown, and quiet-period input. Enabling a watch folder with a missing or non-existent path raises a warning at save time.
+- **Live watch counters** on the profile card, the tray menu profile submenu, and Diagnostics: `"Watch (move): N queued, M uploading, K uploaded"` plus a one-line "last:" message. Hidden when the profile has watch disabled.
+- **Export/import** round-trips the new fields, so a profile with a watch folder configured on machine A imports with `WatchFolderEnabled=true` but uses whatever `WatchFolderPath` was set (the path lives on disk on each machine).
+- **Three new unit tests** (`NormalizeWatchMode`, `BuildWatchUploadArgs`, `ComputeWatchNextRetryUtc`). 42 tests total, all green.
+
+Changed:
+
+- **`SaveProfiles`** now calls `ReconcileAllWatchers` after writing so adding, editing, or removing a profile picks up immediately rather than waiting for the next process restart.
+
 ## 0.10.0
 
 In-app provider setup wizards: nine new "Add cloud remote" entries that build the rclone remote and the Pixelpipe profile in one flow, without ever opening `rclone config` in a terminal (except OAuth, where the browser dance still happens there).

@@ -26,6 +26,17 @@ namespace Pixelpipe
         public string ScheduleMountTime;
         public string ScheduleUnmountTime;
         public string ScheduleDays;
+        // Watch-folder upload. WatchFolderEnabled gates the FileSystemWatcher
+        // and the uploader. WatchFolderPath is the local directory to monitor;
+        // WatchFolderTargetDir is an optional subdir on the remote ("" means
+        // root). WatchFolderMode is "move" (delete after upload) or "copy"
+        // (keep local). WatchFolderQuietMs is the dwell after the last write
+        // before the file is considered ready to upload (defaults to 5000ms).
+        public bool WatchFolderEnabled;
+        public string WatchFolderPath;
+        public string WatchFolderTargetDir;
+        public string WatchFolderMode;
+        public int WatchFolderQuietMs;
 
         [ScriptIgnore] public Process MountProcess;
         [ScriptIgnore] public bool DesiredMounted;
@@ -58,6 +69,15 @@ namespace Pixelpipe
         // the 30-second timer ticks repeatedly through the same minute.
         [ScriptIgnore] public string LastScheduleMountKey;
         [ScriptIgnore] public string LastScheduleUnmountKey;
+        // Watch-folder runtime stats. Updated by the WatchFolder worker thread
+        // and read by the UI thread; no lock since these are independent
+        // counters that don't drive any reactive state machine.
+        [ScriptIgnore] public int WatchQueueCount;
+        [ScriptIgnore] public int WatchUploadingCount;
+        [ScriptIgnore] public int WatchUploadedTotal;
+        [ScriptIgnore] public int WatchFailedTotal;
+        [ScriptIgnore] public string WatchLastResult;
+        [ScriptIgnore] public DateTime WatchLastResultUtc;
 
         public RemoteProfile()
         {
@@ -74,6 +94,12 @@ namespace Pixelpipe
             ScheduleMountTime = "";
             ScheduleUnmountTime = "";
             ScheduleDays = "Mon,Tue,Wed,Thu,Fri,Sat,Sun";
+            WatchFolderEnabled = false;
+            WatchFolderPath = "";
+            WatchFolderTargetDir = "";
+            WatchFolderMode = "move";
+            WatchFolderQuietMs = 5000;
+            WatchLastResult = "";
             StatusText = "not mounted";
             ProviderCapabilities cap = ProviderCapabilities.For(Provider);
             StorageText = cap.DefaultStorageText();

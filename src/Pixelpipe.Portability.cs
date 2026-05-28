@@ -206,6 +206,11 @@ namespace Pixelpipe
                 d["ScheduleMountTime"] = p.ScheduleMountTime ?? "";
                 d["ScheduleUnmountTime"] = p.ScheduleUnmountTime ?? "";
                 d["ScheduleDays"] = String.IsNullOrWhiteSpace(p.ScheduleDays) ? "Mon,Tue,Wed,Thu,Fri,Sat,Sun" : p.ScheduleDays;
+                d["WatchFolderEnabled"] = p.WatchFolderEnabled;
+                d["WatchFolderPath"] = p.WatchFolderPath ?? "";
+                d["WatchFolderTargetDir"] = p.WatchFolderTargetDir ?? "";
+                d["WatchFolderMode"] = NormalizeWatchMode(p.WatchFolderMode);
+                d["WatchFolderQuietMs"] = p.WatchFolderQuietMs > 0 ? p.WatchFolderQuietMs : 5000;
                 arr.Add(d);
             }
             root["profiles"] = arr.ToArray();
@@ -254,6 +259,18 @@ namespace Pixelpipe
                     p.ScheduleMountTime = ToStringValue(GetDictValueStatic(d, "ScheduleMountTime"), "");
                     p.ScheduleUnmountTime = ToStringValue(GetDictValueStatic(d, "ScheduleUnmountTime"), "");
                     p.ScheduleDays = ToStringValue(GetDictValueStatic(d, "ScheduleDays"), "Mon,Tue,Wed,Thu,Fri,Sat,Sun");
+                    p.WatchFolderEnabled = ToBool(GetDictValueStatic(d, "WatchFolderEnabled"));
+                    p.WatchFolderPath = ToStringValue(GetDictValueStatic(d, "WatchFolderPath"), "");
+                    p.WatchFolderTargetDir = ToStringValue(GetDictValueStatic(d, "WatchFolderTargetDir"), "");
+                    p.WatchFolderMode = NormalizeWatchMode(ToStringValue(GetDictValueStatic(d, "WatchFolderMode"), "move"));
+                    object quietObj = GetDictValueStatic(d, "WatchFolderQuietMs");
+                    long quiet = 0;
+                    if (quietObj != null)
+                    {
+                        long parsed;
+                        if (Int64.TryParse(Convert.ToString(quietObj, System.Globalization.CultureInfo.InvariantCulture), out parsed)) quiet = parsed;
+                    }
+                    p.WatchFolderQuietMs = quiet > 0 ? (int)Math.Min(quiet, 600000) : 5000;
                     profiles.Add(p);
                 }
                 return true;

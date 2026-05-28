@@ -52,6 +52,9 @@ namespace Pixelpipe.Tests
             Run("TryParseProfilesExportJson", TestTryParseProfilesExportJson);
             Run("PlanProfileImport", TestPlanProfileImport);
             Run("BuildRcloneConfigCreateArgs", TestBuildRcloneConfigCreateArgs);
+            Run("NormalizeWatchMode", TestNormalizeWatchMode);
+            Run("BuildWatchUploadArgs", TestBuildWatchUploadArgs);
+            Run("ComputeWatchNextRetryUtc", TestComputeWatchNextRetryUtc);
 
             Console.WriteLine();
             Console.WriteLine(total - failures + " / " + total + " passed");
@@ -729,6 +732,65 @@ namespace Pixelpipe.Tests
             withEmptyKey.Add(new KeyValuePair<string, string>("user", "bob"));
             string d = TrayContext.BuildRcloneConfigCreateArgs("X", "sftp", withEmptyKey);
             AssertEqual("config create \"X\" sftp user \"bob\" --non-interactive", d);
+        }
+
+        private static void TestNormalizeWatchMode()
+        {
+            AssertEqual("move", TrayContext.NormalizeWatchMode(""));
+            AssertEqual("move", TrayContext.NormalizeWatchMode(null));
+            AssertEqual("move", TrayContext.NormalizeWatchMode("garbage"));
+            AssertEqual("move", TrayContext.NormalizeWatchMode("MOVE"));
+            AssertEqual("copy", TrayContext.NormalizeWatchMode("copy"));
+            AssertEqual("copy", TrayContext.NormalizeWatchMode(" COPY "));
+        }
+
+        private static void TestBuildWatchUploadArgs()
+        {
+            RemoteProfile p = new RemoteProfile();
+            p.Remote = "Pixeldrain:";
+            p.WatchFolderMode = "move";
+            p.WatchFolderTargetDir = "";
+
+            // No target subdir: file lands at remote root.
+            string a = TrayContext.BuildWatchUploadArgs(p, "C:\\Watch\\report.pdf");
+            AssertEqual("moveto \"C:\\Watch\\report.pdf\" \"Pixeldrain:report.pdf\"", a);
+
+            // Copy mode uses copyto.
+            p.WatchFolderMode = "copy";
+            string b = TrayContext.BuildWatchUploadArgs(p, "C:\\Watch\\notes.txt");
+            AssertEqual("copyto \"C:\\Watch\\notes.txt\" \"Pixeldrain:notes.txt\"", b);
+
+            // Subdir is joined with /; backslashes normalised; leading/trailing
+            // slashes stripped so we never produce e.g. "Pixeldrain://Inbox/file".
+            p.WatchFolderMode = "move";
+            p.WatchFolderTargetDir = "Inbox/Reports";
+            string c = TrayContext.BuildWatchUploadArgs(p, "C:\\Watch\\q3.xlsx");
+            AssertEqual("moveto \"C:\\Watch\\q3.xlsx\" \"Pixeldrain:Inbox/Reports/q3.xlsx\"", c);
+
+            p.WatchFolderTargetDir = "/Inbox\\";
+            string d = TrayContext.BuildWatchUploadArgs(p, "C:\\Watch\\x.zip");
+            AssertEqual("moveto \"C:\\Watch\\x.zip\" \"Pixeldrain:Inbox/x.zip\"", d);
+
+            // Null profile doesn't throw — falls back to defaults.
+            string e = TrayContext.BuildWatchUploadArgs(null, "C:\\Watch\\a.bin");
+            AssertContains(e, "moveto");
+            AssertContains(e, "a.bin");
+        }
+
+        private static void TestComputeWatchNextRetryUtc()
+        {
+            DateTime t0 = new DateTime(2026, 5, 28, 12, 0, 0, DateTimeKind.Utc);
+            // First attempt → 30s back-off.
+            AssertEqual(t0.AddSeconds(30), TrayContext.ComputeWatchNextRetryUtc(1, t0));
+            // Second → 120s.
+            AssertEqual(t0.AddSeconds(120), TrayContext.ComputeWatchNextRetryUtc(2, t0));
+            // Third → 600s.
+            AssertEqual(t0.AddSeconds(600), TrayContext.ComputeWatchNextRetryUtc(3, t0));
+            // Beyond the array clamps to the last value rather than running forever.
+            AssertEqual(t0.AddSeconds(600), TrayContext.ComputeWatchNextRetryUtc(99, t0));
+            // Zero / negative attempts are treated as the first try.
+            AssertEqual(t0.AddSeconds(30), TrayContext.ComputeWatchNextRetryUtc(0, t0));
+            AssertEqual(t0.AddSeconds(30), TrayContext.ComputeWatchNextRetryUtc(-3, t0));
         }
 
         private static void AssertEqual(object expected, object actual)
