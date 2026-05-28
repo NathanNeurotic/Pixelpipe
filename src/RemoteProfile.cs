@@ -27,6 +27,10 @@ namespace Pixelpipe
         [ScriptIgnore] public string LastError;
         [ScriptIgnore] public int RcPort;
         [ScriptIgnore] public string LogFile;
+        // Cleared on Test profile completion; written to so the diagnostics view
+        // can show the user the latest preflight report without re-running it.
+        [ScriptIgnore] public string LastPreflightReport;
+        [ScriptIgnore] public DateTime LastPreflightUtc;
 
         public RemoteProfile()
         {

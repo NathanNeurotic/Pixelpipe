@@ -226,7 +226,8 @@ namespace Pixelpipe
 
         private bool ProfileLabelExists(string label)
         {
-            for (int i = 0; i < profiles.Count; i++) if (String.Equals(profiles[i].Label, label, StringComparison.OrdinalIgnoreCase)) return true;
+            RemoteProfile[] snapshot = SnapshotProfiles();
+            for (int i = 0; i < snapshot.Length; i++) if (String.Equals(snapshot[i].Label, label, StringComparison.OrdinalIgnoreCase)) return true;
             return false;
         }
 
@@ -371,8 +372,8 @@ namespace Pixelpipe
             form.MaximizeBox = false;
             form.Width = width;
             form.Height = height;
-            form.BackColor = Color.FromArgb(18, 22, 28);
-            form.ForeColor = Color.WhiteSmoke;
+            form.BackColor = WindowTheme.BgColor;
+            form.ForeColor = WindowTheme.FgColor;
             form.Font = new Font("Segoe UI", 9.25f);
             form.AutoScaleMode = AutoScaleMode.Dpi;
             return form;
@@ -410,7 +411,7 @@ namespace Pixelpipe
                 label.Dock = DockStyle.Fill;
                 label.MaximumSize = new Size(500, 0);
                 label.Text = message;
-                label.ForeColor = Color.WhiteSmoke;
+                label.ForeColor = WindowTheme.FgColor;
                 label.Margin = new Padding(0, 0, 0, 10);
 
                 TextBox textBox = new TextBox();
@@ -458,13 +459,13 @@ namespace Pixelpipe
                 label.AutoSize = true;
                 label.Dock = DockStyle.Fill;
                 label.Text = message;
-                label.ForeColor = Color.WhiteSmoke;
+                label.ForeColor = WindowTheme.FgColor;
                 label.Margin = new Padding(0, 0, 0, 10);
 
                 ListBox list = new ListBox();
                 list.Dock = DockStyle.Fill;
-                list.BackColor = Color.FromArgb(14, 18, 24);
-                list.ForeColor = Color.WhiteSmoke;
+                list.BackColor = WindowTheme.InputBg;
+                list.ForeColor = WindowTheme.FgColor;
                 list.Margin = new Padding(0, 0, 0, 14);
                 for (int i = 0; i < options.Length; i++) list.Items.Add(options[i]);
                 if (list.Items.Count > 0) list.SelectedIndex = 0;

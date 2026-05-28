@@ -20,11 +20,14 @@ namespace Pixelpipe
 
         private sealed class SetupWizard : Form
         {
-            private static readonly Color BgColor = Color.FromArgb(18, 22, 28);
-            private static readonly Color FgColor = Color.WhiteSmoke;
-            private static readonly Color MutedColor = Color.FromArgb(180, 200, 220);
-            private static readonly Color ButtonBg = Color.FromArgb(40, 44, 52);
-            private static readonly Color ButtonBorder = Color.FromArgb(70, 80, 92);
+            // Use the same palette as the main window / quick controls / profile
+            // cards. Previous SetupWizard-specific values differed by a handful of
+            // RGB points which read as inconsistent dark theming side-by-side.
+            private static Color BgColor { get { return WindowTheme.BgColor; } }
+            private static Color FgColor { get { return WindowTheme.FgColor; } }
+            private static Color MutedColor { get { return WindowTheme.MutedColor; } }
+            private static Color ButtonBg { get { return WindowTheme.ButtonBg; } }
+            private static Color ButtonBorder { get { return WindowTheme.ButtonBorder; } }
 
             private readonly TrayContext owner;
             private readonly bool manualReRun;
@@ -119,7 +122,7 @@ namespace Pixelpipe
                 apiKeyBox.UseSystemPasswordChar = true;
                 apiKeyBox.Width = 540;
                 apiKeyBox.Margin = new Padding(0, 0, 0, 8);
-                apiKeyBox.BackColor = Color.FromArgb(14, 18, 24);
+                apiKeyBox.BackColor = WindowTheme.InputBg;
                 apiKeyBox.ForeColor = FgColor;
                 apiKeyBox.BorderStyle = BorderStyle.FixedSingle;
 

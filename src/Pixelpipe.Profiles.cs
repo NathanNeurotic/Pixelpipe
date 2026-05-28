@@ -163,9 +163,10 @@ namespace Pixelpipe
         private bool HasProfileForRemote(string remote)
         {
             string n = NormalizeRemoteName(remote);
-            for (int i = 0; i < profiles.Count; i++)
+            RemoteProfile[] snapshot = SnapshotProfiles();
+            for (int i = 0; i < snapshot.Length; i++)
             {
-                if (String.Equals(NormalizeRemoteName(profiles[i].Remote), n, StringComparison.OrdinalIgnoreCase)) return true;
+                if (String.Equals(NormalizeRemoteName(snapshot[i].Remote), n, StringComparison.OrdinalIgnoreCase)) return true;
             }
             return false;
         }
@@ -213,18 +214,20 @@ namespace Pixelpipe
 
         private RemoteProfile GetPrimaryProfile()
         {
+            // Snapshot the primary under the lock so a concurrent Remove/Insert can't
+            // shift profiles[0] out from under us between the existence check and
+            // the return. AssignRuntimeFields takes the same lock internally so we
+            // call it outside this block.
+            RemoteProfile primary;
+            bool needsAssign;
             lock (profilesLock)
             {
-                if (profiles.Count == 0)
-                {
-                    profiles.Add(new RemoteProfile());
-                }
+                if (profiles.Count == 0) profiles.Add(new RemoteProfile());
+                primary = profiles[0];
+                needsAssign = String.IsNullOrWhiteSpace(primary.Id);
             }
-            if (profiles.Count > 0 && String.IsNullOrWhiteSpace(profiles[0].Id))
-            {
-                AssignRuntimeFields();
-            }
-            return profiles[0];
+            if (needsAssign) AssignRuntimeFields();
+            return primary;
         }
 
         private void MakePrimaryProfile(RemoteProfile p)
@@ -263,7 +266,7 @@ namespace Pixelpipe
                 title.Text = "Remote profile";
                 title.Font = new Font("Segoe UI", 13f, FontStyle.Bold);
                 title.AutoSize = true;
-                title.ForeColor = Color.WhiteSmoke;
+                title.ForeColor = WindowTheme.FgColor;
                 title.Margin = new Padding(0, 0, 0, 14);
 
                 TableLayoutPanel grid = new TableLayoutPanel();
@@ -296,14 +299,14 @@ namespace Pixelpipe
                 networkBox.AutoSize = true;
                 networkBox.Text = "Mount as network drive";
                 networkBox.Checked = String.Equals(p.MountMode, "network", StringComparison.OrdinalIgnoreCase);
-                networkBox.ForeColor = Color.WhiteSmoke;
+                networkBox.ForeColor = WindowTheme.FgColor;
                 networkBox.Margin = new Padding(0, 8, 0, 4);
 
                 CheckBox autoBox = new CheckBox();
                 autoBox.AutoSize = true;
                 autoBox.Text = "Auto-mount this profile at startup";
                 autoBox.Checked = p.AutoMount;
-                autoBox.ForeColor = Color.WhiteSmoke;
+                autoBox.ForeColor = WindowTheme.FgColor;
                 autoBox.Margin = new Padding(0, 4, 0, 0);
 
                 AddEditRow(grid, 0, "Label", labelBox);
@@ -355,7 +358,7 @@ namespace Pixelpipe
             label.Text = labelText;
             label.AutoSize = true;
             label.Anchor = AnchorStyles.Left;
-            label.ForeColor = Color.WhiteSmoke;
+            label.ForeColor = WindowTheme.FgColor;
             label.Margin = new Padding(0, 0, 18, 10);
 
             editor.Margin = new Padding(0, 0, 0, 10);

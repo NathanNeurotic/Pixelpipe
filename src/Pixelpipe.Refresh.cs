@@ -139,7 +139,7 @@ namespace Pixelpipe
                 label.Dock = DockStyle.Fill;
                 label.MaximumSize = new Size(500, 0);
                 label.Text = "Paste a PixelDrain API key. It is stored encrypted for your Windows user only.";
-                label.ForeColor = Color.WhiteSmoke;
+                label.ForeColor = WindowTheme.FgColor;
                 label.Margin = new Padding(0, 0, 0, 10);
 
                 TextBox textBox = new TextBox();

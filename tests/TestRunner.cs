@@ -35,6 +35,7 @@ namespace Pixelpipe.Tests
             Run("PreflightFormatting", TestPreflightFormatting);
             Run("PreflightShortSummary", TestPreflightShortSummary);
             Run("FirstNonEmptyLine", TestFirstNonEmptyLine);
+            Run("IndentLines", TestIndentLines);
             Run("ScrubSecrets", TestScrubSecrets);
             Run("BoxProvider", TestBoxProvider);
             Run("ParseBytesPerSec", TestParseBytesPerSec);
@@ -352,6 +353,21 @@ namespace Pixelpipe.Tests
             // Null / empty -> empty string.
             AssertEqual("", TrayContext.PreflightShortSummary(null));
             AssertEqual("", TrayContext.PreflightShortSummary(""));
+        }
+
+        private static void TestIndentLines()
+        {
+            AssertEqual("", TrayContext.IndentLines(null, "  "));
+            AssertEqual("", TrayContext.IndentLines("", "  "));
+            // Single line gets the indent prefix.
+            AssertEqual("    hello", TrayContext.IndentLines("hello", "    "));
+            // Multi-line: every non-empty line gets the prefix, empty lines stay empty.
+            string input = "[OK] rclone: found\r\n[FAIL] WinFsp: missing\r\n\r\n[OK] drive: P:";
+            string expected = "    [OK] rclone: found" + Environment.NewLine +
+                              "    [FAIL] WinFsp: missing" + Environment.NewLine +
+                              Environment.NewLine +
+                              "    [OK] drive: P:";
+            AssertEqual(expected, TrayContext.IndentLines(input, "    "));
         }
 
         private static void TestFirstNonEmptyLine()

@@ -47,14 +47,15 @@ namespace Pixelpipe
 
         private sealed class MainWindow : Form
         {
-            internal static readonly Color BgColor = Color.FromArgb(18, 22, 28);
-            internal static readonly Color CardColor = Color.FromArgb(28, 33, 42);
-            internal static readonly Color FgColor = Color.WhiteSmoke;
-            internal static readonly Color MutedColor = Color.FromArgb(160, 170, 184);
-            internal static readonly Color ButtonBg = Color.FromArgb(48, 53, 64);
-            internal static readonly Color ButtonBorder = Color.FromArgb(80, 90, 105);
-            internal static readonly Color AccentColor = Color.FromArgb(110, 200, 255);
-            internal static readonly Color WarnColor = Color.FromArgb(240, 180, 60);
+            // Aliases for ergonomics; the canonical palette lives in WindowTheme.
+            internal static Color BgColor { get { return WindowTheme.BgColor; } }
+            internal static Color CardColor { get { return WindowTheme.CardColor; } }
+            internal static Color FgColor { get { return WindowTheme.FgColor; } }
+            internal static Color MutedColor { get { return WindowTheme.MutedColor; } }
+            internal static Color ButtonBg { get { return WindowTheme.ButtonBg; } }
+            internal static Color ButtonBorder { get { return WindowTheme.ButtonBorder; } }
+            internal static Color AccentColor { get { return WindowTheme.AccentColor; } }
+            internal static Color WarnColor { get { return WindowTheme.WarnColor; } }
 
             private readonly TrayContext owner;
             private TabControl tabs;
@@ -106,8 +107,9 @@ namespace Pixelpipe
 
                 Controls.Add(tabs);
 
+                // RebuildProfileCards ends by calling ApplyLiveState, so we don't
+                // need to call it again here. (Used to; see v0.6.0 audit item F.)
                 RebuildProfileCards();
-                ApplyLiveState();
             }
 
             // ----- Profiles tab -----
@@ -265,7 +267,7 @@ namespace Pixelpipe
                 diagBox.ScrollBars = ScrollBars.Vertical;
                 diagBox.Font = new Font("Consolas", 9.25f);
                 diagBox.Dock = DockStyle.Fill;
-                diagBox.BackColor = Color.FromArgb(14, 18, 24);
+                diagBox.BackColor = WindowTheme.InputBg;
                 diagBox.ForeColor = FgColor;
                 diagBox.Text = owner.BuildDiagnosticsText();
 
@@ -298,7 +300,7 @@ namespace Pixelpipe
                 logSelector = new ComboBox();
                 logSelector.DropDownStyle = ComboBoxStyle.DropDownList;
                 logSelector.Width = 360;
-                logSelector.BackColor = Color.FromArgb(14, 18, 24);
+                logSelector.BackColor = WindowTheme.InputBg;
                 logSelector.ForeColor = FgColor;
                 logSelector.Margin = new Padding(0, 4, 6, 0);
                 PopulateLogSelector();
@@ -315,7 +317,7 @@ namespace Pixelpipe
                 logBox.ScrollBars = ScrollBars.Vertical;
                 logBox.Font = new Font("Consolas", 9.25f);
                 logBox.Dock = DockStyle.Fill;
-                logBox.BackColor = Color.FromArgb(14, 18, 24);
+                logBox.BackColor = WindowTheme.InputBg;
                 logBox.ForeColor = FgColor;
 
                 page.Controls.Add(logBox);
@@ -419,7 +421,7 @@ namespace Pixelpipe
                 bandwidthCombo = new ComboBox();
                 bandwidthCombo.DropDownStyle = ComboBoxStyle.DropDownList;
                 bandwidthCombo.Width = 200;
-                bandwidthCombo.BackColor = Color.FromArgb(14, 18, 24);
+                bandwidthCombo.BackColor = WindowTheme.InputBg;
                 bandwidthCombo.ForeColor = FgColor;
                 bandwidthCombo.Margin = new Padding(0, 4, 12, 4);
                 for (int i = 0; i < choices.Length; i++)
@@ -699,12 +701,12 @@ namespace Pixelpipe
 
         private sealed class ProfileCard
         {
-            private static readonly Color CardBg = MainWindow.CardColor;
-            private static readonly Color FgColor = MainWindow.FgColor;
-            private static readonly Color MutedColor = MainWindow.MutedColor;
-            private static readonly Color MountedPill = Color.FromArgb(50, 130, 60);
-            private static readonly Color UnmountedPill = Color.FromArgb(70, 76, 88);
-            private static readonly Color ErrorColor = Color.FromArgb(255, 110, 110);
+            private static Color CardBg { get { return WindowTheme.CardColor; } }
+            private static Color FgColor { get { return WindowTheme.FgColor; } }
+            private static Color MutedColor { get { return WindowTheme.MutedColor; } }
+            private static Color MountedPill { get { return WindowTheme.MountedPill; } }
+            private static Color UnmountedPill { get { return WindowTheme.UnmountedPill; } }
+            private static Color ErrorColor { get { return WindowTheme.ErrorColor; } }
 
             private readonly TrayContext owner;
             public readonly RemoteProfile Profile;
