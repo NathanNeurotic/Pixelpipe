@@ -82,6 +82,23 @@ jobs:
             dist/SHA256SUMS.txt
           if-no-files-found: ignore
 
+      - name: Read version and changelog section
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        id: changelog
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $Changelog = Get-Content -Raw -Path CHANGELOG.md
+          $Match = [regex]::Match($Changelog, '(?ms)^##\s+(?<version>\d+\.\d+\.\d+)\s*\r?\n(?<body>.*?)(?=^##\s+\d+\.\d+\.\d+\s*\r?\n|\z)')
+          if (!$Match.Success) { throw 'Could not find a version header (## X.Y.Z) in CHANGELOG.md' }
+          $Version = $Match.Groups['version'].Value
+          $Body = $Match.Groups['body'].Value.Trim()
+          "version=$Version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding ascii
+          $BodyFile = Join-Path $env:RUNNER_TEMP 'release-body.md'
+          Set-Content -Path $BodyFile -Value $Body -Encoding utf8
+          "body_file=$BodyFile" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding ascii
+          Write-Host "Detected CHANGELOG version: $Version"
+
       - name: Publish rolling release
         if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
         shell: pwsh
@@ -89,22 +106,32 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           COMMIT_SHA: ${{ github.sha }}
           REPO: ${{ github.repository }}
+          VERSION: ${{ steps.changelog.outputs.version }}
+          BODY_FILE: ${{ steps.changelog.outputs.body_file }}
         run: |
           $ErrorActionPreference = 'Stop'
           $Tag = 'rolling'
           $Short = $env:COMMIT_SHA.Substring(0, 7)
-          $ReleaseName = "Pixelpipe Rolling Release ($Short)"
+          $ReleaseName = "Pixelpipe Rolling Release v$env:VERSION ($Short)"
+          $Subject = (git log -1 --pretty=%s $env:COMMIT_SHA).Trim()
+          $Changelog = Get-Content -Raw -Path $env:BODY_FILE
           $Notes = @"
-          Automated rolling build from commit $env:COMMIT_SHA.
+Automated rolling build from commit [$Short](https://github.com/$env:REPO/commit/$env:COMMIT_SHA).
 
-          This is rebuilt on every push to main/master. It is intended for testers and early users.
+Latest change: $Subject
 
-          Files:
-          - Pixelpipe.exe: standalone tray app
-          - Pixelpipe-Windows-x64.zip: portable package
-          - Pixelpipe-Setup.exe: optional installer, when the installer build succeeds
-          - SHA256SUMS.txt: checksum file
-          "@
+This is rebuilt on every push to main and tracks the in-development version v$env:VERSION. It is intended for testers and early users; for a frozen build, grab the matching `v$env:VERSION` release once it is cut.
+
+## v$env:VERSION changelog
+
+$Changelog
+
+## Files
+- Pixelpipe.exe: standalone tray app
+- Pixelpipe-Windows-x64.zip: portable package
+- Pixelpipe-Setup.exe: optional installer, when the installer build succeeds
+- SHA256SUMS.txt: checksum file
+"@
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -121,3 +148,47 @@ jobs:
             gh release edit $Tag --repo $env:REPO --title $ReleaseName --notes $Notes --prerelease
             gh release upload $Tag $Assets --repo $env:REPO --clobber
           }
+
+      - name: Publish versioned release if new
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COMMIT_SHA: ${{ github.sha }}
+          REPO: ${{ github.repository }}
+          VERSION: ${{ steps.changelog.outputs.version }}
+          BODY_FILE: ${{ steps.changelog.outputs.body_file }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $Tag = "v$env:VERSION"
+          gh release view $Tag --repo $env:REPO *> $null
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Release $Tag already exists; nothing to do."
+            exit 0
+          }
+          $ReleaseName = "Pixelpipe v$env:VERSION"
+          $Changelog = Get-Content -Raw -Path $env:BODY_FILE
+          $Short = $env:COMMIT_SHA.Substring(0, 7)
+          $Notes = @"
+Pixelpipe v$env:VERSION
+
+Built from commit [$Short](https://github.com/$env:REPO/commit/$env:COMMIT_SHA).
+
+$Changelog
+
+## Files
+- Pixelpipe.exe: standalone tray app
+- Pixelpipe-Windows-x64.zip: portable package
+- Pixelpipe-Setup.exe: optional installer, when the installer build succeeds
+- SHA256SUMS.txt: checksum file
+"@
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag $Tag $env:COMMIT_SHA
+          git push origin "refs/tags/$Tag"
+
+          $Assets = @('dist/Pixelpipe.exe','dist/Pixelpipe-Windows-x64.zip','dist/SHA256SUMS.txt')
+          if (Test-Path 'dist/Pixelpipe-Setup.exe') { $Assets += 'dist/Pixelpipe-Setup.exe' }
+
+          gh release create $Tag $Assets --repo $env:REPO --title $ReleaseName --notes $Notes
