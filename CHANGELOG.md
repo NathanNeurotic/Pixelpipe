@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.2.0
+
+Added multi-remote rclone profile support.
+
+Added:
+
+- Multi-profile tray menu.
+- Per-profile mount / unmount / open drive controls.
+- Per-profile drive letters.
+- Per-profile network/fixed mount mode.
+- Per-profile startup auto-mount.
+- Guided Add Cloud Remote entries for Pixeldrain, Google Drive, MEGA, OneDrive, Dropbox, Box, S3-compatible storage, WebDAV, and SFTP.
+- Import existing remotes through `rclone listremotes`.
+- Manage Remotes window.
+- Generic rclone storage display for any backend that supports `rclone about`.
+- Live rclone RC stats per Pixelpipe-launched mount.
+- Bandwidth changes applied to all Pixelpipe-launched mounts.
+- Expanded diagnostics with per-profile RC port, rclone remote status, and log tails.
+
+Changed:
+
+- Pixelpipe is now Pixeldrain-first instead of Pixeldrain-only.
+- PixelDrain transfer quota remains Pixeldrain-specific and is shown only when a Pixeldrain profile and API key are configured.
+- Existing `assets/pixelpipe.ico` remains the build icon and is intentionally not replaced.
+
 ## 0.1.0
 
 Initial Pixelpipe project release.
