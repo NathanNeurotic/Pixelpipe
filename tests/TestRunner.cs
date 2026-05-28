@@ -51,6 +51,7 @@ namespace Pixelpipe.Tests
             Run("BuildProfilesExportJson", TestBuildProfilesExportJson);
             Run("TryParseProfilesExportJson", TestTryParseProfilesExportJson);
             Run("PlanProfileImport", TestPlanProfileImport);
+            Run("BuildRcloneConfigCreateArgs", TestBuildRcloneConfigCreateArgs);
 
             Console.WriteLine();
             Console.WriteLine(total - failures + " / " + total + " passed");
@@ -696,6 +697,38 @@ namespace Pixelpipe.Tests
             AssertEqual(2, plan.NewProfiles.Count); // fresh + noId (treated as new)
             AssertEqual(1, plan.AlreadyPresent.Count);
             AssertEqual("already-here", plan.AlreadyPresent[0].Id);
+        }
+
+        private static void TestBuildRcloneConfigCreateArgs()
+        {
+            // No fields → just "config create <name> <type> --non-interactive".
+            string a = TrayContext.BuildRcloneConfigCreateArgs("MyDrive", "drive", null);
+            AssertEqual("config create \"MyDrive\" drive --non-interactive", a);
+
+            // Single field, simple value.
+            List<KeyValuePair<string, string>> one = new List<KeyValuePair<string, string>>();
+            one.Add(new KeyValuePair<string, string>("user", "alice"));
+            string b = TrayContext.BuildRcloneConfigCreateArgs("MyFTP", "ftp", one);
+            AssertEqual("config create \"MyFTP\" ftp user \"alice\" --non-interactive", b);
+
+            // Multiple fields preserve order; quoting handles whitespace and quotes.
+            List<KeyValuePair<string, string>> many = new List<KeyValuePair<string, string>>();
+            many.Add(new KeyValuePair<string, string>("provider", "Wasabi"));
+            many.Add(new KeyValuePair<string, string>("access_key_id", "AKIA EXAMPLE"));
+            many.Add(new KeyValuePair<string, string>("secret_access_key", "secret\"with\"quotes"));
+            string c = TrayContext.BuildRcloneConfigCreateArgs("Cold", "s3", many);
+            AssertContains(c, "config create \"Cold\" s3 ");
+            AssertContains(c, "provider \"Wasabi\"");
+            AssertContains(c, "access_key_id \"AKIA EXAMPLE\"");
+            AssertContains(c, "secret_access_key \"secret\\\"with\\\"quotes\"");
+            AssertContains(c, "--non-interactive");
+
+            // Empty key is skipped without throwing.
+            List<KeyValuePair<string, string>> withEmptyKey = new List<KeyValuePair<string, string>>();
+            withEmptyKey.Add(new KeyValuePair<string, string>("", "ignored"));
+            withEmptyKey.Add(new KeyValuePair<string, string>("user", "bob"));
+            string d = TrayContext.BuildRcloneConfigCreateArgs("X", "sftp", withEmptyKey);
+            AssertEqual("config create \"X\" sftp user \"bob\" --non-interactive", d);
         }
 
         private static void AssertEqual(object expected, object actual)

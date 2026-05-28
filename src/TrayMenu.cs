@@ -344,14 +344,15 @@ namespace Pixelpipe
         {
             ToolStripMenuItem add = new ToolStripMenuItem("Add cloud remote");
             add.DropDownItems.Add(MenuAction("Pixeldrain", delegate { AddPixeldrainProfile(); }));
-            add.DropDownItems.Add(MenuAction("Google Drive", delegate { AddGuidedRcloneRemote("Google Drive", "drive", "G:"); }));
-            add.DropDownItems.Add(MenuAction("MEGA", delegate { AddGuidedRcloneRemote("MEGA", "mega", "M:"); }));
-            add.DropDownItems.Add(MenuAction("OneDrive", delegate { AddGuidedRcloneRemote("OneDrive", "onedrive", "O:"); }));
-            add.DropDownItems.Add(MenuAction("Dropbox", delegate { AddGuidedRcloneRemote("Dropbox", "dropbox", "D:"); }));
-            add.DropDownItems.Add(MenuAction("Box", delegate { AddGuidedRcloneRemote("Box", "box", "K:"); }));
-            add.DropDownItems.Add(MenuAction("S3 / R2 / B2 / Wasabi", delegate { AddGuidedRcloneRemote("S3-compatible", "s3", "R:"); }));
-            add.DropDownItems.Add(MenuAction("WebDAV / Nextcloud", delegate { AddGuidedRcloneRemote("WebDAV", "webdav", "W:"); }));
-            add.DropDownItems.Add(MenuAction("SFTP", delegate { AddGuidedRcloneRemote("SFTP", "sftp", "S:"); }));
+            add.DropDownItems.Add(MenuAction("Google Drive (OAuth)", delegate { ConfigureOAuthRemoteWizard("Google Drive", "drive", "drive", "G:"); }));
+            add.DropDownItems.Add(MenuAction("OneDrive (OAuth)", delegate { ConfigureOAuthRemoteWizard("OneDrive", "onedrive", "onedrive", "O:"); }));
+            add.DropDownItems.Add(MenuAction("Dropbox (OAuth)", delegate { ConfigureOAuthRemoteWizard("Dropbox", "dropbox", "dropbox", "D:"); }));
+            add.DropDownItems.Add(MenuAction("Box (OAuth)", delegate { ConfigureOAuthRemoteWizard("Box", "box", "box", "K:"); }));
+            add.DropDownItems.Add(MenuAction("MEGA", delegate { ConfigureMegaRemoteWizard(); }));
+            add.DropDownItems.Add(MenuAction("S3 / R2 / B2 / Wasabi", delegate { ConfigureS3RemoteWizard(); }));
+            add.DropDownItems.Add(MenuAction("WebDAV / Nextcloud / SharePoint", delegate { ConfigureWebDAVRemoteWizard(); }));
+            add.DropDownItems.Add(MenuAction("SFTP", delegate { ConfigureSFTPRemoteWizard(); }));
+            add.DropDownItems.Add(MenuAction("FTP / FTPS", delegate { ConfigureFTPRemoteWizard(); }));
             add.DropDownItems.Add(new ToolStripSeparator());
             add.DropDownItems.Add(MenuAction("Custom existing rclone remote...", delegate { AddExistingRemoteProfile(); }));
             add.DropDownItems.Add(MenuAction("Open rclone config terminal", delegate { OpenRcloneConfigTerminal(); }));
