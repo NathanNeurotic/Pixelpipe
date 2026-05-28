@@ -43,6 +43,16 @@ namespace Pixelpipe
 
         private void RebuildMenu()
         {
+            // If the menu is currently displayed, clearing menu.Items would make it
+            // visibly flash — the seven-second timer would cause a blink every tick.
+            // Mark the rebuild as pending so the Closed handler picks it up. The
+            // Opening handler always calls RebuildMenu first, so the user sees fresh
+            // content on the next open either way.
+            if (menu != null && menu.Visible)
+            {
+                rebuildPendingWhileOpen = true;
+                return;
+            }
             menu.Items.Clear();
             AddDisabled("Pixelpipe");
             AddDisabled("Status: " + BuildGlobalStatus());
