@@ -128,6 +128,28 @@ When a flag is `no`, the UI shows "not applicable for this provider" or a provid
 }
 ```
 
+## Provider setup wizards
+
+`Add cloud remote` in the tray menu and main window opens a per-provider wizard that drives `rclone config create` directly for non-OAuth backends:
+
+| Provider | Wizard fields |
+| --- | --- |
+| Google Drive / OneDrive / Dropbox / Box | Remote name (browser sign-in happens in the `rclone config` terminal; Pixelpipe verifies after) |
+| MEGA | Remote name, email, password |
+| S3 / R2 / B2 / Wasabi / DigitalOcean / Storj | Remote name, provider, access key ID, secret access key, region, optional endpoint |
+| WebDAV / Nextcloud / SharePoint | Remote name, server URL, vendor, user, password (or app password) |
+| SFTP | Remote name, host, port (default 22), user, optional password (empty → ssh-agent / default key) |
+| FTP / FTPS | Remote name, host, port, user, password, `explicit_tls` toggle |
+| Pixeldrain | Existing API-key flow |
+
+After the wizard finishes:
+
+- Pixelpipe runs `rclone config create … --non-interactive` with the values.
+- It then checks `rclone listremotes` and only adds the Pixelpipe profile when the new remote shows up.
+- On failure, the rclone output is shown (scrubbed of obvious secrets) and the profile is **not** created so the user can correct the inputs and re-run.
+
+Secret handling: Pixelpipe never persists the password / secret it collected. Each wizard passes it once to `rclone config create`, which stores it obfuscated in `rclone.conf`. Pixelpipe's `settings.json` carries no rclone credentials.
+
 ## DPAPI and the API key
 
 The optional PixelDrain API key is stored in `PixeldrainApiKeyProtected` as a base64 DPAPI blob. DPAPI binds the encryption to the Windows account. Copying the settings file to another machine or another Windows user will silently fail to decrypt the key (Pixelpipe will treat the key as missing).

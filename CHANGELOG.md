@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.10.0
+
+In-app provider setup wizards: nine new "Add cloud remote" entries that build the rclone remote and the Pixelpipe profile in one flow, without ever opening `rclone config` in a terminal (except OAuth, where the browser dance still happens there).
+
+Added:
+
+- **`ShowProviderForm` dialog**: a generic labeled, validated, theme-consistent form for collecting provider credentials. Supports text, password (`UseSystemPasswordChar`), and dropdown fields, each with optional inline help text. Required fields are starred and the OK button refuses an empty submit. Used by every new wizard below.
+- **`ConfigureS3RemoteWizard`** for AWS S3, Wasabi, Cloudflare R2, Backblaze (S3-API), DigitalOcean Spaces, Linode, Storj. Provider chooser tunes endpoint/signing; access key + secret + region + optional endpoint. Runs `rclone config create … s3 …`, verifies, and auto-creates a profile on success.
+- **`ConfigureWebDAVRemoteWizard`** for Nextcloud, ownCloud, SharePoint, Infinite Scale, generic. URL + vendor + user + (DPAPI-handled-by-rclone) password.
+- **`ConfigureSFTPRemoteWizard`** with host + port (default 22) + user + optional password (empty falls back to ssh-agent / default key).
+- **`ConfigureFTPRemoteWizard`** with host + port + user + password + optional `explicit_tls` for FTPS servers.
+- **`ConfigureMegaRemoteWizard`** with MEGA email + password.
+- **`ConfigureOAuthRemoteWizard`** for Drive / OneDrive / Dropbox / Box: takes a remote name in-app, opens the `rclone config` terminal so the user completes the browser sign-in, then verifies the remote shows up in `rclone listremotes` and auto-creates the profile.
+- **`BuildRcloneConfigCreateArgs` pure helper** shared by every wizard for argument quoting and field ordering. Covered by a new unit test that exercises empty/single/multi-field cases plus values with whitespace and embedded quotes.
+- One new unit test (`BuildRcloneConfigCreateArgs`). 39 tests total, all green.
+
+Changed:
+
+- **Tray menu "Add cloud remote"** and the main-window split button now route each entry to its dedicated wizard. The old `AddGuidedRcloneRemote` "type the name, we'll open rclone config" path is gone for the nine first-class providers; "Custom existing rclone remote..." and "Open rclone config terminal" remain for advanced use.
+
 ## 0.9.0
 
 Portability and visibility release: each profile now reports stats appropriate to its provider, you can move profiles between machines as JSON, and the Logs tab can filter to a substring.
