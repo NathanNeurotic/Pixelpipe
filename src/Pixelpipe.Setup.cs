@@ -4,6 +4,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Net;
 using System.Text;
+using System.Threading;
 using System.Windows.Forms;
 using Microsoft.Win32;
 
@@ -16,8 +17,9 @@ namespace Pixelpipe
             try
             {
                 bool firstRun = !String.Equals(LoadSetting("FirstLaunchSetupDone", "0"), "1", StringComparison.OrdinalIgnoreCase);
+                bool skipMissingChecks = String.Equals(LoadSetting("SkipMissingDepWizard", "0"), "1", StringComparison.OrdinalIgnoreCase);
                 bool missingRequired = !RcloneAvailable() || !WinFspInstalled() || !AnyRemoteConfigured();
-                if (firstRun || missingRequired)
+                if (firstRun || (missingRequired && !skipMissingChecks))
                 {
                     RunFirstLaunchSetup(false);
                     SaveSetting("FirstLaunchSetupDone", "1");
@@ -30,18 +32,18 @@ namespace Pixelpipe
         {
             try
             {
-                StringBuilder intro = new StringBuilder();
-                intro.AppendLine("Pixelpipe setup will check:");
-                intro.AppendLine();
-                intro.AppendLine("- rclone");
-                intro.AppendLine("- WinFsp");
-                intro.AppendLine("- Pixeldrain or another rclone remote");
-                intro.AppendLine("- Optional PixelDrain API key for quota display");
-                intro.AppendLine();
-                intro.AppendLine("Pixelpipe now supports Pixeldrain plus other rclone-compatible remotes, including Google Drive, MEGA, OneDrive, Dropbox, Box, S3-compatible storage, WebDAV, SFTP, and custom rclone remotes.");
-                intro.AppendLine();
-                intro.AppendLine("Continue?");
-                if (MessageBox.Show(intro.ToString(), "Pixelpipe setup", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+                string intro = "Pixelpipe will check rclone, WinFsp, and your rclone remotes. Continue?";
+                if (!manual)
+                {
+                    intro += "\r\n\r\n(Click No to skip these prompts; you can re-run the wizard from Setup / dependencies later.)";
+                }
+                DialogResult introResult = MessageBox.Show(intro, "Pixelpipe setup", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                if (introResult != DialogResult.Yes)
+                {
+                    if (!manual) SaveSetting("SkipMissingDepWizard", "1");
+                    return;
+                }
+                SaveSetting("SkipMissingDepWizard", "0");
 
                 if (!RcloneAvailable())
                 {
@@ -109,34 +111,72 @@ namespace Pixelpipe
 
         private bool AnyRemoteConfigured()
         {
-            for (int i = 0; i < profiles.Count; i++) if (RemoteConfigured(profiles[i])) return true;
+            RemoteProfile[] snapshot = SnapshotProfiles();
+            for (int i = 0; i < snapshot.Length; i++) if (RemoteConfigured(snapshot[i])) return true;
             return false;
         }
 
         private bool RemoteConfigured(RemoteProfile p)
         {
-            try
+            if (p == null) return false;
+            string target = NormalizeRemoteName(p.Remote);
+            string[] remotes = GetCachedRcloneRemotes(false);
+            if (remotes == null) return false;
+            for (int i = 0; i < remotes.Length; i++)
             {
-                if (p == null || !RcloneAvailable()) return false;
-                string remotes = RunRcloneCapture("listremotes", 6000);
-                return remotes.IndexOf(NormalizeRemoteName(p.Remote), StringComparison.OrdinalIgnoreCase) >= 0;
+                if (String.Equals(remotes[i], target, StringComparison.OrdinalIgnoreCase)) return true;
             }
-            catch { return false; }
+            return false;
+        }
+
+        // Returns a cached list of rclone remotes. If the last fetch is older than 30s,
+        // tries to refresh. Returns the previous cache when rclone is slow or absent so
+        // momentary timeouts don't make Pixelpipe falsely report remotes as missing.
+        private string[] GetCachedRcloneRemotes(bool force)
+        {
+            if (!force && cachedRcloneRemotes != null && (DateTime.UtcNow - lastRemoteListUtc).TotalSeconds < 30)
+            {
+                return cachedRcloneRemotes;
+            }
+            if (!RcloneAvailable()) return cachedRcloneRemotes;
+            string output;
+            try { output = RunRcloneCapture("listremotes", 6000); }
+            catch (Exception ex) { LogUiIssue("listremotes", ex); return cachedRcloneRemotes; }
+            if (String.IsNullOrWhiteSpace(output))
+            {
+                LogUiWarn("listremotes", "rclone returned empty output; keeping previous cache");
+                return cachedRcloneRemotes;
+            }
+            System.Collections.Generic.List<string> list = new System.Collections.Generic.List<string>();
+            string[] lines = output.Replace("\r", "").Split('\n');
+            for (int i = 0; i < lines.Length; i++)
+            {
+                string s = lines[i].Trim();
+                if (s.EndsWith(":")) list.Add(s);
+            }
+            cachedRcloneRemotes = list.ToArray();
+            lastRemoteListUtc = DateTime.UtcNow;
+            return cachedRcloneRemotes;
         }
 
         private void RefreshDependencyStatusAsync(bool force)
         {
-            if (dependencyRefreshing) return;
-            if (!force && (DateTime.UtcNow - lastDependencyRefreshUtc).TotalSeconds < 30) return;
-            dependencyRefreshing = true;
-            System.Threading.ThreadPool.QueueUserWorkItem(delegate
+            if (Interlocked.CompareExchange(ref dependencyRefreshingFlag, 1, 0) != 0) return;
+            if (!force && (DateTime.UtcNow - lastDependencyRefreshUtc).TotalSeconds < 30)
             {
-                string text = GetDependencyStatusLine();
+                Interlocked.Exchange(ref dependencyRefreshingFlag, 0);
+                return;
+            }
+            ThreadPool.QueueUserWorkItem(delegate
+            {
+                string text;
+                try { text = GetDependencyStatusLine(); }
+                catch (Exception ex) { LogUiIssue("dependency status", ex); text = setupStatusText; }
                 BeginUi(delegate
                 {
                     setupStatusText = text;
                     lastDependencyRefreshUtc = DateTime.UtcNow;
-                    dependencyRefreshing = false;
+                    Interlocked.Exchange(ref dependencyRefreshingFlag, 0);
                     RebuildMenu();
                 });
             });
@@ -284,21 +324,40 @@ namespace Pixelpipe
         private string FindRclonePath()
         {
             string profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            string pf = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
             string[] candidates = new string[]
             {
                 Path.Combine(profile, "Apps", "rclone", "rclone.exe"),
-                @"C:\Program Files\rclone-v1.71.1-windows-amd64\rclone.exe",
-                @"C:\Program Files\rclone\rclone.exe",
+                Path.Combine(pf, "rclone", "rclone.exe"),
                 @"C:\rclone\rclone.exe"
             };
             for (int i = 0; i < candidates.Length; i++) if (File.Exists(candidates[i])) return candidates[i];
+
+            // rclone's official Windows installer drops into a versioned folder like
+            // C:\Program Files\rclone-v1.71.1-windows-amd64\. Glob it so we don't have
+            // to chase the latest version in code.
+            try
+            {
+                if (Directory.Exists(pf))
+                {
+                    string[] dirs = Directory.GetDirectories(pf, "rclone-v*-windows-*");
+                    Array.Sort(dirs, StringComparer.OrdinalIgnoreCase);
+                    for (int i = dirs.Length - 1; i >= 0; i--)
+                    {
+                        string candidate = Path.Combine(dirs[i], "rclone.exe");
+                        if (File.Exists(candidate)) return candidate;
+                    }
+                }
+            }
+            catch { }
+
             string path = Environment.GetEnvironmentVariable("PATH") ?? "";
-            string[] dirs = path.Split(Path.PathSeparator);
-            for (int i = 0; i < dirs.Length; i++)
+            string[] pathDirs = path.Split(Path.PathSeparator);
+            for (int i = 0; i < pathDirs.Length; i++)
             {
                 try
                 {
-                    string full = Path.Combine(dirs[i].Trim(), "rclone.exe");
+                    string full = Path.Combine(pathDirs[i].Trim(), "rclone.exe");
                     if (File.Exists(full)) return full;
                 }
                 catch { }

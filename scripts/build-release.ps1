@@ -9,6 +9,9 @@ if (-not $OutDir) { $OutDir = Join-Path $Root 'dist' }
 New-Item -ItemType Directory -Force $OutDir | Out-Null
 if (-not $OutFile) { $OutFile = 'Pixelpipe.exe' }
 $Out = Join-Path $OutDir $OutFile
+
+# Avoid "file in use" if a previous Pixelpipe is still running.
+try { Get-Process Pixelpipe -ErrorAction Stop | Stop-Process -Force } catch {}
 $SrcGlob = Join-Path $Root 'src\*.cs'
 $Ico = Join-Path $Root 'assets\pixelpipe.ico'
 $Manifest = Join-Path $Root 'app.manifest'

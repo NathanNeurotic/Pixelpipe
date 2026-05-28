@@ -16,24 +16,30 @@ namespace Pixelpipe
     {
         private void QueueRefresh(bool forceAbout, bool showErrors)
         {
-            if (refreshing) return;
-            refreshing = true;
+            if (Interlocked.CompareExchange(ref refreshingFlag, 1, 0) != 0) return;
             ThreadPool.QueueUserWorkItem(delegate
             {
-                for (int i = 0; i < profiles.Count; i++) RefreshProfile(profiles[i], forceAbout);
-
-                bool refreshQuota = forceAbout || (DateTime.UtcNow - lastQuotaRefreshUtc).TotalSeconds > 120;
-                if (refreshQuota)
+                try
                 {
-                    transferQuotaText = RefreshPixeldrainTransferQuota();
-                    lastQuotaRefreshUtc = DateTime.UtcNow;
+                    RemoteProfile[] snapshot = SnapshotProfiles();
+                    for (int i = 0; i < snapshot.Length; i++) RefreshProfile(snapshot[i], forceAbout);
+
+                    bool refreshQuota = forceAbout || (DateTime.UtcNow - lastQuotaRefreshUtc).TotalSeconds > 120;
+                    if (refreshQuota)
+                    {
+                        transferQuotaText = RefreshPixeldrainTransferQuota();
+                        lastQuotaRefreshUtc = DateTime.UtcNow;
+                    }
                 }
-
-                BeginUi(delegate
+                catch (Exception ex) { LogUiIssue("queue refresh", ex); }
+                finally
                 {
-                    refreshing = false;
-                    RebuildMenu();
-                });
+                    BeginUi(delegate
+                    {
+                        Interlocked.Exchange(ref refreshingFlag, 0);
+                        RebuildMenu();
+                    });
+                }
             });
         }
 
@@ -171,7 +177,8 @@ namespace Pixelpipe
         private string RefreshPixeldrainTransferQuota()
         {
             bool hasPixeldrain = false;
-            for (int i = 0; i < profiles.Count; i++) if (String.Equals(profiles[i].Provider, "pixeldrain", StringComparison.OrdinalIgnoreCase)) hasPixeldrain = true;
+            RemoteProfile[] snapshot = SnapshotProfiles();
+            for (int i = 0; i < snapshot.Length; i++) if (String.Equals(snapshot[i].Provider, "pixeldrain", StringComparison.OrdinalIgnoreCase)) hasPixeldrain = true;
             if (!hasPixeldrain) return "Transfer quota: PixelDrain profile not configured";
             string apiKey = LoadApiKey();
             if (String.IsNullOrWhiteSpace(apiKey)) return "Transfer quota: PixelDrain API key not set";
@@ -236,11 +243,10 @@ namespace Pixelpipe
 
         private string HttpGetPixeldrain(string url, string apiKey, int timeoutMs)
         {
+            // TLS protocol and Expect100Continue are configured once in Program.ConfigureModernTls.
             string token = Convert.ToBase64String(Encoding.ASCII.GetBytes(":" + apiKey));
             try
             {
-                ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12 | (SecurityProtocolType)12288;
-                ServicePointManager.Expect100Continue = false;
                 HttpWebRequest req = (HttpWebRequest)WebRequest.Create(url);
                 req.Method = "GET";
                 req.Timeout = timeoutMs;

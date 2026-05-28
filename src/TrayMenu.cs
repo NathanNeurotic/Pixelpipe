@@ -15,6 +15,10 @@ namespace Pixelpipe
         [DllImport("user32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool DestroyIcon(IntPtr hIcon);
     }
 
     internal sealed partial class TrayContext
@@ -31,7 +35,7 @@ namespace Pixelpipe
 
         private void QueueMenuOpenRefresh()
         {
-            if (refreshing) return;
+            if (refreshingFlag != 0) return;
             if ((DateTime.UtcNow - lastMenuOpenRefreshUtc).TotalSeconds < MenuOpenRefreshThrottleSeconds) return;
             lastMenuOpenRefreshUtc = DateTime.UtcNow;
             QueueRefresh(false, false);
@@ -74,6 +78,12 @@ namespace Pixelpipe
             }
 
             menu.Items.Add(new ToolStripSeparator());
+            if (profiles.Count > 1)
+            {
+                menu.Items.Add(MenuAction("Mount all", delegate { MountAllProfiles(); }, CountMounted() < profiles.Count));
+                menu.Items.Add(MenuAction("Unmount all", delegate { UnmountAllProfiles(); }, CountMounted() > 0));
+                menu.Items.Add(new ToolStripSeparator());
+            }
             menu.Items.Add(BuildAddRemoteMenu());
             menu.Items.Add(BuildBandwidthMenu());
             menu.Items.Add(BuildSetupMenu());
@@ -84,7 +94,35 @@ namespace Pixelpipe
             menu.Items.Add(MenuAction("Auto-mount at Windows startup", delegate { ToggleStartup(); }, true, StartupEnabled()));
             menu.Items.Add(MenuAction("Exit", delegate { ExitApp(); }));
 
-            tray.Text = AnyMounted() ? "Pixelpipe mounted" : "Pixelpipe not mounted";
+            int mountedCount = CountMounted();
+            // NotifyIcon.Text has a 63-char limit; keep it short.
+            tray.Text = profiles.Count == 0
+                ? "Pixelpipe"
+                : (mountedCount == 0
+                    ? "Pixelpipe (none mounted)"
+                    : "Pixelpipe (" + mountedCount + "/" + profiles.Count + " mounted)");
+        }
+
+        private void MountAllProfiles()
+        {
+            RemoteProfile[] snapshot = SnapshotProfiles();
+            int started = 0;
+            for (int i = 0; i < snapshot.Length; i++)
+            {
+                if (!IsMounted(snapshot[i])) { MountProfile(snapshot[i], snapshot[i].FullCache); started++; }
+            }
+            if (started == 0) ShowBalloon("All profiles are already mounted.");
+        }
+
+        private void UnmountAllProfiles()
+        {
+            RemoteProfile[] snapshot = SnapshotProfiles();
+            int stopped = 0;
+            for (int i = 0; i < snapshot.Length; i++)
+            {
+                if (IsMounted(snapshot[i])) { UnmountProfile(snapshot[i], true); stopped++; }
+            }
+            ShowBalloon(stopped == 0 ? "Nothing was mounted." : "Unmounting " + stopped + " profile(s).");
         }
 
         private ToolStripMenuItem BuildAddRemoteMenu()
@@ -95,7 +133,7 @@ namespace Pixelpipe
             add.DropDownItems.Add(MenuAction("MEGA", delegate { AddGuidedRcloneRemote("MEGA", "mega", "M:"); }));
             add.DropDownItems.Add(MenuAction("OneDrive", delegate { AddGuidedRcloneRemote("OneDrive", "onedrive", "O:"); }));
             add.DropDownItems.Add(MenuAction("Dropbox", delegate { AddGuidedRcloneRemote("Dropbox", "dropbox", "D:"); }));
-            add.DropDownItems.Add(MenuAction("Box", delegate { AddGuidedRcloneRemote("Box", "box", "B:"); }));
+            add.DropDownItems.Add(MenuAction("Box", delegate { AddGuidedRcloneRemote("Box", "box", "K:"); }));
             add.DropDownItems.Add(MenuAction("S3 / R2 / B2 / Wasabi", delegate { AddGuidedRcloneRemote("S3-compatible", "s3", "R:"); }));
             add.DropDownItems.Add(MenuAction("WebDAV / Nextcloud", delegate { AddGuidedRcloneRemote("WebDAV", "webdav", "W:"); }));
             add.DropDownItems.Add(MenuAction("SFTP", delegate { AddGuidedRcloneRemote("SFTP", "sftp", "S:"); }));
@@ -217,13 +255,8 @@ namespace Pixelpipe
 
         private void LogUiDebug(string message)
         {
-            try
-            {
-                System.IO.Directory.CreateDirectory(logDir);
-                string line = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " [debug] " + message + Environment.NewLine;
-                System.IO.File.AppendAllText(uiLogFile, line);
-            }
-            catch { }
+            if (!verboseLogging) return;
+            WriteLogLine("debug", "", message);
         }
 
         private void AddDisabled(string text)
