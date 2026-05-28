@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.7.0
+
+Auto-update notification and repo hygiene.
+
+Added:
+
+- **Auto-update notification.** On tray-menu open Pixelpipe checks `api.github.com/repos/NathanNeurotic/Pixelpipe/releases/latest` at most once per 24 h. If the latest tag is newer than the running build, a balloon fires once ("Pixelpipe vX.Y.Z is available. Open the tray menu to download.") and a "Pixelpipe vX.Y.Z available — download" item appears at the top of the tray menu. Clicking it opens the releases page and clears the indicator. No silent self-update.
+- **`UpdateCheckEnabled` setting** (default `1`) with a toggle in Settings → Preferences → "Check GitHub for new releases". Set to `0` to disable the periodic check entirely; the manual "Check for updates" menu item still works.
+- **`LastUpdateCheckUtc` and `AvailableUpdateVersion` settings** persist the check state so the indicator survives an app restart without re-fetching.
+- **`Application.ProductVersion` now matches the released version.** `scripts/generate-version.ps1` reads the top `## X.Y.Z` from `CHANGELOG.md` and writes a fresh `src/AssemblyVersion.cs` before every csc invocation. The generated file is gitignored. Both `build-release.ps1` and `run-tests.ps1` regenerate it so test runs match what's released.
+- **`.github/dependabot.yml`** configures weekly bumps for GitHub Actions versions so `actions/checkout` / `actions/upload-artifact` updates come in as PRs instead of needing a manual bump every few months.
+- **`CONTRIBUTING.md`** describing the workflow (branch off main → write feature + tests → bump CHANGELOG → CI auto-cuts release), build commands, project layout, and the conventions that have shaken out across the v0.5 / v0.6 refactors (TableLayoutPanel layouts, snapshot pattern for worker threads, WindowTheme over hardcoded colors, try/catch on every ThreadPool delegate).
+- **New unit test** `IsNewer`: covers plain semver bumps, the `v` prefix, padding (`0.7.0` vs `0.7.0.0`), per-component comparison (`0.6.10 > 0.6.9`), and unparseable inputs falling back to `false`. 29 tests total, all green.
+
 ## 0.6.1
 
 A "tighten the screws" release after the v0.6.0 audit. No new features; small refinements across thread safety, UX, and CI.

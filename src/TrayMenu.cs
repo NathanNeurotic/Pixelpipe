@@ -39,6 +39,7 @@ namespace Pixelpipe
         private ToolStripMenuItem startupItem;
         private ToolStripMenuItem setupStatusItem;
         private ToolStripMenuItem bandwidthHeaderItem;
+        private ToolStripMenuItem updateAvailableItem;
         private readonly List<ProfileMenuRefs> profileMenuRefs = new List<ProfileMenuRefs>();
 
         private sealed class ProfileMenuRefs
@@ -66,6 +67,7 @@ namespace Pixelpipe
             RebuildMenu();
             RefreshDependencyStatusAsync(false);
             QueueMenuOpenRefresh();
+            CheckForUpdatesIfDue();
         }
 
         private void QueueMenuOpenRefresh()
@@ -97,6 +99,12 @@ namespace Pixelpipe
             rcloneStatusItem = AddDisabledRef("rclone: " + (RcloneAvailable() ? "found" : "missing"));
             winfspStatusItem = AddDisabledRef("WinFsp: " + (WinFspInstalled() ? "found" : "missing"));
             quotaItem = AddDisabledRef(transferQuotaText);
+            // Sits right under the status block so a fresh update is the first
+            // thing the user sees when they right-click the tray.
+            updateAvailableItem = MenuAction("Update available — opens releases page", delegate { OpenAvailableUpdate(); });
+            updateAvailableItem.Visible = !String.IsNullOrEmpty(availableUpdateVersion);
+            if (updateAvailableItem.Visible) updateAvailableItem.Text = "Pixelpipe " + availableUpdateVersion + " available — download";
+            menu.Items.Add(updateAvailableItem);
             menu.Items.Add(new ToolStripSeparator());
 
             InsertWindowShortcuts();
@@ -205,6 +213,12 @@ namespace Pixelpipe
                 if (rcloneStatusItem != null) rcloneStatusItem.Text = "rclone: " + (RcloneAvailable() ? "found" : "missing");
                 if (winfspStatusItem != null) winfspStatusItem.Text = "WinFsp: " + (WinFspInstalled() ? "found" : "missing");
                 if (quotaItem != null) quotaItem.Text = transferQuotaText;
+                if (updateAvailableItem != null)
+                {
+                    bool show = !String.IsNullOrEmpty(availableUpdateVersion);
+                    updateAvailableItem.Visible = show;
+                    if (show) updateAvailableItem.Text = "Pixelpipe " + availableUpdateVersion + " available — download";
+                }
                 if (setupStatusItem != null) setupStatusItem.Text = setupStatusText;
                 if (bandwidthHeaderItem != null) bandwidthHeaderItem.Text = "Bandwidth limit: " + DisplayLimit(selectedBandwidth);
                 for (int b = 0; b < bandwidthItems.Count; b++)

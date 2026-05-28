@@ -58,6 +58,9 @@ namespace Pixelpipe
             transferQuotaText = ApiKeyConfigured() ? "Transfer quota: not checked" : "Transfer quota: PixelDrain API key not set";
             setupStatusText = "Setup: not checked";
             verboseLogging = String.Equals(LoadSetting("VerboseLogging", "0"), "1", StringComparison.OrdinalIgnoreCase);
+            // If the previous run recorded an available update, surface it again so
+            // the tray menu item appears without waiting another 24 hours.
+            availableUpdateVersion = LoadSetting("AvailableUpdateVersion", "");
             profiles = LoadProfiles();
             AssignRuntimeFields();
 

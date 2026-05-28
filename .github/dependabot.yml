@@ -1,0 +1,15 @@
+version: 2
+updates:
+  # Pin GitHub Actions and bump them automatically. Saves the manual quarterly
+  # bump cycle we did for actions/checkout v4 → v6 and upload-artifact v4 → v7.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci"
+    labels:
+      - "ci"
+      - "dependencies"
