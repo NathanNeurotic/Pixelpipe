@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Text;
 
 namespace Pixelpipe.Tests
 {
@@ -23,10 +25,15 @@ namespace Pixelpipe.Tests
             Run("ToBool", TestToBool);
             Run("SafeFileName", TestSafeFileName);
             Run("TrimForMenu", TestTrimForMenu);
+            Run("QuoteArg", TestQuoteArg);
             Run("TrayMenuPlacement", TestTrayMenuPlacement);
             Run("HasArg", TestHasArg);
             Run("ProfilePortFor", TestProfilePortFor);
             Run("IsValidBandwidth", TestIsValidBandwidth);
+            Run("NormalizeBandwidthLimit", TestNormalizeBandwidthLimit);
+            Run("WriteAllTextAtomic", TestWriteAllTextAtomic);
+            Run("PreflightFormatting", TestPreflightFormatting);
+            Run("FirstNonEmptyLine", TestFirstNonEmptyLine);
             Run("ScrubSecrets", TestScrubSecrets);
             Run("BoxProvider", TestBoxProvider);
             Run("ParseBytesPerSec", TestParseBytesPerSec);
@@ -212,6 +219,14 @@ namespace Pixelpipe.Tests
             AssertEqual(null, TrayContext.TrimForMenu(null, 5));
         }
 
+        private static void TestQuoteArg()
+        {
+            AssertEqual("\"\"", TrayContext.QuoteArg(null));
+            AssertEqual("\"remote name:\"", TrayContext.QuoteArg("remote name:"));
+            AssertEqual("\"a\\\"b\"", TrayContext.QuoteArg("a\"b"));
+            AssertEqual("\"C:\\temp\\\\\"", TrayContext.QuoteArg("C:\\temp\\"));
+        }
+
         private static void TestTrayMenuPlacement()
         {
             System.Drawing.Rectangle screen = new System.Drawing.Rectangle(0, 0, 1000, 800);
@@ -269,6 +284,56 @@ namespace Pixelpipe.Tests
             AssertFalse(TrayContext.IsValidBandwidth("garbage"));
             AssertFalse(TrayContext.IsValidBandwidth("1MB"));
             AssertFalse(TrayContext.IsValidBandwidth("-5M"));
+        }
+
+        private static void TestNormalizeBandwidthLimit()
+        {
+            AssertEqual("off", TrayContext.NormalizeBandwidthLimit(null));
+            AssertEqual("off", TrayContext.NormalizeBandwidthLimit(""));
+            AssertEqual("off", TrayContext.NormalizeBandwidthLimit("garbage"));
+            AssertEqual("1M", TrayContext.NormalizeBandwidthLimit(" 1M "));
+            AssertEqual("OFF", TrayContext.NormalizeBandwidthLimit("OFF"));
+        }
+
+        private static void TestWriteAllTextAtomic()
+        {
+            string dir = Path.Combine(Path.GetTempPath(), "Pixelpipe.Tests", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(dir);
+            try
+            {
+                string path = Path.Combine(dir, "settings.json");
+                File.WriteAllText(path, "old", Encoding.UTF8);
+                TrayContext.WriteAllTextAtomic(path, "new", Encoding.UTF8);
+                AssertEqual("new", File.ReadAllText(path, Encoding.UTF8));
+                AssertEqual("old", File.ReadAllText(path + ".bak", Encoding.UTF8));
+                AssertFalse(File.Exists(path + ".tmp"));
+            }
+            finally
+            {
+                try { Directory.Delete(dir, true); } catch { }
+            }
+        }
+
+        private static void TestPreflightFormatting()
+        {
+            string ok = TrayContext.FormatPreflightLine("ok", "rclone", "found");
+            AssertEqual("[OK] rclone: found", ok);
+            AssertFalse(TrayContext.PreflightHasFailures(ok));
+            AssertFalse(TrayContext.PreflightHasWarnings(ok));
+
+            string warn = ok + Environment.NewLine + TrayContext.FormatPreflightLine("warn", "storage", "not reported");
+            AssertTrue(TrayContext.PreflightHasWarnings(warn));
+            AssertFalse(TrayContext.PreflightHasFailures(warn));
+
+            string fail = warn + Environment.NewLine + TrayContext.FormatPreflightLine("fail", "remote", "missing");
+            AssertTrue(TrayContext.PreflightHasFailures(fail));
+        }
+
+        private static void TestFirstNonEmptyLine()
+        {
+            AssertEqual("", TrayContext.FirstNonEmptyLine(null));
+            AssertEqual("", TrayContext.FirstNonEmptyLine(""));
+            AssertEqual("rclone v1.71.1", TrayContext.FirstNonEmptyLine("\r\n  \n rclone v1.71.1\nmore"));
         }
 
         private static void TestScrubSecrets()

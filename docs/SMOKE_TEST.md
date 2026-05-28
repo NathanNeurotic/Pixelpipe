@@ -27,6 +27,7 @@ It should exit with code `0`. This verifies tray submenu placement math and dark
 ## Profile workflow
 
 - Confirm each profile shows remote, drive, provider, status, storage, traffic, speed, and log tail when available.
+- Use `Test profile` and confirm the preflight report checks rclone, WinFsp, remote configuration, drive letter, RC port, and storage probe.
 - Mount the primary profile with `Mount - low overhead`.
 - Open the mounted drive from the menu.
 - Unmount the profile and confirm the menu state returns to unmounted.

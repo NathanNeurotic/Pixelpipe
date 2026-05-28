@@ -76,7 +76,7 @@ namespace Pixelpipe
             bool refreshAbout = forceAbout || (DateTime.UtcNow - p.LastAboutRefreshUtc).TotalSeconds > 120;
             if (refreshAbout)
             {
-                string about = RunRcloneCapture("about " + NormalizeRemoteName(p.Remote) + " --json", 8000);
+                string about = RunRcloneCapture("about " + QuoteArg(NormalizeRemoteName(p.Remote)) + " --json", 8000);
                 if (!String.IsNullOrEmpty(about))
                 {
                     long used = ExtractLong(about, "used");
@@ -123,19 +123,49 @@ namespace Pixelpipe
         private string PromptForApiKey(string existing)
         {
             using (Form form = MakeDialog("PixelDrain API key", 540, 180))
-            using (Label label = new Label())
-            using (TextBox textBox = new TextBox())
-            using (Button ok = new Button())
-            using (Button cancel = new Button())
             {
-                label.Left = 12; label.Top = 12; label.Width = 500; label.Height = 44;
+                TableLayoutPanel root = new TableLayoutPanel();
+                root.Dock = DockStyle.Fill;
+                root.ColumnCount = 1;
+                root.RowCount = 3;
+                root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                root.Padding = new Padding(12);
+                root.BackColor = form.BackColor;
+
+                Label label = new Label();
+                label.AutoSize = true;
+                label.Dock = DockStyle.Fill;
+                label.MaximumSize = new Size(500, 0);
                 label.Text = "Paste a PixelDrain API key. It is stored encrypted for your Windows user only.";
                 label.ForeColor = Color.WhiteSmoke;
-                textBox.Left = 12; textBox.Top = 62; textBox.Width = 500; textBox.UseSystemPasswordChar = true; textBox.Text = existing ?? ""; textBox.SelectAll();
-                ok.Text = "Save"; ok.Left = 336; ok.Top = 104; ok.Width = 84; ok.DialogResult = DialogResult.OK;
-                cancel.Text = "Cancel"; cancel.Left = 428; cancel.Top = 104; cancel.Width = 84; cancel.DialogResult = DialogResult.Cancel;
-                form.Controls.Add(label); form.Controls.Add(textBox); form.Controls.Add(ok); form.Controls.Add(cancel);
+                label.Margin = new Padding(0, 0, 0, 10);
+
+                TextBox textBox = new TextBox();
+                textBox.Dock = DockStyle.Top;
+                textBox.UseSystemPasswordChar = true;
+                textBox.Text = existing ?? "";
+                textBox.Margin = new Padding(0, 0, 0, 14);
+
+                FlowLayoutPanel footer = new FlowLayoutPanel();
+                footer.Dock = DockStyle.Fill;
+                footer.AutoSize = true;
+                footer.FlowDirection = FlowDirection.RightToLeft;
+                footer.WrapContents = false;
+                footer.Margin = new Padding(0);
+
+                Button cancel = MakeDialogButton("Cancel", DialogResult.Cancel);
+                Button ok = MakeDialogButton("Save", DialogResult.OK);
+                footer.Controls.Add(cancel);
+                footer.Controls.Add(ok);
+
+                root.Controls.Add(label, 0, 0);
+                root.Controls.Add(textBox, 0, 1);
+                root.Controls.Add(footer, 0, 2);
+                form.Controls.Add(root);
                 form.AcceptButton = ok; form.CancelButton = cancel;
+                textBox.SelectAll();
                 return form.ShowDialog() == DialogResult.OK ? textBox.Text : null;
             }
         }
