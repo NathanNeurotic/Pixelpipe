@@ -43,6 +43,23 @@ Provider-specific quota is not guaranteed for every backend. Generic storage usa
 
 Any existing rclone remote can be imported into Pixelpipe and assigned a drive letter.
 
+## Two ways to use it
+
+Pixelpipe ships both interfaces side by side; pick whichever you prefer.
+
+**Tray menu** (right-click the tray icon). Everything is here: per-profile mount controls, bandwidth, setup, diagnostics, tools. Status text updates live every few seconds while the menu is open.
+
+**Main window** (`Open Pixelpipe window...` in the tray, or the new Setup wizard exits to it). Four tabs:
+
+- *Profiles*: dashboard cards with live status pills, storage gauges, session/speed numbers, and Mount/Unmount buttons.
+- *Diagnostics*: the same data you get from "Copy diagnostics", plus repair buttons.
+- *Logs*: per-profile rclone log and the Pixelpipe UI log in a tail viewer.
+- *Settings*: bandwidth, startup, verbose logging, re-run setup wizard, check for updates.
+
+**Quick controls popup** (`Quick controls...` in the tray). Small always-on-top window with aggregate live speed, session traffic, bandwidth dropdown, and per-profile status. Designed to sit in a corner during active transfers.
+
+**Setup wizard** runs on first launch and walks through rclone / WinFsp / your first rclone remote / optional API key. Re-runnable any time from the Settings tab or the Setup tray submenu.
+
 ## Features
 
 - Multi-profile tray menu for multiple cloud remotes.
