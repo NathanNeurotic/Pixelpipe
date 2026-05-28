@@ -33,8 +33,12 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $Exe = Join-Path $PWD 'dist\Pixelpipe.exe'
           if (!(Test-Path $Exe)) { throw "Build output missing: $Exe" }
-          & $Exe /smoketest-menu
-          if ($LASTEXITCODE -ne 0) { throw "Tray menu smoke test failed with code $LASTEXITCODE" }
+          $StdOut = Join-Path $env:RUNNER_TEMP 'smoke-stdout.txt'
+          $StdErr = Join-Path $env:RUNNER_TEMP 'smoke-stderr.txt'
+          $proc = Start-Process -FilePath $Exe -ArgumentList '/smoketest-menu' -Wait -PassThru -NoNewWindow -RedirectStandardOutput $StdOut -RedirectStandardError $StdErr
+          if (Test-Path $StdErr) { $err = Get-Content $StdErr -Raw; if (![string]::IsNullOrWhiteSpace($err)) { Write-Host "smoke stderr:"; Write-Host $err } }
+          if (Test-Path $StdOut) { $out = Get-Content $StdOut -Raw; if (![string]::IsNullOrWhiteSpace($out)) { Write-Host "smoke stdout:"; Write-Host $out } }
+          if ($proc.ExitCode -ne 0) { throw "Tray menu smoke test failed with code $($proc.ExitCode)" }
 
       - name: Install Inno Setup for installer build
         if: github.event_name != 'pull_request'
