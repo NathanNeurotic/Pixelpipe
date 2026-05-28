@@ -37,6 +37,12 @@ namespace Pixelpipe
         public string WatchFolderTargetDir;
         public string WatchFolderMode;
         public int WatchFolderQuietMs;
+        // Bandwidth schedule: comma-separated "HH:mm=limit" transitions
+        // applied to this profile by the same 30 s schedule timer that
+        // handles mount/unmount. Example: "00:00=off,09:00=1M,18:00=off".
+        // Empty string means no automatic bandwidth changes. Each transition
+        // overrides BandwidthLimit (which is the static fall-through).
+        public string BandwidthScheduleEntries;
 
         [ScriptIgnore] public Process MountProcess;
         [ScriptIgnore] public bool DesiredMounted;
@@ -69,6 +75,10 @@ namespace Pixelpipe
         // the 30-second timer ticks repeatedly through the same minute.
         [ScriptIgnore] public string LastScheduleMountKey;
         [ScriptIgnore] public string LastScheduleUnmountKey;
+        // Per-entry throttling for the bandwidth schedule (e.g.
+        // "2026-05-28@09:00") so a single 30 s tick doesn't re-apply the
+        // same transition multiple times across consecutive ticks.
+        [ScriptIgnore] public string LastBandwidthScheduleKey;
         // Watch-folder runtime stats. Updated by the WatchFolder worker thread
         // and read by the UI thread; no lock since these are independent
         // counters that don't drive any reactive state machine.
@@ -100,6 +110,7 @@ namespace Pixelpipe
             WatchFolderMode = "move";
             WatchFolderQuietMs = 5000;
             WatchLastResult = "";
+            BandwidthScheduleEntries = "";
             StatusText = "not mounted";
             ProviderCapabilities cap = ProviderCapabilities.For(Provider);
             StorageText = cap.DefaultStorageText();

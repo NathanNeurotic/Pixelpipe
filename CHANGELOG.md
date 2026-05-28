@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.12.0
+
+Bandwidth schedule, Activity tab, and timestamped settings backups. Three quality-of-life features extending systems we already have.
+
+Added:
+
+- **Per-profile bandwidth schedule.** Each profile gains `BandwidthScheduleEntries` — a comma-separated list of `HH:mm=limit` transitions (e.g. `"00:00=off,09:00=1M,18:00=off"`) applied by the same 30 s schedule timer that fires mount/unmount. Each transition overrides `BandwidthLimit` until the next one fires. Empty disables the schedule. Editable in the Edit-profile dialog under the bandwidth group; invalid tokens are dropped at save time so a typo can't silently misbehave.
+- **Activity tab in the main window** (between Profiles and Diagnostics). Parses `pixelpipe-ui.log` and renders the last 300 events as a readable timeline: `2026-05-28 14:30:15  Mount  Pixeldrain mounted on P:`. Category dropdown filters to Mount / Unmount / Schedule / Transfer / Watch / Orphan / Backup / Update / Startup / Warning / Error / Other. Auto-refreshes whenever the tab is visible.
+- **Timestamped settings backups before destructive operations.** Removing a profile, or importing a profile, now writes `%APPDATA%\Pixelpipe\backups\settings-YYYYMMDD-HHMMSS-<reason>.json` before mutating `settings.json`. Last 20 backups retained; older ones pruned. Tools / diagnostics → "Open settings backups folder" opens the directory. Existing atomic-write `.bak` (overwritten every save) is unchanged.
+- **Four new unit tests** (`ParseBandwidthSchedule`, `ClassifyActivity`, `FormatActivityEvents`, `ParseActivityLog`). 47 tests total, all green.
+
 ## 0.11.4
 
 Orphan-rclone prevention and recovery. User report: a previous Pixelpipe (or rclone) session left an `rclone.exe` process alive holding a drive letter, so the next launch couldn't mount and showed "drive in use" forever.

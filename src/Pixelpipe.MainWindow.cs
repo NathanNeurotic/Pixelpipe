@@ -104,6 +104,7 @@ namespace Pixelpipe
                 tabs.Dock = DockStyle.Fill;
 
                 tabs.TabPages.Add(BuildProfilesTab());
+                tabs.TabPages.Add(BuildActivityTab());
                 tabs.TabPages.Add(BuildDiagnosticsTab());
                 tabs.TabPages.Add(BuildLogsTab());
                 tabs.TabPages.Add(BuildSettingsTab());
@@ -280,6 +281,81 @@ namespace Pixelpipe
                 page.Controls.Add(diagBox);
                 page.Controls.Add(actions);
                 return page;
+            }
+
+            // ----- Activity tab -----
+
+            private ComboBox activityFilter;
+            private TextBox activityBox;
+            private static readonly string[] ActivityCategories = new string[]
+            {
+                "All", "Mount", "Unmount", "Schedule", "Transfer", "Watch", "Orphan", "Backup", "Update", "Startup", "Warning", "Error", "Other"
+            };
+
+            private TabPage BuildActivityTab()
+            {
+                TabPage page = new TabPage("Activity");
+                page.BackColor = BgColor;
+                page.ForeColor = FgColor;
+                page.Padding = new Padding(8);
+
+                FlowLayoutPanel topBar = new FlowLayoutPanel();
+                topBar.Dock = DockStyle.Top;
+                topBar.AutoSize = true;
+                topBar.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+                topBar.FlowDirection = FlowDirection.LeftToRight;
+                topBar.WrapContents = true;
+
+                Label sel = new Label();
+                sel.AutoSize = true;
+                sel.Text = "Category:";
+                sel.ForeColor = FgColor;
+                sel.Margin = new Padding(4, 8, 6, 0);
+
+                activityFilter = new ComboBox();
+                activityFilter.DropDownStyle = ComboBoxStyle.DropDownList;
+                activityFilter.Width = 160;
+                activityFilter.BackColor = WindowTheme.InputBg;
+                activityFilter.ForeColor = FgColor;
+                activityFilter.Margin = new Padding(0, 4, 6, 0);
+                for (int i = 0; i < ActivityCategories.Length; i++) activityFilter.Items.Add(ActivityCategories[i]);
+                activityFilter.SelectedIndex = 0;
+                activityFilter.SelectedIndexChanged += delegate { RefreshActivityBox(); };
+
+                topBar.Controls.Add(sel);
+                topBar.Controls.Add(activityFilter);
+                topBar.Controls.Add(MakeAction("Refresh", delegate { RefreshActivityBox(); }));
+                topBar.Controls.Add(MakeAction("Open UI log", delegate { owner.OpenLogFolder(); }));
+
+                activityBox = new TextBox();
+                activityBox.Multiline = true;
+                activityBox.ReadOnly = true;
+                activityBox.ScrollBars = ScrollBars.Vertical;
+                activityBox.Font = new Font("Consolas", 9.25f);
+                activityBox.Dock = DockStyle.Fill;
+                activityBox.BackColor = WindowTheme.InputBg;
+                activityBox.ForeColor = FgColor;
+
+                page.Controls.Add(activityBox);
+                page.Controls.Add(topBar);
+                RefreshActivityBox();
+                return page;
+            }
+
+            private void RefreshActivityBox()
+            {
+                if (activityBox == null) return;
+                string filter = activityFilter == null || activityFilter.SelectedItem == null
+                    ? "All"
+                    : activityFilter.SelectedItem.ToString();
+                List<ActivityEvent> events = owner.ReadActivityEvents(300);
+                string formatted = TrayContext.FormatActivityEvents(events, filter);
+                if (activityBox.Text != formatted)
+                {
+                    activityBox.Text = formatted;
+                    activityBox.SelectionStart = 0;
+                    activityBox.ScrollToCaret();
+                }
             }
 
             // ----- Logs tab -----
@@ -694,6 +770,10 @@ namespace Pixelpipe
                     if (logBox != null && tabs != null && tabs.SelectedTab != null && tabs.SelectedTab.Text == "Logs")
                     {
                         RefreshLogBox();
+                    }
+                    if (activityBox != null && tabs != null && tabs.SelectedTab != null && tabs.SelectedTab.Text == "Activity")
+                    {
+                        RefreshActivityBox();
                     }
                 }
                 catch (Exception ex) { owner.LogUiIssue("main window live", ex); }

@@ -45,6 +45,7 @@ namespace Pixelpipe
                             p.WatchFolderMode = NormalizeWatchMode(ToStringValue(GetDictValue(d, "WatchFolderMode"), "move"));
                             long quiet = ToLong(GetDictValue(d, "WatchFolderQuietMs"));
                             p.WatchFolderQuietMs = quiet > 0 ? (int)Math.Min(quiet, 600000) : 5000;
+                            p.BandwidthScheduleEntries = ToStringValue(GetDictValue(d, "BandwidthScheduleEntries"), "");
                             result.Add(p);
                         }
                     }
@@ -95,6 +96,7 @@ namespace Pixelpipe
                     d["WatchFolderTargetDir"] = p.WatchFolderTargetDir ?? "";
                     d["WatchFolderMode"] = NormalizeWatchMode(p.WatchFolderMode);
                     d["WatchFolderQuietMs"] = p.WatchFolderQuietMs > 0 ? p.WatchFolderQuietMs : 5000;
+                    d["BandwidthScheduleEntries"] = p.BandwidthScheduleEntries ?? "";
                     list.Add(d);
                 }
                 root["Profiles"] = list.ToArray();
@@ -149,6 +151,62 @@ namespace Pixelpipe
                 WriteAllTextAtomic(settingsFile, js.Serialize(root), Encoding.UTF8);
             }
             catch (Exception ex) { LogUiIssue("write settings", ex); }
+        }
+
+        // Pixelpipe already keeps the most recent settings.json as .bak via
+        // WriteAllTextAtomic (it's overwritten on every save). Before any
+        // *user-initiated destructive* operation (profile removal, import
+        // that replaces existing profiles, bulk drive-letter changes), we
+        // also write a timestamped backup under `backups/` so the user can
+        // recover a known-good state hours or days later. The directory is
+        // pruned to the last `BackupRetentionCount` files so it doesn't
+        // grow unbounded.
+        private const int BackupRetentionCount = 20;
+
+        internal string BackupsDir { get { return Path.Combine(settingsDir, "backups"); } }
+
+        private string BackupSettingsFile(string reason)
+        {
+            try
+            {
+                if (!File.Exists(settingsFile)) return null;
+                Directory.CreateDirectory(BackupsDir);
+                string stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
+                string safeReason = SafeFileName(String.IsNullOrEmpty(reason) ? "manual" : reason);
+                string target = Path.Combine(BackupsDir, "settings-" + stamp + "-" + safeReason + ".json");
+                File.Copy(settingsFile, target, false);
+                PruneOldBackups();
+                LogUiWarn("settings backup", "wrote " + target);
+                return target;
+            }
+            catch (Exception ex) { LogUiIssue("settings backup " + reason, ex); return null; }
+        }
+
+        private void PruneOldBackups()
+        {
+            try
+            {
+                if (!Directory.Exists(BackupsDir)) return;
+                string[] files = Directory.GetFiles(BackupsDir, "settings-*.json");
+                if (files.Length <= BackupRetentionCount) return;
+                Array.Sort(files, delegate(string a, string b) { return File.GetCreationTimeUtc(b).CompareTo(File.GetCreationTimeUtc(a)); });
+                for (int i = BackupRetentionCount; i < files.Length; i++)
+                {
+                    try { File.Delete(files[i]); } catch { }
+                }
+            }
+            catch (Exception ex) { LogUiIssue("prune backups", ex); }
+        }
+
+        // Tools / diagnostics menu hook.
+        private void OpenSettingsBackupsFolder()
+        {
+            try
+            {
+                Directory.CreateDirectory(BackupsDir);
+                System.Diagnostics.Process.Start(BackupsDir);
+            }
+            catch (Exception ex) { System.Windows.Forms.MessageBox.Show(ex.Message, "Pixelpipe", System.Windows.Forms.MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Error); }
         }
 
         internal static void WriteAllTextAtomic(string path, string text, Encoding encoding)

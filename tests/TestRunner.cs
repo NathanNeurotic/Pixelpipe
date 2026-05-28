@@ -56,6 +56,10 @@ namespace Pixelpipe.Tests
             Run("BuildWatchUploadArgs", TestBuildWatchUploadArgs);
             Run("ComputeWatchNextRetryUtc", TestComputeWatchNextRetryUtc);
             Run("CommandLineMentionsDrive", TestCommandLineMentionsDrive);
+            Run("ParseBandwidthSchedule", TestParseBandwidthSchedule);
+            Run("ClassifyActivity", TestClassifyActivity);
+            Run("FormatActivityEvents", TestFormatActivityEvents);
+            Run("ParseActivityLog", TestParseActivityLog);
 
             Console.WriteLine();
             Console.WriteLine(total - failures + " / " + total + " passed");
@@ -776,6 +780,104 @@ namespace Pixelpipe.Tests
             string e = TrayContext.BuildWatchUploadArgs(null, "C:\\Watch\\a.bin");
             AssertContains(e, "moveto");
             AssertContains(e, "a.bin");
+        }
+
+        private static void TestParseBandwidthSchedule()
+        {
+            // Empty / null returns empty list.
+            AssertEqual(0, TrayContext.ParseBandwidthSchedule("").Count);
+            AssertEqual(0, TrayContext.ParseBandwidthSchedule(null).Count);
+            AssertEqual(0, TrayContext.ParseBandwidthSchedule("   ").Count);
+
+            // Single entry, normalised time and limit.
+            List<TrayContext.BandwidthScheduleEntry> one = TrayContext.ParseBandwidthSchedule("9:00=1M");
+            AssertEqual(1, one.Count);
+            AssertEqual("09:00", one[0].Time);
+            AssertEqual("1M", one[0].Limit);
+
+            // Multiple entries with spaces around them.
+            List<TrayContext.BandwidthScheduleEntry> multi = TrayContext.ParseBandwidthSchedule(" 00:00=off, 09:00=1M, 18:00=off ");
+            AssertEqual(3, multi.Count);
+            AssertEqual("00:00", multi[0].Time);
+            AssertEqual("off", multi[0].Limit);
+            AssertEqual("18:00", multi[2].Time);
+
+            // Garbage tokens dropped, valid ones kept.
+            List<TrayContext.BandwidthScheduleEntry> mixed = TrayContext.ParseBandwidthSchedule("garbage,09:00=1M,25:00=off,12:00=fast,18:00=10M");
+            AssertEqual(2, mixed.Count);
+            AssertEqual("09:00", mixed[0].Time);
+            AssertEqual("18:00", mixed[1].Time);
+        }
+
+        private static void TestClassifyActivity()
+        {
+            // [error] level beats everything.
+            AssertEqual("Error", TrayContext.ClassifyActivity("error", "mount", "boom"));
+
+            // Area-based routing.
+            AssertEqual("Mount", TrayContext.ClassifyActivity("info", "mount profile", "started"));
+            AssertEqual("Unmount", TrayContext.ClassifyActivity("info", "unmount profile", "ok"));
+            AssertEqual("Schedule", TrayContext.ClassifyActivity("info", "schedule mount", "Pixeldrain at 09:00"));
+            AssertEqual("Watch", TrayContext.ClassifyActivity("info", "watch upload", "report.pdf"));
+            AssertEqual("Orphan", TrayContext.ClassifyActivity("warn", "orphan kill", "killed pid 1234"));
+            AssertEqual("Backup", TrayContext.ClassifyActivity("warn", "settings backup", "wrote"));
+            AssertEqual("Update", TrayContext.ClassifyActivity("info", "update check", "newer version"));
+            AssertEqual("Startup", TrayContext.ClassifyActivity("warn", "rclone job", "ready"));
+
+            // Message-content fallback when area is generic.
+            AssertEqual("Transfer", TrayContext.ClassifyActivity("info", "", "Pixeldrain: transfer finished — 12 MB moved"));
+
+            // Plain warn with no specific area.
+            AssertEqual("Warning", TrayContext.ClassifyActivity("warn", "read settings", "loaded backup"));
+
+            // Unknown → Other.
+            AssertEqual("Other", TrayContext.ClassifyActivity("info", "", "hello"));
+        }
+
+        private static void TestFormatActivityEvents()
+        {
+            // Empty input renders the stub message, not an empty string.
+            string empty = TrayContext.FormatActivityEvents(new List<ActivityEvent>(), "All");
+            AssertContains(empty, "no activity yet");
+
+            List<ActivityEvent> evs = new List<ActivityEvent>();
+            evs.Add(new ActivityEvent { Time = new DateTime(2026, 5, 28, 14, 30, 15), Category = "Mount", Message = "mount profile: Pixeldrain mounted on P:" });
+            evs.Add(new ActivityEvent { Time = new DateTime(2026, 5, 28, 14, 31, 00), Category = "Transfer", Message = "Pixeldrain: transfer finished — 12 MB moved" });
+
+            // "All" keeps everything.
+            string all = TrayContext.FormatActivityEvents(evs, "All");
+            AssertContains(all, "Mount");
+            AssertContains(all, "Transfer");
+            AssertContains(all, "2026-05-28 14:30:15");
+
+            // Category filter keeps only matching events.
+            string mountOnly = TrayContext.FormatActivityEvents(evs, "Mount");
+            AssertContains(mountOnly, "Mount");
+            AssertFalse(mountOnly.Contains("Transfer"));
+
+            // No match returns explicit stub.
+            string none = TrayContext.FormatActivityEvents(evs, "Backup");
+            AssertContains(none, "no events match");
+        }
+
+        private static void TestParseActivityLog()
+        {
+            string log = "2026-05-28 14:30:15 [warn] [mount profile] Pixeldrain mounted on P:\r\n" +
+                         "2026-05-28 14:31:00 [warn] [transfer] Pixeldrain: transfer finished — 12 MB moved\r\n" +
+                         "garbage line that should be skipped\r\n" +
+                         "2026-05-28 14:32:00 [error] [mount profile] WinFsp missing";
+
+            List<ActivityEvent> evs = TrayContext.ParseActivityLog(log, 100);
+            // Most recent first.
+            AssertEqual(3, evs.Count);
+            AssertEqual("Error", evs[0].Category);
+            AssertEqual("Transfer", evs[1].Category);
+            AssertEqual("Mount", evs[2].Category);
+            // Cap honored.
+            AssertEqual(2, TrayContext.ParseActivityLog(log, 2).Count);
+            // Empty input returns empty list, not null.
+            AssertEqual(0, TrayContext.ParseActivityLog("", 100).Count);
+            AssertEqual(0, TrayContext.ParseActivityLog(null, 100).Count);
         }
 
         private static void TestCommandLineMentionsDrive()
