@@ -342,7 +342,36 @@ namespace Pixelpipe
                 }
                 int bwInitial = Array.FindIndex(bwChoices, c => String.Equals(c, p.BandwidthLimit ?? "", StringComparison.OrdinalIgnoreCase));
                 bwCombo.SelectedIndex = bwInitial >= 0 ? bwInitial : 0;
-                bwGroup.Controls.Add(bwCombo);
+
+                Label bwScheduleLabel = new Label();
+                bwScheduleLabel.AutoSize = true;
+                bwScheduleLabel.Text = "Schedule (overrides the limit above):";
+                bwScheduleLabel.ForeColor = WindowTheme.FgColor;
+                bwScheduleLabel.Margin = new Padding(0, 14, 0, 4);
+
+                TextBox bwScheduleBox = new TextBox();
+                bwScheduleBox.Width = 540;
+                bwScheduleBox.Text = p.BandwidthScheduleEntries ?? "";
+                bwScheduleBox.Margin = new Padding(0, 0, 0, 4);
+
+                Label bwScheduleHint = new Label();
+                bwScheduleHint.AutoSize = true;
+                bwScheduleHint.MaximumSize = new Size(540, 0);
+                bwScheduleHint.Text = "Comma-separated HH:mm=limit entries, e.g. \"00:00=off,09:00=1M,18:00=off\". Valid limits: off, 512K, 1M, 5M, 10M, 25M, 50M, 100M, 250M (or a custom value like \"1.5G\"). Empty disables the bandwidth schedule.";
+                bwScheduleHint.ForeColor = WindowTheme.MutedColor;
+                bwScheduleHint.Font = new Font("Segoe UI", 8.5f);
+                bwScheduleHint.Margin = new Padding(0, 0, 0, 4);
+
+                FlowLayoutPanel bwStack = new FlowLayoutPanel();
+                bwStack.FlowDirection = FlowDirection.TopDown;
+                bwStack.WrapContents = false;
+                bwStack.AutoSize = true;
+                bwStack.Dock = DockStyle.Top;
+                bwStack.Controls.Add(bwCombo);
+                bwStack.Controls.Add(bwScheduleLabel);
+                bwStack.Controls.Add(bwScheduleBox);
+                bwStack.Controls.Add(bwScheduleHint);
+                bwGroup.Controls.Add(bwStack);
 
                 // Schedule group ---------------------------------------------
                 GroupBox schedGroup = new GroupBox();
@@ -542,6 +571,28 @@ namespace Pixelpipe
 
                     int bwIdx = bwCombo.SelectedIndex;
                     p.BandwidthLimit = (bwIdx > 0 && bwIdx < bwChoices.Length) ? bwChoices[bwIdx] : "";
+                    // Trim and round-trip through the parser so any invalid
+                    // tokens get dropped at save time instead of saved-and-
+                    // ignored-at-runtime, which would surprise the user.
+                    string bwSchedRaw = (bwScheduleBox.Text ?? "").Trim();
+                    List<BandwidthScheduleEntry> parsedSched = ParseBandwidthSchedule(bwSchedRaw);
+                    if (parsedSched.Count == 0)
+                    {
+                        p.BandwidthScheduleEntries = "";
+                    }
+                    else
+                    {
+                        StringBuilder sb = new StringBuilder();
+                        for (int i = 0; i < parsedSched.Count; i++)
+                        {
+                            if (i > 0) sb.Append(",");
+                            sb.Append(parsedSched[i].Time);
+                            sb.Append("=");
+                            sb.Append(parsedSched[i].Limit);
+                        }
+                        p.BandwidthScheduleEntries = sb.ToString();
+                    }
+                    p.LastBandwidthScheduleKey = null;
 
                     string normMount, normUnmount;
                     p.ScheduleMountTime = TryNormalizeScheduleTime(mountTimeBox.Text, out normMount) ? normMount : "";
@@ -635,8 +686,9 @@ namespace Pixelpipe
         private void RemoveProfile(RemoteProfile p)
         {
             if (p == null || IsMounted(p)) return;
-            DialogResult r = MessageBox.Show("Remove Pixelpipe profile for " + p.Label + "?\r\n\r\nThis does not delete the underlying rclone remote.", "Pixelpipe", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+            DialogResult r = MessageBox.Show("Remove Pixelpipe profile for " + p.Label + "?\r\n\r\nThis does not delete the underlying rclone remote.\r\n\r\nA timestamped backup of settings.json is kept in the backups folder; you can restore it from Tools / diagnostics → Open settings backups folder.", "Pixelpipe", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
             if (r != DialogResult.Yes) return;
+            BackupSettingsFile("remove-" + SafeFileName(p.Label));
             lock (profilesLock)
             {
                 profiles.Remove(p);

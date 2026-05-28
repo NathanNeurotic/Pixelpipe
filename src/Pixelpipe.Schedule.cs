@@ -63,9 +63,58 @@ namespace Pixelpipe
                             UnmountProfile(p, true);
                         }
                     }
+
+                    // Bandwidth schedule. Each entry's day-key is "<today>@<time>=<limit>"
+                    // so changing the schedule mid-day re-fires correctly and
+                    // the same entry won't fire twice within its minute.
+                    List<BandwidthScheduleEntry> bwEntries = ParseBandwidthSchedule(p.BandwidthScheduleEntries);
+                    for (int b = 0; b < bwEntries.Count; b++)
+                    {
+                        BandwidthScheduleEntry entry = bwEntries[b];
+                        if (!ScheduleTimeMatches(entry.Time, nowHHmm)) continue;
+                        string key = today + "@" + entry.Time + "=" + entry.Limit;
+                        if (String.Equals(p.LastBandwidthScheduleKey, key)) continue;
+                        p.LastBandwidthScheduleKey = key;
+                        LogUiInfo("schedule bandwidth", p.Label + " at " + entry.Time + " -> " + DisplayLimit(entry.Limit));
+                        SetProfileBandwidth(p, entry.Limit);
+                    }
                 }
             }
             catch (Exception ex) { LogUiIssue("schedule timer", ex); }
+        }
+
+        internal sealed class BandwidthScheduleEntry
+        {
+            public string Time;
+            public string Limit;
+        }
+
+        // Pure helper: parses a comma-separated "HH:mm=limit" schedule into
+        // a list of normalised entries. Invalid pieces (bad time, bad limit)
+        // are silently skipped so a typo in one entry doesn't kill the others.
+        // Returns an empty list for null/empty/all-invalid input.
+        internal static List<BandwidthScheduleEntry> ParseBandwidthSchedule(string raw)
+        {
+            List<BandwidthScheduleEntry> result = new List<BandwidthScheduleEntry>();
+            if (String.IsNullOrWhiteSpace(raw)) return result;
+            string[] parts = raw.Split(',');
+            for (int i = 0; i < parts.Length; i++)
+            {
+                string token = parts[i].Trim();
+                if (token.Length == 0) continue;
+                int eq = token.IndexOf('=');
+                if (eq <= 0 || eq == token.Length - 1) continue;
+                string timePart = token.Substring(0, eq).Trim();
+                string limitPart = token.Substring(eq + 1).Trim();
+                string normalisedTime;
+                if (!TryNormalizeScheduleTime(timePart, out normalisedTime)) continue;
+                if (!IsValidBandwidth(limitPart)) continue;
+                BandwidthScheduleEntry entry = new BandwidthScheduleEntry();
+                entry.Time = normalisedTime;
+                entry.Limit = NormalizeBandwidthLimit(limitPart);
+                result.Add(entry);
+            }
+            return result;
         }
 
         // True iff dayList (e.g. "Mon,Wed,Fri") contains the abbreviation for

@@ -126,6 +126,10 @@ namespace Pixelpipe
                     imported.DriveLetter = FirstFreePreferredDrive(imported.DriveLetter);
                 }
 
+                // Timestamped backup before we modify settings.json so the
+                // user can undo an unintended import from Tools / diagnostics
+                // → Open settings backups folder.
+                BackupSettingsFile("import-" + SafeFileName(imported.Label));
                 lock (profilesLock) profiles.Add(imported);
                 AssignRuntimeFields();
                 SaveProfiles();
@@ -211,6 +215,7 @@ namespace Pixelpipe
                 d["WatchFolderTargetDir"] = p.WatchFolderTargetDir ?? "";
                 d["WatchFolderMode"] = NormalizeWatchMode(p.WatchFolderMode);
                 d["WatchFolderQuietMs"] = p.WatchFolderQuietMs > 0 ? p.WatchFolderQuietMs : 5000;
+                d["BandwidthScheduleEntries"] = p.BandwidthScheduleEntries ?? "";
                 arr.Add(d);
             }
             root["profiles"] = arr.ToArray();
@@ -271,6 +276,7 @@ namespace Pixelpipe
                         if (Int64.TryParse(Convert.ToString(quietObj, System.Globalization.CultureInfo.InvariantCulture), out parsed)) quiet = parsed;
                     }
                     p.WatchFolderQuietMs = quiet > 0 ? (int)Math.Min(quiet, 600000) : 5000;
+                    p.BandwidthScheduleEntries = ToStringValue(GetDictValueStatic(d, "BandwidthScheduleEntries"), "");
                     profiles.Add(p);
                 }
                 return true;
