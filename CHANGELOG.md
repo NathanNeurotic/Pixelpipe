@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.11.1
+
+Hotfix for a v0.11.0 startup regression where a single exception in the constructor could leave the tray icon visible with a completely empty context menu, which read as "the app is dead" even when only the menu-build path had failed.
+
+Changed:
+
+- **`OnMenuOpening` wraps `RebuildMenu` in try/catch** and falls back to a minimum-viable menu (`BuildEmergencyMenu`) showing the error, plus actions to open the log folder, open the main window, view the settings file, retry the rebuild, and exit. The user can always read what went wrong and quit cleanly.
+- **Each constructor step from the post-tray-creation point onward** (`timer.Start`, `StartScheduleTimer`, `StartWatchFolders`, `RebuildMenu`) is wrapped so a failure in any one path can't prevent the next one. If `RebuildMenu` itself fails at startup, `BuildEmergencyMenu` runs so the right-click menu is never empty.
+
 ## 0.11.0
 
 Per-profile watch folder: drop a file into a local directory, Pixelpipe uploads it to the remote and (optionally) deletes the local copy.

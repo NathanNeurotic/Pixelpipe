@@ -86,18 +86,34 @@ namespace Pixelpipe
             tray.Visible = true;
             tray.DoubleClick += delegate { TogglePrimaryProfile(); };
 
-            timer = new System.Windows.Forms.Timer();
-            timer.Interval = 7000;
-            timer.Tick += delegate { MonitorMountHealth(); QueueRefresh(false, false); };
-            timer.Start();
+            // Every constructor step from here down is wrapped so that a
+            // failure (FileSystemWatcher init, schedule timer creation, even a
+            // corrupt profile in the refresh loop) cannot prevent RebuildMenu
+            // from running. Before v0.11.1, an unhandled exception in
+            // StartWatchFolders bypassed RebuildMenu and left the tray with a
+            // visible icon but an empty context menu, which read as "the app
+            // is dead" even when the rest of the process was healthy.
+            try
+            {
+                timer = new System.Windows.Forms.Timer();
+                timer.Interval = 7000;
+                timer.Tick += delegate { MonitorMountHealth(); QueueRefresh(false, false); };
+                timer.Start();
+            }
+            catch (Exception ex) { LogUiIssue("startup timer", ex); }
 
             // Separate 30-second timer for per-profile mount/unmount schedules.
-            StartScheduleTimer();
+            try { StartScheduleTimer(); } catch (Exception ex) { LogUiIssue("startup schedule timer", ex); }
             // Watch-folder uploader (per-profile FileSystemWatcher + a single
             // 3-second drain timer that hands off ready files to a worker).
-            StartWatchFolders();
+            try { StartWatchFolders(); } catch (Exception ex) { LogUiIssue("startup watch folders", ex); }
 
-            RebuildMenu();
+            try { RebuildMenu(); }
+            catch (Exception ex)
+            {
+                LogUiIssue("startup rebuild menu", ex);
+                try { BuildEmergencyMenu(ex); } catch { }
+            }
 
             ThreadPool.QueueUserWorkItem(delegate
             {

@@ -67,10 +67,48 @@ namespace Pixelpipe
 
         private void OnMenuOpening()
         {
-            RebuildMenu();
-            RefreshDependencyStatusAsync(false);
-            QueueMenuOpenRefresh();
-            CheckForUpdatesIfDue();
+            // If anything in RebuildMenu throws (a corrupt profile, a missing
+            // dependency, a renamed icon resource), we still need *some* menu
+            // so the user can at least Exit or Open the main window. Without
+            // this fallback a single exception leaves the tray icon with an
+            // empty context menu, which looks like Pixelpipe is dead. See
+            // BuildEmergencyMenu below.
+            try { RebuildMenu(); }
+            catch (Exception ex)
+            {
+                LogUiIssue("rebuild menu", ex);
+                try { BuildEmergencyMenu(ex); } catch (Exception ex2) { LogUiIssue("emergency menu", ex2); }
+            }
+            try { RefreshDependencyStatusAsync(false); } catch (Exception ex) { LogUiIssue("dep refresh from menu", ex); }
+            try { QueueMenuOpenRefresh(); } catch (Exception ex) { LogUiIssue("queue refresh from menu", ex); }
+            try { CheckForUpdatesIfDue(); } catch (Exception ex) { LogUiIssue("update check from menu", ex); }
+        }
+
+        // Minimum-viable menu: just enough so the user can read the error and
+        // exit. Called only when RebuildMenu throws so the tray icon is never
+        // left with a literally-empty popup, which looks identical to "the
+        // app crashed" even when only the menu-build path is broken.
+        private void BuildEmergencyMenu(Exception ex)
+        {
+            try
+            {
+                if (menu == null) return;
+                menu.Items.Clear();
+                ToolStripMenuItem header = new ToolStripMenuItem("Pixelpipe — menu rebuild failed");
+                header.Enabled = false;
+                menu.Items.Add(header);
+                ToolStripMenuItem detail = new ToolStripMenuItem("Last error: " + (ex == null ? "unknown" : TrimForMenu(ex.Message ?? ex.GetType().Name, 90)));
+                detail.Enabled = false;
+                menu.Items.Add(detail);
+                menu.Items.Add(new ToolStripSeparator());
+                menu.Items.Add(MenuAction("Open log folder", delegate { OpenLogFolder(); }));
+                menu.Items.Add(MenuAction("Open Pixelpipe window...", delegate { try { ShowMainWindow(); } catch (Exception inner) { LogUiIssue("emergency open window", inner); } }));
+                menu.Items.Add(MenuAction("Settings file", delegate { OpenSettingsFile(); }));
+                menu.Items.Add(MenuAction("Try rebuilding menu again", delegate { try { RebuildMenu(); } catch (Exception inner) { LogUiIssue("emergency retry rebuild", inner); BuildEmergencyMenu(inner); } }));
+                menu.Items.Add(new ToolStripSeparator());
+                menu.Items.Add(MenuAction("Exit", delegate { ExitApp(); }));
+            }
+            catch { /* nothing else we can do without crashing the tray */ }
         }
 
         private void QueueMenuOpenRefresh()
