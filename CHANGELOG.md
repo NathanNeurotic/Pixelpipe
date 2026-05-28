@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.9.0
+
+Portability and visibility release: each profile now reports stats appropriate to its provider, you can move profiles between machines as JSON, and the Logs tab can filter to a substring.
+
+Added:
+
+- **`ProviderCapabilities` table.** Each backend declares what kinds of metrics it can actually report: storage quota (used/total/free), transfer quota, and file count. Profile cards, the tray submenu, and Diagnostics now show "Storage: not applicable for S3-compatible buckets" or "Transfer quota: not applicable for Google Drive" instead of "0" or "unavailable" when the provider genuinely doesn't surface that number. Where rclone *does* return numbers (Drive, OneDrive, Dropbox, Box, sometimes WebDAV/SFTP), those still display normally.
+- **Per-profile transfer quota.** `RemoteProfile.TransferQuotaText` is populated per-profile based on the provider capability. For Pixeldrain profiles it carries the live API quota; for providers without a transfer quota concept it carries the "not applicable" note. The tray profile submenu, Diagnostics, and the main-window cards all show it. The global tray quota line still shows the Pixeldrain quota (since the API key is global).
+- **Per-profile object count.** When `rclone about` returns `objects`, profile cards and the tray submenu show "Objects: 12,453". Hidden for providers that don't report it.
+- **Profile import/export.** Tools / diagnostics → "Export profiles to file…" writes a JSON file (one default name per day) containing every profile's settings. "Import profiles from file…" opens a checklist of new profiles in the file; profiles whose `Id` already exists are skipped, drive-letter and label collisions auto-resolve against the live state. **Encrypted secrets (DPAPI-protected API keys, rclone passwords) are NOT exported** because DPAPI is per-Windows-user; importers re-enter them on the new machine. The Profiles tab also gets Export / Import buttons.
+- **Logs tab substring filter.** A "Filter:" textbox in the Logs tab keeps only lines containing the typed substring (case-insensitive) from whichever log is currently selected. Useful for narrowing the UI log to one profile by typing its label, or pulling all `[FAIL]` lines out of a long rclone log.
+- **Six new unit tests:** `ComputeStoragePercent`, `FilterLogText`, `ProviderCapabilitiesDefaults`, `BuildProfilesExportJson`, `TryParseProfilesExportJson`, `PlanProfileImport`. 38 tests total, all green.
+
+Changed:
+
+- **`ApplyAboutToProfile`** replaces the inline `about` parsing in `RefreshProfile`. It consults the provider capabilities first, skips `rclone about` entirely for providers that can't report storage or files, and stores `StorageUsedBytes / StorageTotalBytes / StorageFreeBytes / ObjectCount` on the profile in addition to the human text. Profile cards now compute the storage progress-bar percentage from those raw bytes (via `ComputeStoragePercent`) instead of regex-parsing the display string.
+- **`RemoteProfile`** constructor seeds `StorageText` and `TransferQuotaText` from the provider's capability defaults so a fresh profile already says something sensible before the first refresh.
+
 ## 0.8.0
 
 Three real features: per-profile bandwidth overrides, scheduled mount/unmount per profile, and transfer-complete notifications.

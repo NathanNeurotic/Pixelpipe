@@ -68,6 +68,7 @@ namespace Pixelpipe
             private TextBox diagBox;
             private ComboBox logSelector;
             private TextBox logBox;
+            private TextBox logFilterBox;
             private ComboBox bandwidthCombo;
             private CheckBox startupCheck;
             private CheckBox verboseCheck;
@@ -156,6 +157,8 @@ namespace Pixelpipe
                 topBar.Controls.Add(MakeAddRemoteSplitButton());
                 topBar.Controls.Add(MakeAction("Import existing...", delegate { owner.ImportExistingRemotes(); }));
                 topBar.Controls.Add(MakeAction("Manage remotes...", delegate { owner.ShowManageRemotesWindow(); }));
+                topBar.Controls.Add(MakeAction("Export profiles...", delegate { owner.ExportProfilesToFile(); }));
+                topBar.Controls.Add(MakeAction("Import profiles file...", delegate { owner.ImportProfilesFromFile(); RebuildProfileCards(); }));
                 topBar.Controls.Add(MakeAction("Refresh now", delegate { owner.QueueRefresh(true, true); }));
 
                 layout.Controls.Add(topBar, 0, 2);
@@ -310,6 +313,22 @@ namespace Pixelpipe
 
                 topBar.Controls.Add(sel);
                 topBar.Controls.Add(logSelector);
+
+                Label filterLabel = new Label();
+                filterLabel.AutoSize = true;
+                filterLabel.Text = "Filter:";
+                filterLabel.ForeColor = FgColor;
+                filterLabel.Margin = new Padding(8, 8, 6, 0);
+
+                logFilterBox = new TextBox();
+                logFilterBox.Width = 200;
+                logFilterBox.BackColor = WindowTheme.InputBg;
+                logFilterBox.ForeColor = FgColor;
+                logFilterBox.Margin = new Padding(0, 4, 6, 0);
+                logFilterBox.TextChanged += delegate { RefreshLogBox(); };
+
+                topBar.Controls.Add(filterLabel);
+                topBar.Controls.Add(logFilterBox);
                 topBar.Controls.Add(MakeAction("Refresh", delegate { PopulateLogSelector(); RefreshLogBox(); }));
                 topBar.Controls.Add(MakeAction("Open log folder", delegate { owner.OpenLogFolder(); }));
 
@@ -706,6 +725,8 @@ namespace Pixelpipe
                         text = "(profile not found)";
                     }
                 }
+                string filter = logFilterBox == null ? "" : (logFilterBox.Text ?? "").Trim();
+                if (filter.Length > 0) text = TrayContext.FilterLogText(text, filter);
                 if (logBox.Text != text)
                 {
                     logBox.Text = text;
@@ -752,8 +773,10 @@ namespace Pixelpipe
             private readonly Label statusLabel;
             private readonly Label storageLabel;
             private readonly ProgressBar storageBar;
+            private readonly Label transferQuotaLabel;
             private readonly Label trafficLabel;
             private readonly Label speedLabel;
+            private readonly Label objectsLabel;
             private readonly Label errorLabel;
             private readonly Button mountLow;
             private readonly Button mountFull;
@@ -839,8 +862,10 @@ namespace Pixelpipe
                 storageBar.Width = 528;
                 storageBar.Margin = new Padding(0, 2, 0, 8);
 
+                transferQuotaLabel = MakeLine();
                 trafficLabel = MakeLine();
                 speedLabel = MakeLine();
+                objectsLabel = MakeLine();
 
                 errorLabel = MakeLine();
                 errorLabel.ForeColor = ErrorColor;
@@ -892,8 +917,10 @@ namespace Pixelpipe
                 AddRow(layout, statusLabel);
                 AddRow(layout, storageLabel);
                 AddRow(layout, storageBar);
+                AddRow(layout, transferQuotaLabel);
                 AddRow(layout, trafficLabel);
                 AddRow(layout, speedLabel);
+                AddRow(layout, objectsLabel);
                 AddRow(layout, errorLabel);
                 AddRow(layout, primary);
                 AddRow(layout, secondary);
@@ -923,9 +950,27 @@ namespace Pixelpipe
                 driveLabel.Text = "Drive: " + owner.GetDriveRoot(Profile);
                 statusLabel.Text = "Status: " + Profile.StatusText;
                 storageLabel.Text = "Storage: " + Profile.StorageText;
-                storageBar.Value = TrayContext.ParseStoragePercent(Profile.StorageText);
+                int pct = TrayContext.ComputeStoragePercent(Profile.StorageUsedBytes, Profile.StorageTotalBytes);
+                if (pct < 0) pct = TrayContext.ParseStoragePercent(Profile.StorageText);
+                ProviderCapabilities cap = ProviderCapabilities.For(Profile.Provider);
+                storageBar.Visible = cap.SupportsStorageQuota;
+                if (pct < 0) pct = 0;
+                if (pct > 100) pct = 100;
+                storageBar.Value = pct;
+
+                transferQuotaLabel.Visible = cap.SupportsTransferQuota;
+                if (cap.SupportsTransferQuota)
+                {
+                    transferQuotaLabel.Text = String.IsNullOrEmpty(Profile.TransferQuotaText)
+                        ? cap.DefaultTransferQuotaText()
+                        : Profile.TransferQuotaText;
+                }
+
                 trafficLabel.Text = "Session traffic: " + Profile.SessionText;
                 speedLabel.Text = "Speed: " + Profile.SpeedText;
+
+                objectsLabel.Visible = cap.SupportsFileCount && Profile.ObjectCount >= 0;
+                if (objectsLabel.Visible) objectsLabel.Text = "Objects: " + Profile.ObjectCount.ToString("N0");
 
                 bool hasError = !String.IsNullOrWhiteSpace(Profile.LastError);
                 errorLabel.Visible = hasError;

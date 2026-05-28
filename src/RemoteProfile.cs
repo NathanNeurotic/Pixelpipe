@@ -34,6 +34,11 @@ namespace Pixelpipe
         [ScriptIgnore] public DateTime LastAboutRefreshUtc;
         [ScriptIgnore] public string StatusText;
         [ScriptIgnore] public string StorageText;
+        [ScriptIgnore] public long StorageUsedBytes;
+        [ScriptIgnore] public long StorageTotalBytes;
+        [ScriptIgnore] public long StorageFreeBytes;
+        [ScriptIgnore] public long ObjectCount;
+        [ScriptIgnore] public string TransferQuotaText;
         [ScriptIgnore] public string SessionText;
         [ScriptIgnore] public string SpeedText;
         [ScriptIgnore] public string LastError;
@@ -70,7 +75,13 @@ namespace Pixelpipe
             ScheduleUnmountTime = "";
             ScheduleDays = "Mon,Tue,Wed,Thu,Fri,Sat,Sun";
             StatusText = "not mounted";
-            StorageText = "storage not checked";
+            ProviderCapabilities cap = ProviderCapabilities.For(Provider);
+            StorageText = cap.DefaultStorageText();
+            TransferQuotaText = cap.DefaultTransferQuotaText();
+            StorageUsedBytes = -1;
+            StorageTotalBytes = -1;
+            StorageFreeBytes = -1;
+            ObjectCount = -1;
             SessionText = "session not mounted";
             SpeedText = "speed not mounted";
             LastError = "";

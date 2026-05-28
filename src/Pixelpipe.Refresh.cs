@@ -28,6 +28,7 @@ namespace Pixelpipe
                     if (refreshQuota)
                     {
                         transferQuotaText = RefreshPixeldrainTransferQuota();
+                        ApplyTransferQuotaToProfiles(snapshot, transferQuotaText);
                         lastQuotaRefreshUtc = DateTime.UtcNow;
                     }
                 }
@@ -85,19 +86,70 @@ namespace Pixelpipe
             bool refreshAbout = forceAbout || (DateTime.UtcNow - p.LastAboutRefreshUtc).TotalSeconds > 120;
             if (refreshAbout)
             {
-                string about = RunRcloneCapture("about " + QuoteArg(NormalizeRemoteName(p.Remote)) + " --json", 8000);
-                if (!String.IsNullOrEmpty(about))
-                {
-                    long used = ExtractLong(about, "used");
-                    long total = ExtractLong(about, "total");
-                    long free = ExtractLong(about, "free");
-                    if (used >= 0 && total > 0) p.StorageText = FormatBytes(used) + " used / " + FormatBytes(total) + " total";
-                    else if (used >= 0 && free >= 0) p.StorageText = FormatBytes(used) + " used / " + FormatBytes(free) + " free";
-                    else if (about.IndexOf("error", StringComparison.OrdinalIgnoreCase) >= 0 || about.IndexOf("Failed", StringComparison.OrdinalIgnoreCase) >= 0) p.StorageText = "unavailable - check rclone config/API access";
-                    else p.StorageText = "not reported by backend";
-                }
-                else p.StorageText = "unavailable";
+                ApplyAboutToProfile(p);
                 p.LastAboutRefreshUtc = DateTime.UtcNow;
+            }
+        }
+
+        // Calls `rclone about` and updates the profile's storage/object fields
+        // using the provider's capabilities. Pure side effects on `p`; safe to
+        // call from worker threads since RemoteProfile is only read on the UI
+        // thread and these fields are not coordinated with any others.
+        private void ApplyAboutToProfile(RemoteProfile p)
+        {
+            ProviderCapabilities cap = ProviderCapabilities.For(p.Provider);
+            string about = "";
+            if (cap.SupportsStorageQuota || cap.SupportsFileCount)
+            {
+                about = RunRcloneCapture("about " + QuoteArg(NormalizeRemoteName(p.Remote)) + " --json", 8000);
+            }
+            long used = ExtractLong(about, "used");
+            long total = ExtractLong(about, "total");
+            long free = ExtractLong(about, "free");
+            long objects = ExtractLong(about, "objects");
+            p.StorageUsedBytes = used;
+            p.StorageTotalBytes = total;
+            p.StorageFreeBytes = free;
+            p.ObjectCount = objects;
+            if (!cap.SupportsStorageQuota && !cap.SupportsFileCount)
+            {
+                p.StorageText = cap.StorageNotReportedLabel;
+                return;
+            }
+            if (String.IsNullOrEmpty(about))
+            {
+                p.StorageText = "unavailable";
+                return;
+            }
+            if (used >= 0 && total > 0) p.StorageText = FormatBytes(used) + " used / " + FormatBytes(total) + " total";
+            else if (used >= 0 && free >= 0) p.StorageText = FormatBytes(used) + " used / " + FormatBytes(free) + " free";
+            else if (used >= 0) p.StorageText = FormatBytes(used) + " used";
+            else if (about.IndexOf("error", StringComparison.OrdinalIgnoreCase) >= 0 || about.IndexOf("Failed", StringComparison.OrdinalIgnoreCase) >= 0) p.StorageText = "unavailable - check rclone config/API access";
+            else p.StorageText = cap.StorageNotReportedLabel;
+        }
+
+        // Apply the just-computed Pixeldrain transfer-quota line to every profile
+        // that supports a transfer quota, and stamp the rest with their provider's
+        // "not applicable" label. Pixeldrain profiles share the same global text
+        // because the API key (and therefore the quota) is a single per-user value.
+        private void ApplyTransferQuotaToProfiles(RemoteProfile[] snapshot, string pixeldrainQuotaText)
+        {
+            for (int i = 0; i < snapshot.Length; i++)
+            {
+                RemoteProfile p = snapshot[i];
+                ProviderCapabilities cap = ProviderCapabilities.For(p.Provider);
+                if (!cap.SupportsTransferQuota) { p.TransferQuotaText = cap.DefaultTransferQuotaText(); continue; }
+                if (String.Equals(p.Provider, "pixeldrain", StringComparison.OrdinalIgnoreCase))
+                {
+                    p.TransferQuotaText = pixeldrainQuotaText ?? cap.DefaultTransferQuotaText();
+                }
+                else
+                {
+                    // Provider claims a transfer quota but we don't have an
+                    // integration for it yet (e.g. MEGA). Surface the hint
+                    // instead of leaving the field stale.
+                    p.TransferQuotaText = cap.DefaultTransferQuotaText();
+                }
             }
         }
 

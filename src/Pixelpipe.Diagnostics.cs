@@ -52,6 +52,10 @@ namespace Pixelpipe
                 sb.AppendLine("  rc: 127.0.0.1:" + p.RcPort.ToString());
                 sb.AppendLine("  status: " + p.StatusText);
                 sb.AppendLine("  storage: " + p.StorageText);
+                ProviderCapabilities cap = ProviderCapabilities.For(p.Provider);
+                if (cap.SupportsTransferQuota) sb.AppendLine("  transfer quota: " + (String.IsNullOrEmpty(p.TransferQuotaText) ? cap.DefaultTransferQuotaText() : p.TransferQuotaText));
+                else sb.AppendLine("  transfer quota: " + cap.DefaultTransferQuotaText());
+                if (cap.SupportsFileCount && p.ObjectCount >= 0) sb.AppendLine("  objects: " + p.ObjectCount.ToString("N0"));
                 sb.AppendLine("  session: " + p.SessionText);
                 sb.AppendLine("  speed: " + p.SpeedText);
                 sb.AppendLine("  log: " + p.LogFile);

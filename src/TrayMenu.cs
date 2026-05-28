@@ -50,6 +50,8 @@ namespace Pixelpipe
             public ToolStripMenuItem DriveLabel;
             public ToolStripMenuItem StatusLabel;
             public ToolStripMenuItem StorageLabel;
+            public ToolStripMenuItem TransferQuotaLabel;
+            public ToolStripMenuItem ObjectsLabel;
             public ToolStripMenuItem TrafficLabel;
             public ToolStripMenuItem SpeedLabel;
             public ToolStripMenuItem LastErrorLabel;
@@ -165,6 +167,15 @@ namespace Pixelpipe
             ToolStripMenuItem providerLabel = DisabledItem("Provider: " + DisplayProvider(p.Provider));
             r.StatusLabel = DisabledItem("Status: " + p.StatusText);
             r.StorageLabel = DisabledItem("Storage: " + p.StorageText);
+            ProviderCapabilities pcap = ProviderCapabilities.For(p.Provider);
+            r.TransferQuotaLabel = DisabledItem(pcap.SupportsTransferQuota
+                ? (String.IsNullOrEmpty(p.TransferQuotaText) ? pcap.DefaultTransferQuotaText() : p.TransferQuotaText)
+                : pcap.DefaultTransferQuotaText());
+            r.TransferQuotaLabel.Visible = pcap.SupportsTransferQuota;
+            r.ObjectsLabel = DisabledItem(pcap.SupportsFileCount && p.ObjectCount >= 0
+                ? "Objects: " + p.ObjectCount.ToString("N0")
+                : "");
+            r.ObjectsLabel.Visible = pcap.SupportsFileCount && p.ObjectCount >= 0;
             r.TrafficLabel = DisabledItem("Traffic: " + p.SessionText);
             r.SpeedLabel = DisabledItem("Speed: " + p.SpeedText);
             r.LastErrorLabel = DisabledItem("Last error: " + TrimForMenu(p.LastError, 90));
@@ -175,6 +186,8 @@ namespace Pixelpipe
             r.ProfileItem.DropDownItems.Add(providerLabel);
             r.ProfileItem.DropDownItems.Add(r.StatusLabel);
             r.ProfileItem.DropDownItems.Add(r.StorageLabel);
+            r.ProfileItem.DropDownItems.Add(r.TransferQuotaLabel);
+            r.ProfileItem.DropDownItems.Add(r.ObjectsLabel);
             r.ProfileItem.DropDownItems.Add(r.TrafficLabel);
             r.ProfileItem.DropDownItems.Add(r.SpeedLabel);
             r.ProfileItem.DropDownItems.Add(r.LastErrorLabel);
@@ -250,6 +263,23 @@ namespace Pixelpipe
                     r.DriveLabel.Text = "Drive: " + GetDriveRoot(p);
                     r.StatusLabel.Text = "Status: " + p.StatusText;
                     r.StorageLabel.Text = "Storage: " + p.StorageText;
+                    ProviderCapabilities pcap = ProviderCapabilities.For(p.Provider);
+                    if (r.TransferQuotaLabel != null)
+                    {
+                        r.TransferQuotaLabel.Visible = pcap.SupportsTransferQuota;
+                        if (pcap.SupportsTransferQuota)
+                        {
+                            r.TransferQuotaLabel.Text = String.IsNullOrEmpty(p.TransferQuotaText)
+                                ? pcap.DefaultTransferQuotaText()
+                                : p.TransferQuotaText;
+                        }
+                    }
+                    if (r.ObjectsLabel != null)
+                    {
+                        bool show = pcap.SupportsFileCount && p.ObjectCount >= 0;
+                        r.ObjectsLabel.Visible = show;
+                        if (show) r.ObjectsLabel.Text = "Objects: " + p.ObjectCount.ToString("N0");
+                    }
                     r.TrafficLabel.Text = "Traffic: " + p.SessionText;
                     r.SpeedLabel.Text = "Speed: " + p.SpeedText;
                     bool hasError = !String.IsNullOrWhiteSpace(p.LastError);
@@ -370,6 +400,9 @@ namespace Pixelpipe
             tools.DropDownItems.Add(MenuAction("Settings file", delegate { OpenSettingsFile(); }));
             tools.DropDownItems.Add(MenuAction("Open log folder", delegate { OpenLogFolder(); }));
             tools.DropDownItems.Add(MenuAction("Copy diagnostics", delegate { CopyDiagnostics(); }));
+            tools.DropDownItems.Add(new ToolStripSeparator());
+            tools.DropDownItems.Add(MenuAction("Export profiles to file...", delegate { ExportProfilesToFile(); }));
+            tools.DropDownItems.Add(MenuAction("Import profiles from file...", delegate { ImportProfilesFromFile(); }));
             tools.DropDownItems.Add(new ToolStripSeparator());
             tools.DropDownItems.Add(MenuAction("Refresh usage now", delegate { QueueRefresh(true, true); }));
             tools.DropDownItems.Add(MenuAction("Check for updates", delegate { CheckForUpdates(); }));
