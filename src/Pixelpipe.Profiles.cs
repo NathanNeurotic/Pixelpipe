@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -248,9 +249,9 @@ namespace Pixelpipe
         private void EditProfile(RemoteProfile p)
         {
             if (p == null) return;
-            using (Form form = MakeDialog("Edit remote profile", 600, 390))
+            using (Form form = MakeDialog("Edit remote profile", 640, 620))
             {
-                form.MinimumSize = new Size(560, 360);
+                form.MinimumSize = new Size(600, 540);
 
                 TableLayoutPanel root = new TableLayoutPanel();
                 root.Dock = DockStyle.Fill;
@@ -269,8 +270,15 @@ namespace Pixelpipe
                 title.ForeColor = WindowTheme.FgColor;
                 title.Margin = new Padding(0, 0, 0, 14);
 
+                FlowLayoutPanel body = new FlowLayoutPanel();
+                body.Dock = DockStyle.Fill;
+                body.FlowDirection = FlowDirection.TopDown;
+                body.WrapContents = false;
+                body.AutoScroll = true;
+                body.BackColor = form.BackColor;
+
+                // Core fields ------------------------------------------------
                 TableLayoutPanel grid = new TableLayoutPanel();
-                grid.Dock = DockStyle.Fill;
                 grid.AutoSize = true;
                 grid.AutoSizeMode = AutoSizeMode.GrowAndShrink;
                 grid.ColumnCount = 2;
@@ -278,22 +286,13 @@ namespace Pixelpipe
                 grid.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
                 grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
                 grid.BackColor = form.BackColor;
+                grid.Margin = new Padding(0, 0, 0, 8);
+                grid.MinimumSize = new Size(560, 0);
 
-                TextBox labelBox = new TextBox();
-                labelBox.Dock = DockStyle.Fill;
-                labelBox.Text = p.Label;
-
-                TextBox providerBox = new TextBox();
-                providerBox.Dock = DockStyle.Fill;
-                providerBox.Text = p.Provider;
-
-                TextBox remoteBox = new TextBox();
-                remoteBox.Dock = DockStyle.Fill;
-                remoteBox.Text = p.Remote;
-
-                TextBox driveBox = new TextBox();
-                driveBox.Width = 90;
-                driveBox.Text = p.DriveLetter;
+                TextBox labelBox = new TextBox(); labelBox.Dock = DockStyle.Fill; labelBox.Text = p.Label;
+                TextBox providerBox = new TextBox(); providerBox.Dock = DockStyle.Fill; providerBox.Text = p.Provider;
+                TextBox remoteBox = new TextBox(); remoteBox.Dock = DockStyle.Fill; remoteBox.Text = p.Remote;
+                TextBox driveBox = new TextBox(); driveBox.Width = 90; driveBox.Text = p.DriveLetter;
 
                 CheckBox networkBox = new CheckBox();
                 networkBox.AutoSize = true;
@@ -304,7 +303,7 @@ namespace Pixelpipe
 
                 CheckBox autoBox = new CheckBox();
                 autoBox.AutoSize = true;
-                autoBox.Text = "Auto-mount this profile at startup";
+                autoBox.Text = "Auto-mount this profile at Pixelpipe startup";
                 autoBox.Checked = p.AutoMount;
                 autoBox.ForeColor = WindowTheme.FgColor;
                 autoBox.Margin = new Padding(0, 4, 0, 0);
@@ -317,6 +316,111 @@ namespace Pixelpipe
                 grid.SetColumnSpan(networkBox, 2);
                 grid.Controls.Add(autoBox, 0, 5);
                 grid.SetColumnSpan(autoBox, 2);
+
+                // Bandwidth group --------------------------------------------
+                GroupBox bwGroup = new GroupBox();
+                bwGroup.Text = "Bandwidth limit (this profile)";
+                bwGroup.ForeColor = WindowTheme.FgColor;
+                bwGroup.AutoSize = true;
+                bwGroup.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+                bwGroup.Padding = new Padding(10, 6, 10, 10);
+                bwGroup.Margin = new Padding(0, 8, 0, 8);
+                bwGroup.MinimumSize = new Size(560, 0);
+
+                string[] bwChoices = new string[] { "", "off", "512K", "1M", "5M", "10M", "25M", "50M", "100M", "250M" };
+                ComboBox bwCombo = new ComboBox();
+                bwCombo.DropDownStyle = ComboBoxStyle.DropDownList;
+                bwCombo.Width = 320;
+                bwCombo.BackColor = WindowTheme.InputBg;
+                bwCombo.ForeColor = WindowTheme.FgColor;
+                bwCombo.Margin = new Padding(0, 8, 0, 0);
+                for (int i = 0; i < bwChoices.Length; i++)
+                {
+                    string c = bwChoices[i];
+                    bwCombo.Items.Add(c == "" ? "(inherit global: " + DisplayLimit(selectedBandwidth) + ")"
+                                              : (c == "off" ? "Unlimited" : c + "/s"));
+                }
+                int bwInitial = Array.FindIndex(bwChoices, c => String.Equals(c, p.BandwidthLimit ?? "", StringComparison.OrdinalIgnoreCase));
+                bwCombo.SelectedIndex = bwInitial >= 0 ? bwInitial : 0;
+                bwGroup.Controls.Add(bwCombo);
+
+                // Schedule group ---------------------------------------------
+                GroupBox schedGroup = new GroupBox();
+                schedGroup.Text = "Scheduled mount / unmount";
+                schedGroup.ForeColor = WindowTheme.FgColor;
+                schedGroup.AutoSize = true;
+                schedGroup.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+                schedGroup.Padding = new Padding(10, 6, 10, 10);
+                schedGroup.Margin = new Padding(0, 0, 0, 8);
+                schedGroup.MinimumSize = new Size(560, 0);
+
+                TableLayoutPanel schedGrid = new TableLayoutPanel();
+                schedGrid.AutoSize = true;
+                schedGrid.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+                schedGrid.ColumnCount = 2;
+                schedGrid.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+                schedGrid.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+                schedGrid.Dock = DockStyle.Top;
+
+                CheckBox schedEnabled = new CheckBox();
+                schedEnabled.AutoSize = true;
+                schedEnabled.Text = "Enable schedule";
+                schedEnabled.Checked = p.ScheduleEnabled;
+                schedEnabled.ForeColor = WindowTheme.FgColor;
+                schedEnabled.Margin = new Padding(0, 8, 0, 8);
+
+                TextBox mountTimeBox = new TextBox();
+                mountTimeBox.Width = 100;
+                mountTimeBox.Text = p.ScheduleMountTime ?? "";
+
+                TextBox unmountTimeBox = new TextBox();
+                unmountTimeBox.Width = 100;
+                unmountTimeBox.Text = p.ScheduleUnmountTime ?? "";
+
+                FlowLayoutPanel daysRow = new FlowLayoutPanel();
+                daysRow.AutoSize = true;
+                daysRow.FlowDirection = FlowDirection.LeftToRight;
+                daysRow.WrapContents = true;
+                daysRow.Margin = new Padding(0, 4, 0, 0);
+
+                string[] dayKeys = new string[] { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" };
+                HashSet<string> initiallyOn = ParseDayList(p.ScheduleDays);
+                Dictionary<string, CheckBox> dayChecks = new Dictionary<string, CheckBox>();
+                for (int i = 0; i < dayKeys.Length; i++)
+                {
+                    CheckBox cb = new CheckBox();
+                    cb.AutoSize = true;
+                    cb.Text = dayKeys[i];
+                    cb.Checked = initiallyOn.Contains(dayKeys[i]);
+                    cb.ForeColor = WindowTheme.FgColor;
+                    cb.Margin = new Padding(0, 0, 8, 0);
+                    dayChecks[dayKeys[i]] = cb;
+                    daysRow.Controls.Add(cb);
+                }
+
+                AddEditRow(schedGrid, 0, "Mount at (HH:mm)", mountTimeBox);
+                AddEditRow(schedGrid, 1, "Unmount at (HH:mm)", unmountTimeBox);
+                schedGrid.Controls.Add(schedEnabled, 0, 2);
+                schedGrid.SetColumnSpan(schedEnabled, 2);
+
+                FlowLayoutPanel schedStack = new FlowLayoutPanel();
+                schedStack.FlowDirection = FlowDirection.TopDown;
+                schedStack.WrapContents = false;
+                schedStack.AutoSize = true;
+                schedStack.Dock = DockStyle.Top;
+                schedStack.Controls.Add(schedGrid);
+                Label daysLabel = new Label();
+                daysLabel.Text = "Days:";
+                daysLabel.ForeColor = WindowTheme.FgColor;
+                daysLabel.AutoSize = true;
+                daysLabel.Margin = new Padding(0, 6, 0, 0);
+                schedStack.Controls.Add(daysLabel);
+                schedStack.Controls.Add(daysRow);
+                schedGroup.Controls.Add(schedStack);
+
+                body.Controls.Add(grid);
+                body.Controls.Add(bwGroup);
+                body.Controls.Add(schedGroup);
 
                 FlowLayoutPanel footer = new FlowLayoutPanel();
                 footer.Dock = DockStyle.Fill;
@@ -331,7 +435,7 @@ namespace Pixelpipe
                 footer.Controls.Add(save);
 
                 root.Controls.Add(title, 0, 0);
-                root.Controls.Add(grid, 0, 1);
+                root.Controls.Add(body, 0, 1);
                 root.Controls.Add(footer, 0, 2);
                 form.Controls.Add(root);
                 form.AcceptButton = save; form.CancelButton = cancel;
@@ -344,12 +448,59 @@ namespace Pixelpipe
                     p.DriveLetter = NormalizeDriveLetter(driveBox.Text);
                     p.MountMode = networkBox.Checked ? "network" : "fixed";
                     p.AutoMount = autoBox.Checked;
+
+                    int bwIdx = bwCombo.SelectedIndex;
+                    p.BandwidthLimit = (bwIdx > 0 && bwIdx < bwChoices.Length) ? bwChoices[bwIdx] : "";
+
+                    string normMount, normUnmount;
+                    p.ScheduleMountTime = TryNormalizeScheduleTime(mountTimeBox.Text, out normMount) ? normMount : "";
+                    p.ScheduleUnmountTime = TryNormalizeScheduleTime(unmountTimeBox.Text, out normUnmount) ? normUnmount : "";
+                    StringBuilder days = new StringBuilder();
+                    for (int i = 0; i < dayKeys.Length; i++)
+                    {
+                        if (dayChecks[dayKeys[i]].Checked)
+                        {
+                            if (days.Length > 0) days.Append(',');
+                            days.Append(dayKeys[i]);
+                        }
+                    }
+                    p.ScheduleDays = days.Length == 0 ? "Mon,Tue,Wed,Thu,Fri,Sat,Sun" : days.ToString();
+                    p.ScheduleEnabled = schedEnabled.Checked && (!String.IsNullOrEmpty(p.ScheduleMountTime) || !String.IsNullOrEmpty(p.ScheduleUnmountTime));
+                    // Reset throttling so the new schedule fires on its very next window.
+                    p.LastScheduleMountKey = null;
+                    p.LastScheduleUnmountKey = null;
+
                     AssignRuntimeFields();
                     SaveProfiles();
                     RebuildMenu();
+                    UpdateMainWindowLiveState();
                     ShowBalloon("Profile saved.");
                 }
             }
+        }
+
+        // Parses "Mon,Wed,Fri" into a case-insensitive set of canonical
+        // abbreviations. Defaults to all seven days for empty/null input so
+        // older profiles without ScheduleDays keep their pre-v0.8 behaviour.
+        private static HashSet<string> ParseDayList(string list)
+        {
+            HashSet<string> set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            string[] canonical = new string[] { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" };
+            if (String.IsNullOrWhiteSpace(list))
+            {
+                for (int i = 0; i < canonical.Length; i++) set.Add(canonical[i]);
+                return set;
+            }
+            string[] parts = list.Split(',');
+            for (int i = 0; i < parts.Length; i++)
+            {
+                string token = parts[i].Trim();
+                for (int j = 0; j < canonical.Length; j++)
+                {
+                    if (String.Equals(token, canonical[j], StringComparison.OrdinalIgnoreCase)) set.Add(canonical[j]);
+                }
+            }
+            return set;
         }
 
         private void AddEditRow(TableLayoutPanel grid, int row, string labelText, Control editor)

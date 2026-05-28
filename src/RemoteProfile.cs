@@ -14,6 +14,18 @@ namespace Pixelpipe
         public string MountMode;
         public bool AutoMount;
         public bool FullCache;
+        // Per-profile bandwidth override. Empty / null = inherit the global
+        // BandwidthLimit setting. Same validation as the global limit.
+        public string BandwidthLimit;
+        // Scheduled mount/unmount. ScheduleEnabled gates the whole thing.
+        // ScheduleMountTime / ScheduleUnmountTime are "HH:mm" local time; either
+        // can be empty to skip that side of the schedule. ScheduleDays is a
+        // comma-separated list of day abbreviations ("Mon,Tue,Wed,Thu,Fri,Sat,Sun"
+        // or any subset). Defaults to all seven days.
+        public bool ScheduleEnabled;
+        public string ScheduleMountTime;
+        public string ScheduleUnmountTime;
+        public string ScheduleDays;
 
         [ScriptIgnore] public Process MountProcess;
         [ScriptIgnore] public bool DesiredMounted;
@@ -31,6 +43,16 @@ namespace Pixelpipe
         // can show the user the latest preflight report without re-running it.
         [ScriptIgnore] public string LastPreflightReport;
         [ScriptIgnore] public DateTime LastPreflightUtc;
+        // Transfer-completion tracking. When the live rclone stats show an
+        // active transfer (transferring > 0), we capture TransferStartBytes so
+        // we can report the delta when transferring returns to zero.
+        [ScriptIgnore] public bool TransferActive;
+        [ScriptIgnore] public long TransferStartBytes;
+        // Per-profile schedule throttling. Records the day-key the mount/unmount
+        // most recently fired on so a single HH:mm window doesn't re-trigger as
+        // the 30-second timer ticks repeatedly through the same minute.
+        [ScriptIgnore] public string LastScheduleMountKey;
+        [ScriptIgnore] public string LastScheduleUnmountKey;
 
         public RemoteProfile()
         {
@@ -42,6 +64,11 @@ namespace Pixelpipe
             MountMode = "network";
             AutoMount = false;
             FullCache = false;
+            BandwidthLimit = "";
+            ScheduleEnabled = false;
+            ScheduleMountTime = "";
+            ScheduleUnmountTime = "";
+            ScheduleDays = "Mon,Tue,Wed,Thu,Fri,Sat,Sun";
             StatusText = "not mounted";
             StorageText = "storage not checked";
             SessionText = "session not mounted";

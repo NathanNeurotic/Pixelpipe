@@ -37,6 +37,9 @@ namespace Pixelpipe.Tests
             Run("FirstNonEmptyLine", TestFirstNonEmptyLine);
             Run("IndentLines", TestIndentLines);
             Run("IsNewer", TestIsNewer);
+            Run("ScheduleAllowsDay", TestScheduleAllowsDay);
+            Run("TryNormalizeScheduleTime", TestTryNormalizeScheduleTime);
+            Run("ScheduleTimeMatches", TestScheduleTimeMatches);
             Run("ScrubSecrets", TestScrubSecrets);
             Run("BoxProvider", TestBoxProvider);
             Run("ParseBytesPerSec", TestParseBytesPerSec);
@@ -397,6 +400,64 @@ namespace Pixelpipe.Tests
             AssertTrue(TrayContext.IsNewer("v0.6.10", "0.6.9"));
             AssertTrue(TrayContext.IsNewer("v1.0.0", "0.999.999"));
             AssertFalse(TrayContext.IsNewer("v0.6.9", "0.6.10"));
+        }
+
+        private static void TestScheduleAllowsDay()
+        {
+            // Empty/null day list is interpreted as "all seven days" so older
+            // profiles without ScheduleDays keep their pre-v0.8 behaviour.
+            AssertTrue(TrayContext.ScheduleAllowsDay(null, DayOfWeek.Monday));
+            AssertTrue(TrayContext.ScheduleAllowsDay("", DayOfWeek.Sunday));
+            AssertTrue(TrayContext.ScheduleAllowsDay("   ", DayOfWeek.Wednesday));
+
+            // Standard subset.
+            AssertTrue(TrayContext.ScheduleAllowsDay("Mon,Tue,Wed,Thu,Fri", DayOfWeek.Wednesday));
+            AssertFalse(TrayContext.ScheduleAllowsDay("Mon,Tue,Wed,Thu,Fri", DayOfWeek.Saturday));
+
+            // Case-insensitive.
+            AssertTrue(TrayContext.ScheduleAllowsDay("mon,WED", DayOfWeek.Wednesday));
+
+            // Whitespace tolerated.
+            AssertTrue(TrayContext.ScheduleAllowsDay(" Mon ,  Fri ", DayOfWeek.Friday));
+            AssertFalse(TrayContext.ScheduleAllowsDay("Mon, Fri", DayOfWeek.Tuesday));
+
+            // Garbage tokens are ignored without throwing.
+            AssertTrue(TrayContext.ScheduleAllowsDay("Mon,Cthulhu,Wed", DayOfWeek.Wednesday));
+            AssertFalse(TrayContext.ScheduleAllowsDay("Cthulhu", DayOfWeek.Monday));
+        }
+
+        private static void TestTryNormalizeScheduleTime()
+        {
+            string n;
+            AssertTrue(TrayContext.TryNormalizeScheduleTime("9:00", out n));
+            AssertEqual("09:00", n);
+            AssertTrue(TrayContext.TryNormalizeScheduleTime("09:00", out n));
+            AssertEqual("09:00", n);
+            AssertTrue(TrayContext.TryNormalizeScheduleTime("  23:59 ", out n));
+            AssertEqual("23:59", n);
+            AssertTrue(TrayContext.TryNormalizeScheduleTime("0:0", out n));
+            AssertEqual("00:00", n);
+
+            // Out-of-range and malformed inputs return false.
+            AssertFalse(TrayContext.TryNormalizeScheduleTime("", out n));
+            AssertFalse(TrayContext.TryNormalizeScheduleTime(null, out n));
+            AssertFalse(TrayContext.TryNormalizeScheduleTime("24:00", out n));
+            AssertFalse(TrayContext.TryNormalizeScheduleTime("12:60", out n));
+            AssertFalse(TrayContext.TryNormalizeScheduleTime("-1:00", out n));
+            AssertFalse(TrayContext.TryNormalizeScheduleTime("abc", out n));
+            AssertFalse(TrayContext.TryNormalizeScheduleTime("12:", out n));
+            AssertFalse(TrayContext.TryNormalizeScheduleTime(":30", out n));
+        }
+
+        private static void TestScheduleTimeMatches()
+        {
+            AssertTrue(TrayContext.ScheduleTimeMatches("9:00", "09:00"));
+            AssertTrue(TrayContext.ScheduleTimeMatches("09:00", "09:00"));
+            AssertTrue(TrayContext.ScheduleTimeMatches("  23:59 ", "23:59"));
+            AssertFalse(TrayContext.ScheduleTimeMatches("9:00", "09:01"));
+            AssertFalse(TrayContext.ScheduleTimeMatches("garbage", "12:00"));
+            AssertFalse(TrayContext.ScheduleTimeMatches("", "12:00"));
+            AssertFalse(TrayContext.ScheduleTimeMatches(null, "12:00"));
         }
 
         private static void TestFirstNonEmptyLine()

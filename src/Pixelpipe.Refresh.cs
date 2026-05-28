@@ -56,8 +56,10 @@ namespace Pixelpipe
                 {
                     long bytes = ExtractLong(stats, "bytes");
                     double speed = ExtractDouble(stats, "speed");
+                    long transferringCount = ExtractLong(stats, "transferring");
                     p.SessionText = FormatBytes(bytes);
                     p.SpeedText = FormatBytes(speed) + "/s";
+                    DetectTransferCompletion(p, bytes, transferringCount);
                 }
                 else
                 {
@@ -68,6 +70,13 @@ namespace Pixelpipe
             }
             else
             {
+                if (p.TransferActive)
+                {
+                    // Mount went away mid-transfer; clear the latch so a later
+                    // remount doesn't immediately report a fake delta.
+                    p.TransferActive = false;
+                    p.TransferStartBytes = 0;
+                }
                 p.StatusText = "not mounted";
                 p.SessionText = "not mounted";
                 p.SpeedText = "not mounted";
@@ -89,6 +98,42 @@ namespace Pixelpipe
                 }
                 else p.StorageText = "unavailable";
                 p.LastAboutRefreshUtc = DateTime.UtcNow;
+            }
+        }
+
+        // Detects rclone transfer-batch completion by latching when transferring
+        // goes from 0 to >0, then firing a balloon when it returns to 0. The
+        // 10 MB floor stops trivial directory listings or VFS background syncs
+        // from being announced as user-meaningful transfers.
+        private const long TransferNotificationMinBytes = 10L * 1024 * 1024;
+
+        private void DetectTransferCompletion(RemoteProfile p, long bytesNow, long transferringCount)
+        {
+            if (!String.Equals(LoadSetting("TransferNotificationsEnabled", "1"), "1", StringComparison.OrdinalIgnoreCase))
+            {
+                p.TransferActive = false;
+                p.TransferStartBytes = 0;
+                return;
+            }
+            if (transferringCount > 0)
+            {
+                if (!p.TransferActive)
+                {
+                    p.TransferActive = true;
+                    p.TransferStartBytes = bytesNow >= 0 ? bytesNow : 0;
+                }
+                return;
+            }
+            if (!p.TransferActive) return;
+            long delta = bytesNow - p.TransferStartBytes;
+            p.TransferActive = false;
+            p.TransferStartBytes = 0;
+            if (delta >= TransferNotificationMinBytes)
+            {
+                BeginUi(delegate
+                {
+                    ShowBalloon(p.Label + ": transfer finished — " + FormatBytes(delta) + " moved");
+                });
             }
         }
 
