@@ -115,23 +115,25 @@ jobs:
           $ReleaseName = "Pixelpipe Rolling Release v$env:VERSION ($Short)"
           $Subject = (git log -1 --pretty=%s $env:COMMIT_SHA).Trim()
           $Changelog = Get-Content -Raw -Path $env:BODY_FILE
-          $Notes = @"
-Automated rolling build from commit [$Short](https://github.com/$env:REPO/commit/$env:COMMIT_SHA).
-
-Latest change: $Subject
-
-This is rebuilt on every push to main and tracks the in-development version v$env:VERSION. It is intended for testers and early users; for a frozen build, grab the matching `v$env:VERSION` release once it is cut.
-
-## v$env:VERSION changelog
-
-$Changelog
-
-## Files
-- Pixelpipe.exe: standalone tray app
-- Pixelpipe-Windows-x64.zip: portable package
-- Pixelpipe-Setup.exe: optional installer, when the installer build succeeds
-- SHA256SUMS.txt: checksum file
-"@
+          $NotesFile = Join-Path $env:RUNNER_TEMP 'rolling-notes.md'
+          $Lines = @(
+            "Automated rolling build from commit [$Short](https://github.com/$env:REPO/commit/$env:COMMIT_SHA).",
+            "",
+            "Latest change: $Subject",
+            "",
+            "This is rebuilt on every push to main and tracks the in-development version v$env:VERSION. It is intended for testers and early users; for a frozen build, grab the matching ``v$env:VERSION`` release once it is cut.",
+            "",
+            "## v$env:VERSION changelog",
+            "",
+            $Changelog,
+            "",
+            "## Files",
+            "- Pixelpipe.exe: standalone tray app",
+            "- Pixelpipe-Windows-x64.zip: portable package",
+            "- Pixelpipe-Setup.exe: optional installer, when the installer build succeeds",
+            "- SHA256SUMS.txt: checksum file"
+          )
+          Set-Content -Path $NotesFile -Value $Lines -Encoding utf8
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -143,9 +145,9 @@ $Changelog
 
           gh release view $Tag --repo $env:REPO *> $null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $Tag $Assets --repo $env:REPO --title $ReleaseName --notes $Notes --prerelease
+            gh release create $Tag $Assets --repo $env:REPO --title $ReleaseName --notes-file $NotesFile --prerelease
           } else {
-            gh release edit $Tag --repo $env:REPO --title $ReleaseName --notes $Notes --prerelease
+            gh release edit $Tag --repo $env:REPO --title $ReleaseName --notes-file $NotesFile --prerelease
             gh release upload $Tag $Assets --repo $env:REPO --clobber
           }
 
@@ -169,19 +171,21 @@ $Changelog
           $ReleaseName = "Pixelpipe v$env:VERSION"
           $Changelog = Get-Content -Raw -Path $env:BODY_FILE
           $Short = $env:COMMIT_SHA.Substring(0, 7)
-          $Notes = @"
-Pixelpipe v$env:VERSION
-
-Built from commit [$Short](https://github.com/$env:REPO/commit/$env:COMMIT_SHA).
-
-$Changelog
-
-## Files
-- Pixelpipe.exe: standalone tray app
-- Pixelpipe-Windows-x64.zip: portable package
-- Pixelpipe-Setup.exe: optional installer, when the installer build succeeds
-- SHA256SUMS.txt: checksum file
-"@
+          $NotesFile = Join-Path $env:RUNNER_TEMP 'release-notes.md'
+          $Lines = @(
+            "Pixelpipe v$env:VERSION",
+            "",
+            "Built from commit [$Short](https://github.com/$env:REPO/commit/$env:COMMIT_SHA).",
+            "",
+            $Changelog,
+            "",
+            "## Files",
+            "- Pixelpipe.exe: standalone tray app",
+            "- Pixelpipe-Windows-x64.zip: portable package",
+            "- Pixelpipe-Setup.exe: optional installer, when the installer build succeeds",
+            "- SHA256SUMS.txt: checksum file"
+          )
+          Set-Content -Path $NotesFile -Value $Lines -Encoding utf8
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -191,4 +195,4 @@ $Changelog
           $Assets = @('dist/Pixelpipe.exe','dist/Pixelpipe-Windows-x64.zip','dist/SHA256SUMS.txt')
           if (Test-Path 'dist/Pixelpipe-Setup.exe') { $Assets += 'dist/Pixelpipe-Setup.exe' }
 
-          gh release create $Tag $Assets --repo $env:REPO --title $ReleaseName --notes $Notes
+          gh release create $Tag $Assets --repo $env:REPO --title $ReleaseName --notes-file $NotesFile
