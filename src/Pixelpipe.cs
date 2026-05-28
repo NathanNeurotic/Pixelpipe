@@ -42,6 +42,7 @@ namespace Pixelpipe
         private DateTime lastRemoteListUtc = DateTime.MinValue;
         private bool adminWarningShown;
         private bool verboseLogging;
+        private bool rebuildPendingWhileOpen;
 
         public TrayContext(string[] args)
         {
@@ -64,6 +65,16 @@ namespace Pixelpipe
             menu = new ContextMenuStrip();
             ApplyTrayMenuTheme(menu);
             menu.Opening += delegate { OnMenuOpening(); };
+            // If a refresh wants to rebuild the menu while it's visible, defer it
+            // until close so the menu doesn't flash in the user's face.
+            menu.Closed += delegate
+            {
+                if (rebuildPendingWhileOpen)
+                {
+                    rebuildPendingWhileOpen = false;
+                    RebuildMenu();
+                }
+            };
 
             tray = new NotifyIcon();
             tray.Icon = LoadAppIcon();

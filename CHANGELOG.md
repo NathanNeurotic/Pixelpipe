@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.1
+
+Fixed:
+
+- Tray context menu would flash closed and reopen every ~7 seconds while it was visible. Cause: the periodic refresh timer called `RebuildMenu()` (which clears and re-adds `menu.Items`) regardless of whether the menu was on screen. Pixelpipe now defers the rebuild until the menu is closed; the Opening handler still rebuilds before display so the next open shows fresh data.
+
 ## 0.4.0
 
 Full audit pass: thread safety, resource leaks, UX papercuts, and release-pipeline cleanup.
