@@ -40,16 +40,22 @@ namespace Pixelpipe
 
         private sealed class MainWindow : Form
         {
-            private static readonly Color BgColor = Color.FromArgb(18, 22, 28);
-            private static readonly Color CardColor = Color.FromArgb(28, 33, 42);
-            private static readonly Color FgColor = Color.WhiteSmoke;
-            private static readonly Color MutedColor = Color.FromArgb(160, 170, 184);
-            private static readonly Color ButtonBg = Color.FromArgb(48, 53, 64);
-            private static readonly Color ButtonBorder = Color.FromArgb(80, 90, 105);
-            private static readonly Color AccentColor = Color.FromArgb(110, 200, 255);
+            internal static readonly Color BgColor = Color.FromArgb(18, 22, 28);
+            internal static readonly Color CardColor = Color.FromArgb(28, 33, 42);
+            internal static readonly Color FgColor = Color.WhiteSmoke;
+            internal static readonly Color MutedColor = Color.FromArgb(160, 170, 184);
+            internal static readonly Color ButtonBg = Color.FromArgb(48, 53, 64);
+            internal static readonly Color ButtonBorder = Color.FromArgb(80, 90, 105);
+            internal static readonly Color AccentColor = Color.FromArgb(110, 200, 255);
+            internal static readonly Color WarnColor = Color.FromArgb(240, 180, 60);
 
             private readonly TrayContext owner;
             private TabControl tabs;
+            private Label rcloneStatusLabel;
+            private Label winfspStatusLabel;
+            private Label quotaLabel;
+            private Label adminWarningLabel;
+            private Label globalStatusLabel;
             private FlowLayoutPanel profilesPanel;
             private TextBox diagBox;
             private ComboBox logSelector;
@@ -57,6 +63,16 @@ namespace Pixelpipe
             private ComboBox bandwidthCombo;
             private CheckBox startupCheck;
             private CheckBox verboseCheck;
+            private Label settingsRcloneStatus;
+            private Label settingsWinfspStatus;
+            private Label settingsRemoteStatus;
+            private Label settingsApiKeyStatus;
+            private Button installRcloneBtn;
+            private Button installWinfspBtn;
+            private Button configurePixeldrainBtn;
+            private Button rcloneConfigBtn;
+            private Button setApiKeyBtn;
+            private Button clearApiKeyBtn;
             private readonly List<ProfileCard> cards = new List<ProfileCard>();
 
             public MainWindow(TrayContext owner)
@@ -64,9 +80,9 @@ namespace Pixelpipe
                 this.owner = owner;
                 Text = "Pixelpipe";
                 StartPosition = FormStartPosition.CenterScreen;
-                Width = 980;
-                Height = 660;
-                MinimumSize = new Size(720, 520);
+                Width = 1040;
+                Height = 720;
+                MinimumSize = new Size(820, 560);
                 BackColor = BgColor;
                 ForeColor = FgColor;
                 Font = new Font("Segoe UI", 9.25f);
@@ -75,7 +91,6 @@ namespace Pixelpipe
 
                 tabs = new TabControl();
                 tabs.Dock = DockStyle.Fill;
-                tabs.Appearance = TabAppearance.Normal;
 
                 tabs.TabPages.Add(BuildProfilesTab());
                 tabs.TabPages.Add(BuildDiagnosticsTab());
@@ -88,6 +103,8 @@ namespace Pixelpipe
                 ApplyLiveState();
             }
 
+            // ----- Profiles tab -----
+
             private TabPage BuildProfilesTab()
             {
                 TabPage page = new TabPage("Profiles");
@@ -98,29 +115,39 @@ namespace Pixelpipe
                 TableLayoutPanel layout = new TableLayoutPanel();
                 layout.Dock = DockStyle.Fill;
                 layout.ColumnCount = 1;
-                layout.RowCount = 3;
+                layout.RowCount = 4;
                 layout.BackColor = BgColor;
-                layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-                layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-                layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+                layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));    // status strip
+                layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));    // tagline
+                layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));    // top action bar
+                layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100f)); // cards
 
-                Label header = new Label();
-                header.AutoSize = true;
-                header.Text = "Mount and unmount your cloud remotes. Status updates live every few seconds.";
-                header.ForeColor = MutedColor;
-                header.Margin = new Padding(4, 4, 4, 6);
+                layout.Controls.Add(BuildStatusStrip(), 0, 0);
+
+                Label tagline = new Label();
+                tagline.AutoSize = true;
+                tagline.Text = "Mount and unmount your cloud remotes. Status updates live every few seconds.";
+                tagline.ForeColor = MutedColor;
+                tagline.Margin = new Padding(4, 4, 4, 8);
+                layout.Controls.Add(tagline, 0, 1);
 
                 FlowLayoutPanel topBar = new FlowLayoutPanel();
                 topBar.AutoSize = true;
-                topBar.Dock = DockStyle.Fill;
+                topBar.AutoSizeMode = AutoSizeMode.GrowAndShrink;
                 topBar.FlowDirection = FlowDirection.LeftToRight;
+                topBar.WrapContents = true;
+                topBar.Dock = DockStyle.Fill;
                 topBar.Margin = new Padding(0, 0, 0, 8);
+                topBar.MaximumSize = new Size(0, 0);
 
                 topBar.Controls.Add(MakeAction("Mount all", delegate { owner.MountAllProfiles(); }));
                 topBar.Controls.Add(MakeAction("Unmount all", delegate { owner.UnmountAllProfiles(); }));
-                topBar.Controls.Add(MakeAction("Add cloud remote...", delegate { owner.ShowManageRemotesWindow(); }));
+                topBar.Controls.Add(MakeAddRemoteSplitButton());
+                topBar.Controls.Add(MakeAction("Import existing...", delegate { owner.ImportExistingRemotes(); }));
                 topBar.Controls.Add(MakeAction("Manage remotes...", delegate { owner.ShowManageRemotesWindow(); }));
                 topBar.Controls.Add(MakeAction("Refresh now", delegate { owner.QueueRefresh(true, true); }));
+
+                layout.Controls.Add(topBar, 0, 2);
 
                 profilesPanel = new FlowLayoutPanel();
                 profilesPanel.Dock = DockStyle.Fill;
@@ -129,14 +156,79 @@ namespace Pixelpipe
                 profilesPanel.WrapContents = true;
                 profilesPanel.Padding = new Padding(0);
                 profilesPanel.BackColor = BgColor;
-
-                layout.Controls.Add(header, 0, 0);
-                layout.Controls.Add(topBar, 0, 1);
-                layout.Controls.Add(profilesPanel, 0, 2);
+                layout.Controls.Add(profilesPanel, 0, 3);
 
                 page.Controls.Add(layout);
                 return page;
             }
+
+            private Control BuildStatusStrip()
+            {
+                FlowLayoutPanel strip = new FlowLayoutPanel();
+                strip.AutoSize = true;
+                strip.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+                strip.FlowDirection = FlowDirection.LeftToRight;
+                strip.WrapContents = true;
+                strip.Dock = DockStyle.Fill;
+                strip.Margin = new Padding(0, 0, 0, 6);
+                strip.Padding = new Padding(4);
+                strip.BackColor = CardColor;
+
+                globalStatusLabel = MakeStatusChip("Status: …");
+                rcloneStatusLabel = MakeStatusChip("rclone: …");
+                winfspStatusLabel = MakeStatusChip("WinFsp: …");
+                quotaLabel = MakeStatusChip("Transfer quota: …");
+                adminWarningLabel = MakeStatusChip("Running as Administrator");
+                adminWarningLabel.ForeColor = WarnColor;
+                adminWarningLabel.Visible = false;
+
+                strip.Controls.Add(globalStatusLabel);
+                strip.Controls.Add(rcloneStatusLabel);
+                strip.Controls.Add(winfspStatusLabel);
+                strip.Controls.Add(quotaLabel);
+                strip.Controls.Add(adminWarningLabel);
+                return strip;
+            }
+
+            private static Label MakeStatusChip(string text)
+            {
+                Label l = new Label();
+                l.AutoSize = true;
+                l.Text = text;
+                l.ForeColor = FgColor;
+                l.BackColor = ButtonBg;
+                l.Padding = new Padding(8, 4, 8, 4);
+                l.Margin = new Padding(4);
+                l.Font = new Font("Segoe UI", 9f);
+                return l;
+            }
+
+            private Button MakeAddRemoteSplitButton()
+            {
+                Button b = MakeAction("Add cloud remote ▾", null);
+                ContextMenuStrip menuStrip = new ContextMenuStrip();
+                TrayMenuTheme.Apply(menuStrip);
+                menuStrip.Items.Add("Pixeldrain", null, delegate { owner.AddPixeldrainProfile(); });
+                menuStrip.Items.Add("Google Drive", null, delegate { owner.AddGuidedRcloneRemote("Google Drive", "drive", "G:"); });
+                menuStrip.Items.Add("MEGA", null, delegate { owner.AddGuidedRcloneRemote("MEGA", "mega", "M:"); });
+                menuStrip.Items.Add("OneDrive", null, delegate { owner.AddGuidedRcloneRemote("OneDrive", "onedrive", "O:"); });
+                menuStrip.Items.Add("Dropbox", null, delegate { owner.AddGuidedRcloneRemote("Dropbox", "dropbox", "D:"); });
+                menuStrip.Items.Add("Box", null, delegate { owner.AddGuidedRcloneRemote("Box", "box", "K:"); });
+                menuStrip.Items.Add("S3 / R2 / B2 / Wasabi", null, delegate { owner.AddGuidedRcloneRemote("S3-compatible", "s3", "R:"); });
+                menuStrip.Items.Add("WebDAV / Nextcloud", null, delegate { owner.AddGuidedRcloneRemote("WebDAV", "webdav", "W:"); });
+                menuStrip.Items.Add("SFTP", null, delegate { owner.AddGuidedRcloneRemote("SFTP", "sftp", "S:"); });
+                menuStrip.Items.Add(new ToolStripSeparator());
+                menuStrip.Items.Add("Custom existing rclone remote...", null, delegate { owner.AddExistingRemoteProfile(); });
+                menuStrip.Items.Add("Open rclone config terminal", null, delegate { owner.OpenRcloneConfigTerminal(); });
+                b.Click += delegate
+                {
+                    Point p = b.PointToScreen(new Point(0, b.Height));
+                    menuStrip.Show(p);
+                };
+                return b;
+            }
+
+            // ----- Diagnostics tab -----
 
             private TabPage BuildDiagnosticsTab()
             {
@@ -148,6 +240,7 @@ namespace Pixelpipe
                 FlowLayoutPanel actions = new FlowLayoutPanel();
                 actions.Dock = DockStyle.Bottom;
                 actions.AutoSize = true;
+                actions.AutoSizeMode = AutoSizeMode.GrowAndShrink;
                 actions.FlowDirection = FlowDirection.LeftToRight;
                 actions.WrapContents = true;
                 actions.Padding = new Padding(0, 6, 0, 0);
@@ -157,6 +250,7 @@ namespace Pixelpipe
                 actions.Controls.Add(MakeAction("Open log folder", delegate { owner.OpenLogFolder(); }));
                 actions.Controls.Add(MakeAction("Open settings file", delegate { owner.OpenSettingsFile(); }));
                 actions.Controls.Add(MakeAction("rclone config", delegate { owner.OpenRcloneConfigTerminal(); }));
+                actions.Controls.Add(MakeAction("Clear stale primary drive", delegate { owner.CleanStaleDriveMappings(owner.GetPrimaryProfile(), true); }));
 
                 diagBox = new TextBox();
                 diagBox.Multiline = true;
@@ -173,6 +267,8 @@ namespace Pixelpipe
                 return page;
             }
 
+            // ----- Logs tab -----
+
             private TabPage BuildLogsTab()
             {
                 TabPage page = new TabPage("Logs");
@@ -183,6 +279,7 @@ namespace Pixelpipe
                 FlowLayoutPanel topBar = new FlowLayoutPanel();
                 topBar.Dock = DockStyle.Top;
                 topBar.AutoSize = true;
+                topBar.AutoSizeMode = AutoSizeMode.GrowAndShrink;
                 topBar.FlowDirection = FlowDirection.LeftToRight;
 
                 Label sel = new Label();
@@ -203,6 +300,7 @@ namespace Pixelpipe
                 topBar.Controls.Add(sel);
                 topBar.Controls.Add(logSelector);
                 topBar.Controls.Add(MakeAction("Refresh", delegate { PopulateLogSelector(); RefreshLogBox(); }));
+                topBar.Controls.Add(MakeAction("Open log folder", delegate { owner.OpenLogFolder(); }));
 
                 logBox = new TextBox();
                 logBox.Multiline = true;
@@ -219,6 +317,8 @@ namespace Pixelpipe
                 return page;
             }
 
+            // ----- Settings tab -----
+
             private TabPage BuildSettingsTab()
             {
                 TabPage page = new TabPage("Settings");
@@ -227,24 +327,97 @@ namespace Pixelpipe
                 page.Padding = new Padding(16);
                 page.AutoScroll = true;
 
-                TableLayoutPanel grid = new TableLayoutPanel();
-                grid.Dock = DockStyle.Top;
-                grid.ColumnCount = 2;
-                grid.AutoSize = true;
-                grid.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-                grid.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-                grid.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+                FlowLayoutPanel root = new FlowLayoutPanel();
+                root.Dock = DockStyle.Top;
+                root.AutoSize = true;
+                root.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+                root.FlowDirection = FlowDirection.TopDown;
+                root.WrapContents = false;
+
+                root.Controls.Add(BuildDependenciesGroup());
+                root.Controls.Add(BuildRemotesGroup());
+                root.Controls.Add(BuildPreferencesGroup());
+                root.Controls.Add(BuildMaintenanceGroup());
+
+                page.Controls.Add(root);
+                return page;
+            }
+
+            private GroupBox BuildDependenciesGroup()
+            {
+                GroupBox g = MakeGroup("Dependencies");
+
+                TableLayoutPanel grid = MakeKeyValueGrid();
+
+                settingsRcloneStatus = MakeValueLabel("…");
+                settingsWinfspStatus = MakeValueLabel("…");
+
+                installRcloneBtn = MakeAction("Download portable rclone", delegate { owner.DownloadRclonePortableWithUi(); ApplyLiveState(); });
+                Button installRcloneWingetBtn = MakeAction("Install rclone via winget", delegate { owner.InstallRcloneWithWinget(); ApplyLiveState(); });
+                installWinfspBtn = MakeAction("Install WinFsp via winget", delegate { owner.InstallWinFspWithWinget(); ApplyLiveState(); });
+                rcloneConfigBtn = MakeAction("Open rclone config terminal", delegate { owner.OpenRcloneConfigTerminal(); });
+
+                FlowLayoutPanel rcloneRow = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.LeftToRight, WrapContents = true, Margin = new Padding(0) };
+                rcloneRow.Controls.Add(settingsRcloneStatus);
+                rcloneRow.Controls.Add(installRcloneBtn);
+                rcloneRow.Controls.Add(installRcloneWingetBtn);
+
+                FlowLayoutPanel winfspRow = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.LeftToRight, WrapContents = true, Margin = new Padding(0) };
+                winfspRow.Controls.Add(settingsWinfspStatus);
+                winfspRow.Controls.Add(installWinfspBtn);
+
+                AddSettingRow(grid, "rclone:", rcloneRow);
+                AddSettingRow(grid, "WinFsp:", winfspRow);
+                AddSettingRow(grid, "rclone remotes:", rcloneConfigBtn);
+
+                g.Controls.Add(grid);
+                return g;
+            }
+
+            private GroupBox BuildRemotesGroup()
+            {
+                GroupBox g = MakeGroup("Pixeldrain quota");
+
+                TableLayoutPanel grid = MakeKeyValueGrid();
+
+                settingsRemoteStatus = MakeValueLabel("…");
+                settingsApiKeyStatus = MakeValueLabel("…");
+
+                configurePixeldrainBtn = MakeAction("Configure Pixeldrain remote", delegate { owner.ConfigurePixeldrainRemoteFromPrompt(owner.GetPrimaryProfile()); ApplyLiveState(); });
+                setApiKeyBtn = MakeAction("Set / change API key", delegate { owner.SetApiKeyFromPrompt(); ApplyLiveState(); });
+                clearApiKeyBtn = MakeAction("Clear API key", delegate { owner.ClearApiKey(); ApplyLiveState(); });
+                Button openApiKeyPageBtn = MakeAction("Open pixeldrain.com API keys page", delegate { owner.OpenApiKeysPage(); });
+
+                FlowLayoutPanel apiKeyRow = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.LeftToRight, WrapContents = true, Margin = new Padding(0) };
+                apiKeyRow.Controls.Add(settingsApiKeyStatus);
+                apiKeyRow.Controls.Add(setApiKeyBtn);
+                apiKeyRow.Controls.Add(clearApiKeyBtn);
+                apiKeyRow.Controls.Add(openApiKeyPageBtn);
+
+                AddSettingRow(grid, "Primary remote:", settingsRemoteStatus);
+                AddSettingRow(grid, "Configure:", configurePixeldrainBtn);
+                AddSettingRow(grid, "API key:", apiKeyRow);
+
+                g.Controls.Add(grid);
+                return g;
+            }
+
+            private GroupBox BuildPreferencesGroup()
+            {
+                GroupBox g = MakeGroup("Preferences");
+
+                TableLayoutPanel grid = MakeKeyValueGrid();
 
                 string[] choices = new string[] { "off", "512K", "1M", "5M", "10M", "25M", "50M", "100M", "250M" };
                 bandwidthCombo = new ComboBox();
                 bandwidthCombo.DropDownStyle = ComboBoxStyle.DropDownList;
-                bandwidthCombo.Width = 220;
+                bandwidthCombo.Width = 200;
                 bandwidthCombo.BackColor = Color.FromArgb(14, 18, 24);
                 bandwidthCombo.ForeColor = FgColor;
                 bandwidthCombo.Margin = new Padding(0, 4, 12, 4);
                 for (int i = 0; i < choices.Length; i++)
                 {
-                    bandwidthCombo.Items.Add(choices[i] + (choices[i] == "off" ? "  (Unlimited)" : "/s"));
+                    bandwidthCombo.Items.Add(choices[i] == "off" ? "Unlimited" : (choices[i] + "/s"));
                 }
                 bandwidthCombo.SelectedIndexChanged += delegate
                 {
@@ -256,9 +429,14 @@ namespace Pixelpipe
                     }
                 };
 
+                Button customBwBtn = MakeAction("Custom...", delegate { owner.SetCustomBandwidth(); });
+                FlowLayoutPanel bwRow = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.LeftToRight, WrapContents = true, Margin = new Padding(0) };
+                bwRow.Controls.Add(bandwidthCombo);
+                bwRow.Controls.Add(customBwBtn);
+
                 startupCheck = new CheckBox();
                 startupCheck.AutoSize = true;
-                startupCheck.Text = "Enabled";
+                startupCheck.Text = "Auto-mount profiles tagged AutoMount at Windows startup";
                 startupCheck.ForeColor = FgColor;
                 startupCheck.Margin = new Padding(0, 8, 0, 8);
                 startupCheck.CheckedChanged += delegate
@@ -277,30 +455,86 @@ namespace Pixelpipe
                     owner.SaveSetting("VerboseLogging", verboseCheck.Checked ? "1" : "0");
                 };
 
-                int row = 0;
-                AddSettingRow(grid, row++, "Bandwidth limit (live):", bandwidthCombo);
-                AddSettingRow(grid, row++, "Custom bandwidth:", MakeAction("Set custom...", delegate { owner.SetCustomBandwidth(); }));
-                AddSettingRow(grid, row++, "Auto-mount at Windows startup:", startupCheck);
-                AddSettingRow(grid, row++, "Verbose logging:", verboseCheck);
-                AddSettingRow(grid, row++, "Setup wizard:", MakeAction("Run setup wizard", delegate { owner.RunFirstLaunchSetup(true); }));
-                AddSettingRow(grid, row++, "Updates:", MakeAction("Check for updates", delegate { owner.CheckForUpdates(); }));
+                AddSettingRow(grid, "Bandwidth limit:", bwRow);
+                AddSettingRow(grid, "Startup:", startupCheck);
+                AddSettingRow(grid, "Verbose logging:", verboseCheck);
 
-                page.Controls.Add(grid);
-                return page;
+                g.Controls.Add(grid);
+                return g;
             }
 
-            private static void AddSettingRow(TableLayoutPanel grid, int row, string labelText, Control control)
+            private GroupBox BuildMaintenanceGroup()
             {
+                GroupBox g = MakeGroup("Maintenance");
+
+                FlowLayoutPanel row = new FlowLayoutPanel();
+                row.AutoSize = true;
+                row.FlowDirection = FlowDirection.LeftToRight;
+                row.WrapContents = true;
+                row.Margin = new Padding(8);
+
+                row.Controls.Add(MakeAction("Run setup wizard", delegate { owner.RunFirstLaunchSetup(true); ApplyLiveState(); }));
+                row.Controls.Add(MakeAction("Open log folder", delegate { owner.OpenLogFolder(); }));
+                row.Controls.Add(MakeAction("Open settings file", delegate { owner.OpenSettingsFile(); }));
+                row.Controls.Add(MakeAction("Copy diagnostics", delegate { owner.CopyDiagnostics(); }));
+                row.Controls.Add(MakeAction("Check for updates", delegate { owner.CheckForUpdates(); }));
+                row.Controls.Add(MakeAction("Exit Pixelpipe", delegate { owner.ExitApp(); }));
+
+                g.Controls.Add(row);
+                return g;
+            }
+
+            private static GroupBox MakeGroup(string title)
+            {
+                GroupBox g = new GroupBox();
+                g.Text = title;
+                g.AutoSize = true;
+                g.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+                g.Padding = new Padding(8, 10, 8, 10);
+                g.Margin = new Padding(0, 0, 0, 12);
+                g.ForeColor = FgColor;
+                g.BackColor = BgColor;
+                return g;
+            }
+
+            private static TableLayoutPanel MakeKeyValueGrid()
+            {
+                TableLayoutPanel grid = new TableLayoutPanel();
+                grid.Dock = DockStyle.Top;
+                grid.AutoSize = true;
+                grid.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+                grid.ColumnCount = 2;
+                grid.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+                grid.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+                grid.BackColor = BgColor;
+                return grid;
+            }
+
+            private static void AddSettingRow(TableLayoutPanel grid, string labelText, Control control)
+            {
+                int row = grid.RowCount;
                 grid.RowCount = row + 1;
                 grid.RowStyles.Add(new RowStyle(SizeType.AutoSize));
                 Label l = new Label();
                 l.AutoSize = true;
                 l.Text = labelText;
                 l.ForeColor = FgColor;
-                l.Margin = new Padding(0, 8, 16, 0);
+                l.Margin = new Padding(0, 10, 16, 0);
                 grid.Controls.Add(l, 0, row);
                 grid.Controls.Add(control, 1, row);
             }
+
+            private static Label MakeValueLabel(string text)
+            {
+                Label l = new Label();
+                l.AutoSize = true;
+                l.Text = text;
+                l.ForeColor = FgColor;
+                l.Margin = new Padding(0, 8, 12, 0);
+                return l;
+            }
+
+            // ----- Card management -----
 
             public void RebuildProfileCards()
             {
@@ -330,10 +564,30 @@ namespace Pixelpipe
                         RebuildProfileCards();
                         return;
                     }
-                    for (int i = 0; i < cards.Count; i++)
-                    {
-                        cards[i].ApplyLiveState();
-                    }
+                    for (int i = 0; i < cards.Count; i++) cards[i].ApplyLiveState();
+
+                    // Status strip
+                    int mounted = 0;
+                    for (int i = 0; i < snapshot.Length; i++) if (owner.IsMounted(snapshot[i])) mounted++;
+                    string globalText = snapshot.Length == 0
+                        ? "Status: no profiles"
+                        : (mounted == 0 ? "Status: no remotes mounted" : "Status: " + mounted + "/" + snapshot.Length + " mounted");
+                    SafeSet(globalStatusLabel, globalText);
+                    SafeSet(rcloneStatusLabel, "rclone: " + (owner.RcloneAvailable() ? "found" : "missing"));
+                    SafeSet(winfspStatusLabel, "WinFsp: " + (owner.WinFspInstalled() ? "found" : "missing"));
+                    SafeSet(quotaLabel, owner.transferQuotaText);
+                    if (adminWarningLabel != null) adminWarningLabel.Visible = owner.IsAdministrator();
+
+                    // Settings tab status mirrors
+                    SafeSet(settingsRcloneStatus, owner.RcloneAvailable() ? "found at " + owner.rclonePath : "missing");
+                    SafeSet(settingsWinfspStatus, owner.WinFspInstalled() ? "installed" : "not installed");
+                    SafeSet(settingsRemoteStatus, owner.AnyRemoteConfigured() ? "configured" : "not configured");
+                    SafeSet(settingsApiKeyStatus, owner.ApiKeyConfigured() ? "set (DPAPI-encrypted)" : "not set");
+
+                    if (installRcloneBtn != null) installRcloneBtn.Enabled = !owner.RcloneAvailable();
+                    if (installWinfspBtn != null) installWinfspBtn.Enabled = !owner.WinFspInstalled();
+                    if (clearApiKeyBtn != null) clearApiKeyBtn.Enabled = owner.ApiKeyConfigured();
+
                     if (bandwidthCombo != null)
                     {
                         string[] choices = new string[] { "off", "512K", "1M", "5M", "10M", "25M", "50M", "100M", "250M" };
@@ -353,6 +607,8 @@ namespace Pixelpipe
                 }
                 catch (Exception ex) { owner.LogUiIssue("main window live", ex); }
             }
+
+            private static void SafeSet(Label l, string text) { if (l != null) l.Text = text; }
 
             private void PopulateLogSelector()
             {
@@ -399,16 +655,14 @@ namespace Pixelpipe
                 }
             }
 
-            // AutoSize, padded button. The previous version used fixed pixel widths
-            // which clipped longer captions like "Add cloud remote..." and "Refresh now".
-            private static Button MakeAction(string text, EventHandler onClick)
+            internal static Button MakeAction(string text, EventHandler onClick)
             {
                 Button b = new Button();
                 b.Text = text;
                 b.AutoSize = true;
                 b.AutoSizeMode = AutoSizeMode.GrowAndShrink;
                 b.MinimumSize = new Size(0, 30);
-                b.Padding = new Padding(10, 4, 10, 4);
+                b.Padding = new Padding(12, 4, 12, 4);
                 b.Margin = new Padding(2, 2, 6, 2);
                 b.FlatStyle = FlatStyle.Flat;
                 b.BackColor = ButtonBg;
@@ -422,13 +676,11 @@ namespace Pixelpipe
 
         private sealed class ProfileCard
         {
-            private static readonly Color BgColor = Color.FromArgb(28, 33, 42);
-            private static readonly Color FgColor = Color.WhiteSmoke;
-            private static readonly Color MutedColor = Color.FromArgb(160, 170, 184);
+            private static readonly Color CardBg = MainWindow.CardColor;
+            private static readonly Color FgColor = MainWindow.FgColor;
+            private static readonly Color MutedColor = MainWindow.MutedColor;
             private static readonly Color MountedPill = Color.FromArgb(50, 130, 60);
             private static readonly Color UnmountedPill = Color.FromArgb(70, 76, 88);
-            private static readonly Color ButtonBg = Color.FromArgb(48, 53, 64);
-            private static readonly Color ButtonBorder = Color.FromArgb(80, 90, 105);
             private static readonly Color ErrorColor = Color.FromArgb(255, 110, 110);
 
             private readonly TrayContext owner;
@@ -448,6 +700,10 @@ namespace Pixelpipe
             private readonly Button mountFull;
             private readonly Button unmount;
             private readonly Button openDrive;
+            private readonly Button editBtn;
+            private readonly Button setPrimaryBtn;
+            private readonly Button autoMountBtn;
+            private readonly Button removeBtn;
 
             public ProfileCard(TrayContext owner, RemoteProfile p)
             {
@@ -455,53 +711,53 @@ namespace Pixelpipe
                 this.Profile = p;
 
                 Root = new Panel();
-                Root.Width = 440;
                 Root.AutoSize = true;
                 Root.AutoSizeMode = AutoSizeMode.GrowAndShrink;
                 Root.Margin = new Padding(8);
-                Root.Padding = new Padding(12);
-                Root.BackColor = BgColor;
+                Root.Padding = new Padding(14);
+                Root.BackColor = CardBg;
                 Root.BorderStyle = BorderStyle.FixedSingle;
-                Root.MinimumSize = new Size(440, 0);
+                Root.MinimumSize = new Size(460, 0);
 
-                TableLayoutPanel layout = new TableLayoutPanel();
+                FlowLayoutPanel layout = new FlowLayoutPanel();
                 layout.Dock = DockStyle.Top;
                 layout.AutoSize = true;
                 layout.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-                layout.ColumnCount = 1;
-                layout.BackColor = BgColor;
+                layout.FlowDirection = FlowDirection.TopDown;
+                layout.WrapContents = false;
+                layout.BackColor = CardBg;
                 layout.Margin = new Padding(0);
                 layout.Padding = new Padding(0);
-                layout.Width = 416; // Root.Width - 2*padding
 
-                // Header row: title (left) + status pill (right)
-                TableLayoutPanel header = new TableLayoutPanel();
-                header.ColumnCount = 2;
-                header.RowCount = 1;
+                // Header: title docks left, status pill docks right.
+                Panel header = new Panel();
+                header.Dock = DockStyle.Top;
                 header.AutoSize = true;
                 header.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-                header.Margin = new Padding(0, 0, 0, 6);
-                header.Padding = new Padding(0);
-                header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-                header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-                header.BackColor = BgColor;
-                header.Dock = DockStyle.Top;
-
-                titleLabel = new Label();
-                titleLabel.AutoSize = true;
-                titleLabel.Font = new Font("Segoe UI", 11f, FontStyle.Bold);
-                titleLabel.ForeColor = FgColor;
-                titleLabel.Margin = new Padding(0, 4, 0, 0);
+                header.MinimumSize = new Size(420, 0);
+                header.Margin = new Padding(0, 0, 0, 8);
+                header.BackColor = CardBg;
 
                 statusPill = new Label();
                 statusPill.AutoSize = true;
                 statusPill.Font = new Font("Segoe UI", 8.5f, FontStyle.Bold);
                 statusPill.ForeColor = FgColor;
-                statusPill.Padding = new Padding(8, 3, 8, 3);
-                statusPill.Margin = new Padding(8, 4, 0, 0);
+                statusPill.Padding = new Padding(10, 4, 10, 4);
+                statusPill.TextAlign = ContentAlignment.MiddleCenter;
+                statusPill.Dock = DockStyle.Right;
 
-                header.Controls.Add(titleLabel, 0, 0);
-                header.Controls.Add(statusPill, 1, 0);
+                titleLabel = new Label();
+                titleLabel.AutoSize = true;
+                titleLabel.Font = new Font("Segoe UI", 11.5f, FontStyle.Bold);
+                titleLabel.ForeColor = FgColor;
+                titleLabel.Margin = new Padding(0);
+                titleLabel.Dock = DockStyle.Left;
+                titleLabel.Padding = new Padding(0, 6, 8, 0);
+
+                // Add the right-docked control FIRST so it claims the right edge before
+                // the left-docked title takes the remainder.
+                header.Controls.Add(statusPill);
+                header.Controls.Add(titleLabel);
 
                 remoteLabel = MakeLine();
                 driveLabel = MakeLine();
@@ -510,34 +766,52 @@ namespace Pixelpipe
 
                 storageBar = new ProgressBar();
                 storageBar.Style = ProgressBarStyle.Continuous;
-                storageBar.Height = 8;
-                storageBar.Width = 400;
-                storageBar.Anchor = AnchorStyles.Left | AnchorStyles.Right;
-                storageBar.Margin = new Padding(0, 2, 0, 6);
+                storageBar.Height = 6;
+                storageBar.Width = 430;
+                storageBar.Margin = new Padding(0, 2, 0, 8);
 
                 trafficLabel = MakeLine();
                 speedLabel = MakeLine();
 
                 errorLabel = MakeLine();
                 errorLabel.ForeColor = ErrorColor;
-                errorLabel.MaximumSize = new Size(400, 0);
+                errorLabel.MaximumSize = new Size(430, 0);
 
-                FlowLayoutPanel buttons = new FlowLayoutPanel();
-                buttons.AutoSize = true;
-                buttons.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-                buttons.FlowDirection = FlowDirection.LeftToRight;
-                buttons.Margin = new Padding(0, 8, 0, 0);
-                buttons.BackColor = BgColor;
+                // Primary actions: mount/unmount/open.
+                FlowLayoutPanel primary = new FlowLayoutPanel();
+                primary.AutoSize = true;
+                primary.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+                primary.FlowDirection = FlowDirection.LeftToRight;
+                primary.WrapContents = true;
+                primary.Margin = new Padding(0, 8, 0, 0);
+                primary.BackColor = CardBg;
 
-                mountLow = MakeCardAction("Mount", delegate { owner.MountProfile(Profile, false); });
-                mountFull = MakeCardAction("Mount (full cache)", delegate { owner.MountProfile(Profile, true); });
-                unmount = MakeCardAction("Unmount", delegate { owner.UnmountProfile(Profile, false); });
-                openDrive = MakeCardAction("Open", delegate { owner.OpenDrive(Profile); });
+                mountLow = MainWindow.MakeAction("Mount", delegate { owner.MountProfile(Profile, false); });
+                mountFull = MainWindow.MakeAction("Mount (cache)", delegate { owner.MountProfile(Profile, true); });
+                unmount = MainWindow.MakeAction("Unmount", delegate { owner.UnmountProfile(Profile, false); });
+                openDrive = MainWindow.MakeAction("Open", delegate { owner.OpenDrive(Profile); });
+                primary.Controls.Add(mountLow);
+                primary.Controls.Add(mountFull);
+                primary.Controls.Add(unmount);
+                primary.Controls.Add(openDrive);
 
-                buttons.Controls.Add(mountLow);
-                buttons.Controls.Add(mountFull);
-                buttons.Controls.Add(unmount);
-                buttons.Controls.Add(openDrive);
+                // Secondary actions: edit/set primary/auto-mount/remove.
+                FlowLayoutPanel secondary = new FlowLayoutPanel();
+                secondary.AutoSize = true;
+                secondary.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+                secondary.FlowDirection = FlowDirection.LeftToRight;
+                secondary.WrapContents = true;
+                secondary.Margin = new Padding(0, 4, 0, 0);
+                secondary.BackColor = CardBg;
+
+                editBtn = MainWindow.MakeAction("Edit", delegate { owner.EditProfile(Profile); });
+                setPrimaryBtn = MainWindow.MakeAction("Set primary", delegate { owner.MakePrimaryProfile(Profile); });
+                autoMountBtn = MainWindow.MakeAction("Auto-mount: off", delegate { owner.ToggleProfileAutoMount(Profile); });
+                removeBtn = MainWindow.MakeAction("Remove", delegate { owner.RemoveProfile(Profile); });
+                secondary.Controls.Add(editBtn);
+                secondary.Controls.Add(setPrimaryBtn);
+                secondary.Controls.Add(autoMountBtn);
+                secondary.Controls.Add(removeBtn);
 
                 layout.Controls.Add(header);
                 layout.Controls.Add(remoteLabel);
@@ -548,7 +822,8 @@ namespace Pixelpipe
                 layout.Controls.Add(trafficLabel);
                 layout.Controls.Add(speedLabel);
                 layout.Controls.Add(errorLabel);
-                layout.Controls.Add(buttons);
+                layout.Controls.Add(primary);
+                layout.Controls.Add(secondary);
 
                 Root.Controls.Add(layout);
                 ApplyLiveState();
@@ -557,8 +832,8 @@ namespace Pixelpipe
             public void ApplyLiveState()
             {
                 bool mounted = owner.IsMounted(Profile);
-                titleLabel.Text = Profile.Label + "  (" + TrayContext.DisplayProvider(Profile.Provider) + ")";
-                statusPill.Text = mounted ? " MOUNTED " : " unmounted ";
+                titleLabel.Text = Profile.Label + "   (" + TrayContext.DisplayProvider(Profile.Provider) + ")";
+                statusPill.Text = mounted ? "MOUNTED" : "unmounted";
                 statusPill.BackColor = mounted ? MountedPill : UnmountedPill;
 
                 remoteLabel.Text = "Remote: " + Profile.Remote;
@@ -578,6 +853,10 @@ namespace Pixelpipe
                 unmount.Enabled = mounted;
                 openDrive.Enabled = mounted;
                 openDrive.Text = mounted ? "Open " + owner.GetDriveRoot(Profile) : "Open";
+
+                editBtn.Enabled = !mounted;
+                removeBtn.Enabled = !mounted;
+                autoMountBtn.Text = "Auto-mount: " + (Profile.AutoMount ? "on" : "off");
             }
 
             private static Label MakeLine()
@@ -588,24 +867,6 @@ namespace Pixelpipe
                 l.Font = new Font("Segoe UI", 9.25f);
                 l.Margin = new Padding(0, 0, 0, 2);
                 return l;
-            }
-
-            private static Button MakeCardAction(string text, EventHandler onClick)
-            {
-                Button b = new Button();
-                b.Text = text;
-                b.AutoSize = true;
-                b.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-                b.MinimumSize = new Size(0, 30);
-                b.Padding = new Padding(10, 4, 10, 4);
-                b.Margin = new Padding(0, 0, 6, 0);
-                b.FlatStyle = FlatStyle.Flat;
-                b.BackColor = ButtonBg;
-                b.ForeColor = FgColor;
-                b.FlatAppearance.BorderColor = ButtonBorder;
-                b.UseVisualStyleBackColor = false;
-                if (onClick != null) b.Click += onClick;
-                return b;
             }
         }
     }
