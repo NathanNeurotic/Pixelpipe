@@ -316,7 +316,18 @@ namespace Pixelpipe
             RebuildMenu();
         }
 
+        // Open the main window on Profiles. The legacy ListView-in-modal version used
+        // hardcoded pixel positions and would clip its action row at different
+        // font/DPI sizes the same way the diagnostics modal did. The Profiles tab
+        // already shows every profile as a card with all the same actions (Edit,
+        // Set primary, Auto-mount toggle, Remove, plus Add cloud remote ▾ and
+        // Import existing) so the modal is redundant.
         private void ShowManageRemotesWindow()
+        {
+            ShowMainWindow("Profiles");
+        }
+
+        private void ShowManageRemotesWindow_Legacy_Unused()
         {
             Form form = new Form();
             form.Text = "Pixelpipe remote profiles";

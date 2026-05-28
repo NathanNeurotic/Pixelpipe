@@ -10,54 +10,13 @@ namespace Pixelpipe
 {
     internal sealed partial class TrayContext
     {
+        // Open the main window on its Diagnostics tab. The legacy modal-form version
+        // used hardcoded pixel positions that clipped buttons and the verbose-logging
+        // caption at the user's font/DPI; the tabbed Diagnostics view inside the main
+        // window has the same actions plus auto-refresh and proper layout.
         private void ShowDiagnosticsWindow()
         {
-            Form form = new Form();
-            form.Text = "Pixelpipe diagnostics / repair";
-            form.StartPosition = FormStartPosition.CenterScreen;
-            form.Width = 820;
-            form.Height = 600;
-            form.BackColor = Color.FromArgb(18, 22, 28);
-            form.ForeColor = Color.WhiteSmoke;
-            TextBox box = new TextBox();
-            box.Multiline = true; box.ReadOnly = true; box.ScrollBars = ScrollBars.Vertical; box.Font = new Font("Consolas", 9f);
-            box.Left = 12; box.Top = 12; box.Width = 780; box.Height = 380; box.Text = BuildDiagnosticsText();
-            CheckBox verbose = new CheckBox();
-            verbose.Text = "Verbose logging (writes [debug] lines for menu placement and refresh)";
-            verbose.Left = 12; verbose.Top = 510; verbose.Width = 600; verbose.ForeColor = Color.WhiteSmoke;
-            verbose.Checked = verboseLogging;
-            verbose.CheckedChanged += delegate
-            {
-                verboseLogging = verbose.Checked;
-                SaveSetting("VerboseLogging", verboseLogging ? "1" : "0");
-            };
-            Button refresh = new Button(); refresh.Text = "Refresh"; refresh.Left = 12; refresh.Top = 410; refresh.Width = 90; refresh.Click += delegate { box.Text = BuildDiagnosticsText(); };
-            Button copy = new Button(); copy.Text = "Copy"; copy.Left = 110; copy.Top = 410; copy.Width = 90; copy.Click += delegate { Clipboard.SetText(box.Text); };
-            Button installRclone = new Button(); installRclone.Text = "Install rclone"; installRclone.Left = 208; installRclone.Top = 410; installRclone.Width = 110; installRclone.Click += delegate { DownloadRclonePortableWithUi(); box.Text = BuildDiagnosticsText(); };
-            Button installWinFsp = new Button(); installWinFsp.Text = "Install WinFsp"; installWinFsp.Left = 326; installWinFsp.Top = 410; installWinFsp.Width = 110; installWinFsp.Click += delegate { InstallWinFspWithWinget(); };
-            Button configRemote = new Button(); configRemote.Text = "rclone config"; configRemote.Left = 444; configRemote.Top = 410; configRemote.Width = 110; configRemote.Click += delegate { OpenRcloneConfigTerminal(); };
-            Button cleanup = new Button(); cleanup.Text = "Clear stale primary drive"; cleanup.Left = 562; cleanup.Top = 410; cleanup.Width = 150; cleanup.Click += delegate { CleanStaleDriveMappings(GetPrimaryProfile(), true); box.Text = BuildDiagnosticsText(); };
-            Button restart = new Button(); restart.Text = "Restart primary"; restart.Left = 12; restart.Top = 450; restart.Width = 120; restart.Click += delegate { RemoteProfile p = GetPrimaryProfile(); bool full = p.FullCache; UnmountProfile(p, true); MountProfile(p, full); };
-            Button logs = new Button(); logs.Text = "Open logs"; logs.Left = 140; logs.Top = 450; logs.Width = 100; logs.Click += delegate { OpenLogFolder(); };
-            Button settings = new Button(); settings.Text = "Open settings"; settings.Left = 248; settings.Top = 450; settings.Width = 110; settings.Click += delegate { OpenSettingsFile(); };
-            Button close = new Button(); close.Text = "Close"; close.Left = 702; close.Top = 510; close.Width = 90; close.Click += delegate { form.Close(); };
-            form.Controls.Add(box); form.Controls.Add(refresh); form.Controls.Add(copy); form.Controls.Add(installRclone); form.Controls.Add(installWinFsp); form.Controls.Add(configRemote); form.Controls.Add(cleanup); form.Controls.Add(restart); form.Controls.Add(logs); form.Controls.Add(settings); form.Controls.Add(verbose); form.Controls.Add(close);
-
-            // Auto-refresh while the dialog is open so live values update.
-            System.Windows.Forms.Timer diagTimer = new System.Windows.Forms.Timer();
-            diagTimer.Interval = 5000;
-            diagTimer.Tick += delegate
-            {
-                if (!box.IsDisposed) box.Text = BuildDiagnosticsText();
-            };
-            diagTimer.Start();
-            form.FormClosed += delegate
-            {
-                diagTimer.Stop();
-                diagTimer.Dispose();
-                form.Dispose();
-            };
-            form.Show();
+            ShowMainWindow("Diagnostics");
         }
 
         private string BuildDiagnosticsText()
