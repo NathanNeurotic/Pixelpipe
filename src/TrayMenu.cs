@@ -137,9 +137,9 @@ namespace Pixelpipe
             UpdateTrayTooltip();
         }
 
-        // Tray menu helper actions: surface the two new windows. We add them at the
-        // top so they're easy to find without scrolling the menu.
-        // (Wired into RebuildMenu above via the "open Pixelpipe..." separator block.)
+        // Adds "Open Pixelpipe window..." and "Quick controls..." entries plus a
+        // separator. Called inline from RebuildMenu so the window shortcuts sit near
+        // the top of the menu where the user can find them without scrolling.
         private void InsertWindowShortcuts()
         {
             menu.Items.Add(MenuAction("Open Pixelpipe window...", delegate { ShowMainWindow(); }));
@@ -215,9 +215,15 @@ namespace Pixelpipe
                 }
                 if (startupItem != null) startupItem.Checked = StartupEnabled();
 
-                int mountedCount = CountMounted();
-                if (mountAllItem != null) mountAllItem.Enabled = mountedCount < profiles.Count;
+                // Snapshot once for the whole live-update pass so mount-all/remove
+                // enabled gating, per-profile updates, and the "more than one
+                // profile" remove gating all use a consistent view of the list.
+                RemoteProfile[] snapshot = SnapshotProfiles();
+                int mountedCount = 0;
+                for (int i = 0; i < snapshot.Length; i++) if (IsMounted(snapshot[i])) mountedCount++;
+                if (mountAllItem != null) mountAllItem.Enabled = mountedCount < snapshot.Length;
                 if (unmountAllItem != null) unmountAllItem.Enabled = mountedCount > 0;
+                bool moreThanOne = snapshot.Length > 1;
 
                 // Update per-profile items.
                 for (int i = 0; i < profileMenuRefs.Count; i++)
@@ -242,7 +248,7 @@ namespace Pixelpipe
                     r.OpenDriveItem.Text = "Open " + GetDriveRoot(p);
                     r.EditItem.Enabled = !mounted;
                     r.AutoMountItem.Checked = p.AutoMount;
-                    r.RemoveItem.Enabled = !mounted && profiles.Count > 1;
+                    r.RemoveItem.Enabled = !mounted && moreThanOne;
                 }
 
                 UpdateTrayTooltip();
@@ -475,6 +481,30 @@ namespace Pixelpipe
             }
             catch (Exception ex) { LogUiIssue("tray menu theme", ex); }
         }
+    }
+
+    // Shared palette for the MainWindow / QuickControl / SetupWizard / ProfileCard
+    // family of dark dialogs. The tray menu has its own slightly darker palette in
+    // TrayMenuTheme below; keep both because the tray strip and the dialog windows
+    // sit on screen with different parent surfaces (Windows shell vs application
+    // background) and the slight contrast difference reads correctly.
+    internal static class WindowTheme
+    {
+        public static readonly Color BgColor = Color.FromArgb(18, 22, 28);
+        public static readonly Color CardColor = Color.FromArgb(28, 33, 42);
+        // Used as the background for TextBox / ComboBox / ListBox inputs in
+        // dialogs — slightly darker than the window background so the field
+        // boundaries are visible without a border.
+        public static readonly Color InputBg = Color.FromArgb(14, 18, 24);
+        public static readonly Color FgColor = Color.WhiteSmoke;
+        public static readonly Color MutedColor = Color.FromArgb(160, 170, 184);
+        public static readonly Color ButtonBg = Color.FromArgb(48, 53, 64);
+        public static readonly Color ButtonBorder = Color.FromArgb(80, 90, 105);
+        public static readonly Color AccentColor = Color.FromArgb(110, 200, 255);
+        public static readonly Color WarnColor = Color.FromArgb(240, 180, 60);
+        public static readonly Color ErrorColor = Color.FromArgb(255, 110, 110);
+        public static readonly Color MountedPill = Color.FromArgb(50, 130, 60);
+        public static readonly Color UnmountedPill = Color.FromArgb(70, 76, 88);
     }
 
     internal static class TrayMenuTheme

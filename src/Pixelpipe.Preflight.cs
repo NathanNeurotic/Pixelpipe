@@ -31,6 +31,8 @@ namespace Pixelpipe
                     if (failed) p.LastError = PreflightShortSummary(report);
                     else if (warned) p.LastError = "Preflight: " + PreflightShortSummary(report);
                     else p.LastError = "";
+                    p.LastPreflightReport = report;
+                    p.LastPreflightUtc = DateTime.UtcNow;
                     RebuildMenu();
                     UpdateMainWindowLiveState();
                     MessageBox.Show(report, p.Label + " preflight", MessageBoxButtons.OK, failed ? MessageBoxIcon.Warning : MessageBoxIcon.Information);

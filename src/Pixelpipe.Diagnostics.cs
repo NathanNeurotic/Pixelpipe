@@ -56,6 +56,11 @@ namespace Pixelpipe
                 sb.AppendLine("  speed: " + p.SpeedText);
                 sb.AppendLine("  log: " + p.LogFile);
                 if (!String.IsNullOrWhiteSpace(p.LastError)) sb.AppendLine("  last error: " + p.LastError);
+                if (!String.IsNullOrWhiteSpace(p.LastPreflightReport))
+                {
+                    sb.AppendLine("  last preflight (" + p.LastPreflightUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") + "):");
+                    sb.AppendLine(IndentLines(p.LastPreflightReport.Trim(), "    "));
+                }
                 sb.AppendLine("  log tail:");
                 sb.AppendLine(TailLog(p, 2000));
                 sb.AppendLine();
@@ -63,6 +68,21 @@ namespace Pixelpipe
             sb.AppendLine("Pixelpipe UI log tail:");
             sb.AppendLine(TailUiLog(2000));
             return sb.ToString();
+        }
+
+        // Prefix every non-empty line with `indent`. Used to align a multi-line
+        // preflight report under the per-profile block in BuildDiagnosticsText.
+        internal static string IndentLines(string text, string indent)
+        {
+            if (String.IsNullOrEmpty(text)) return "";
+            string[] lines = text.Replace("\r", "").Split('\n');
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < lines.Length; i++)
+            {
+                if (lines[i].Length == 0) sb.AppendLine();
+                else { sb.Append(indent); sb.AppendLine(lines[i]); }
+            }
+            return sb.ToString().TrimEnd();
         }
 
         private void CopyDiagnostics()

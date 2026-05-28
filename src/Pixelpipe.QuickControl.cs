@@ -30,10 +30,10 @@ namespace Pixelpipe
 
         private sealed class QuickControlWindow : Form
         {
-            private static readonly Color BgColor = Color.FromArgb(18, 22, 28);
-            private static readonly Color FgColor = Color.WhiteSmoke;
-            private static readonly Color MutedColor = Color.FromArgb(160, 170, 184);
-            private static readonly Color AccentColor = Color.FromArgb(110, 200, 255);
+            private static Color BgColor { get { return WindowTheme.BgColor; } }
+            private static Color FgColor { get { return WindowTheme.FgColor; } }
+            private static Color MutedColor { get { return WindowTheme.MutedColor; } }
+            private static Color AccentColor { get { return WindowTheme.AccentColor; } }
 
             private readonly TrayContext owner;
             private Label mountSummary;
@@ -54,7 +54,10 @@ namespace Pixelpipe
                 Height = 320;
                 MinimumSize = new Size(300, 260);
                 FormBorderStyle = FormBorderStyle.SizableToolWindow;
-                TopMost = true;
+                // Persisted: default ON because the popup is meant as a heads-up
+                // overlay during transfers, but users who want it to live behind
+                // other windows can turn off Pin via the checkbox below.
+                TopMost = !String.Equals(owner.LoadSetting("QuickControlPinned", "1"), "0", StringComparison.OrdinalIgnoreCase);
                 BackColor = BgColor;
                 ForeColor = FgColor;
                 Font = new Font("Segoe UI", 9.25f);
@@ -63,7 +66,7 @@ namespace Pixelpipe
                 TableLayoutPanel layout = new TableLayoutPanel();
                 layout.Dock = DockStyle.Fill;
                 layout.ColumnCount = 2;
-                layout.RowCount = 5;
+                layout.RowCount = 6;
                 layout.BackColor = BgColor;
                 layout.Padding = new Padding(10);
 
@@ -74,6 +77,7 @@ namespace Pixelpipe
                 layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));    // big speed
                 layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));    // traffic
                 layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));    // bandwidth row
+                layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));    // pin-on-top toggle
                 layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100f)); // per-profile list
 
                 mountSummary = new Label();
@@ -101,7 +105,7 @@ namespace Pixelpipe
 
                 bandwidthCombo = new ComboBox();
                 bandwidthCombo.DropDownStyle = ComboBoxStyle.DropDownList;
-                bandwidthCombo.BackColor = Color.FromArgb(14, 18, 24);
+                bandwidthCombo.BackColor = WindowTheme.InputBg;
                 bandwidthCombo.ForeColor = FgColor;
                 bandwidthCombo.Dock = DockStyle.Fill;
                 bandwidthCombo.Margin = new Padding(0, 2, 0, 8);
@@ -127,6 +131,18 @@ namespace Pixelpipe
                 profilesPanel.AutoScroll = true;
                 profilesPanel.BackColor = BgColor;
 
+                CheckBox pinTop = new CheckBox();
+                pinTop.AutoSize = true;
+                pinTop.Text = "Pin on top";
+                pinTop.ForeColor = MutedColor;
+                pinTop.Checked = TopMost;
+                pinTop.Margin = new Padding(0, 4, 0, 4);
+                pinTop.CheckedChanged += delegate
+                {
+                    TopMost = pinTop.Checked;
+                    owner.SaveSetting("QuickControlPinned", pinTop.Checked ? "1" : "0");
+                };
+
                 layout.Controls.Add(mountSummary, 0, 0);
                 layout.SetColumnSpan(mountSummary, 2);
                 layout.Controls.Add(aggregateSpeed, 0, 1);
@@ -135,7 +151,9 @@ namespace Pixelpipe
                 layout.SetColumnSpan(aggregateTraffic, 2);
                 layout.Controls.Add(bwL, 0, 3);
                 layout.Controls.Add(bandwidthCombo, 1, 3);
-                layout.Controls.Add(profilesPanel, 0, 4);
+                layout.Controls.Add(pinTop, 0, 4);
+                layout.SetColumnSpan(pinTop, 2);
+                layout.Controls.Add(profilesPanel, 0, 5);
                 layout.SetColumnSpan(profilesPanel, 2);
 
                 Controls.Add(layout);

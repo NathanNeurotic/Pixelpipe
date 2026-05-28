@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.6.1
+
+A "tighten the screws" release after the v0.6.0 audit. No new features; small refinements across thread safety, UX, and CI.
+
+Added:
+
+- **Quick controls window has a "Pin on top" checkbox.** Default ON (the popup is meant as a heads-up overlay during transfers), but you can untick it to send the window behind other applications. Persisted as `QuickControlPinned` in `settings.json`.
+- **Preflight reports are now visible in the Diagnostics tab.** When you run `Test profile`, the full `[OK]/[WARN]/[FAIL]` report plus the timestamp it ran are stored on the profile and rendered in `BuildDiagnosticsText`, indented under the per-profile block. The report also still goes to `pixelpipe-ui.log`.
+- **New unit tests** `PreflightShortSummary` and `IndentLines`. 28 tests total, all green.
+
+Changed:
+
+- **Centralized window palette** into a single `WindowTheme` static class. `MainWindow`, `ProfileCard`, `QuickControlWindow`, `SetupWizard`, `MakeDialog`, `PromptForValue`, `ChooseFromList`, `PromptForApiKey`, `EditProfile`, the diagnostics/logs boxes, the bandwidth combo — all now reference the same constants. Setup wizard had a slightly different muted/button palette that was visually inconsistent next to the main window; it now matches.
+- **`UpdateMenuLiveState` snapshots the profile list once** at the top instead of re-reading `profiles.Count` from multiple call sites. Tightens consistency with the snapshot pattern used everywhere else in worker paths.
+- **`GetPrimaryProfile` now holds the lock through the whole operation** instead of releasing it between the existence check and the `profiles[0]` return.
+- **`ProfileLabelExists` and `HasProfileForRemote` snapshot the profile list** before iterating. UI-thread-only callers in practice, but consistent with the rest of the codebase.
+- **`MainWindow` constructor no longer double-builds** profile cards. `RebuildProfileCards` already ends with `ApplyLiveState`, so the constructor's explicit `ApplyLiveState()` call was redundant.
+- **CI bumped to `actions/checkout@v6` and `actions/upload-artifact@v7`** (latest majors at release time). The `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true` shim is kept as belt-and-suspenders.
+
+Fixed:
+
+- **Misleading comment** above `InsertWindowShortcuts` claimed the call was wired indirectly from `RebuildMenu`. It's wired directly; comment now describes what the method does and where it's called from.
+
 ## 0.6.0
 
 A reliability and consolidation release. Single-instance protection, atomic settings writes, profile preflight, hardened argument quoting, and layout-managed dialogs. Per-profile `Test profile` now wired into both the tray and the main window.
