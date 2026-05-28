@@ -23,6 +23,10 @@ jobs:
         shell: pwsh
         run: .\scripts\build-release.ps1
 
+      - name: Run unit tests
+        shell: pwsh
+        run: .\scripts\run-tests.ps1
+
       - name: Smoke test tray menu placement and theme
         shell: pwsh
         run: |

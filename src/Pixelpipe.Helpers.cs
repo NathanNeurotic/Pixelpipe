@@ -176,9 +176,9 @@ namespace Pixelpipe
             string p = (provider ?? "").Trim().ToLowerInvariant();
             if (p.Length == 0) p = (remote ?? "").ToLowerInvariant();
             if (p.IndexOf("pixeldrain") >= 0) return "pixeldrain";
+            if (p.IndexOf("onedrive") >= 0) return "onedrive";
             if (p.IndexOf("drive") >= 0 || p.IndexOf("google") >= 0) return "drive";
             if (p.IndexOf("mega") >= 0) return "mega";
-            if (p.IndexOf("onedrive") >= 0) return "onedrive";
             if (p.IndexOf("dropbox") >= 0) return "dropbox";
             if (p == "box") return "box";
             if (p.IndexOf("s3") >= 0 || p.IndexOf("b2") >= 0 || p.IndexOf("r2") >= 0 || p.IndexOf("wasabi") >= 0) return "s3";
