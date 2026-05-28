@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.5
+
+Changed:
+
+- Tray menu's `Diagnostics / repair...` and `Manage remotes...` items now open the main window on the matching tab (Diagnostics / Profiles) instead of the legacy modal dialogs. The modal versions still used hardcoded `Left = 12; Top = 12; Width = N;` pixel positions and clipped their button captions ("Refresh", "Copy", "Install rclone", "Install WinFsp", "Clear stale", etc.) plus the verbose-logging checkbox at the user's font/DPI. The tabbed views in the main window have the same actions, real layout containers, auto-refresh, and don't clip.
+
 ## 0.5.4
 
 Fixed:

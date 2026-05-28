@@ -13,12 +13,18 @@ namespace Pixelpipe
 
         private void ShowMainWindow()
         {
+            ShowMainWindow(null);
+        }
+
+        private void ShowMainWindow(string tabName)
+        {
             if (mainWindow != null && !mainWindow.IsDisposed)
             {
                 if (mainWindow.WindowState == FormWindowState.Minimized)
                 {
                     mainWindow.WindowState = FormWindowState.Normal;
                 }
+                if (!String.IsNullOrEmpty(tabName)) mainWindow.SelectTab(tabName);
                 mainWindow.Activate();
                 mainWindow.BringToFront();
                 return;
@@ -26,6 +32,7 @@ namespace Pixelpipe
             mainWindow = new MainWindow(this);
             mainWindow.FormClosed += delegate { mainWindow = null; };
             mainWindow.Show();
+            if (!String.IsNullOrEmpty(tabName)) mainWindow.SelectTab(tabName);
         }
 
         private void UpdateMainWindowLiveState()
@@ -538,6 +545,19 @@ namespace Pixelpipe
             }
 
             // ----- Card management -----
+
+            public void SelectTab(string text)
+            {
+                if (tabs == null || String.IsNullOrEmpty(text)) return;
+                foreach (TabPage page in tabs.TabPages)
+                {
+                    if (String.Equals(page.Text, text, StringComparison.OrdinalIgnoreCase))
+                    {
+                        tabs.SelectedTab = page;
+                        return;
+                    }
+                }
+            }
 
             public void RebuildProfileCards()
             {
