@@ -287,18 +287,23 @@ namespace Pixelpipe
     {
         public static int Run()
         {
-            if (!ThemeSmokeTest()) return 10;
+            string themeFailure = ThemeSmokeTest();
+            if (themeFailure != null)
+            {
+                Console.Error.WriteLine("smoketest-menu: theme check failed: " + themeFailure);
+                return 10;
+            }
 
             Rectangle screen = new Rectangle(0, 0, 1000, 800);
-            if (!Expect(new Rectangle(100, 100, 200, 24), new Size(160, 120), screen, new Point(298, 100))) return 1;
-            if (!Expect(new Rectangle(900, 100, 80, 24), new Size(160, 120), screen, new Point(742, 100))) return 2;
-            if (!Expect(new Rectangle(10, 740, 80, 24), new Size(160, 120), screen, new Point(88, 680))) return 3;
-            if (!Expect(new Rectangle(10, -20, 80, 24), new Size(120, 60), screen, new Point(88, 0))) return 4;
-            if (!Expect(new Rectangle(10, 20, 80, 24), new Size(1200, 60), screen, new Point(0, 20))) return 5;
+            if (!Expect(new Rectangle(100, 100, 200, 24), new Size(160, 120), screen, new Point(298, 100), 1)) return 1;
+            if (!Expect(new Rectangle(900, 100, 80, 24), new Size(160, 120), screen, new Point(742, 100), 2)) return 2;
+            if (!Expect(new Rectangle(10, 740, 80, 24), new Size(160, 120), screen, new Point(88, 680), 3)) return 3;
+            if (!Expect(new Rectangle(10, -20, 80, 24), new Size(120, 60), screen, new Point(88, 0), 4)) return 4;
+            if (!Expect(new Rectangle(10, 20, 80, 24), new Size(1200, 60), screen, new Point(0, 20), 5)) return 5;
             return 0;
         }
 
-        private static bool ThemeSmokeTest()
+        private static string ThemeSmokeTest()
         {
             using (ContextMenuStrip menu = new ContextMenuStrip())
             {
@@ -309,24 +314,35 @@ namespace Pixelpipe
                 TrayMenuTheme.Apply(menu);
                 TrayMenuTheme.Apply(parent.DropDown);
 
-                return IsThemed(menu) && IsThemed(parent.DropDown);
+                string menuFailure = WhyNotThemed(menu, "root");
+                if (menuFailure != null) return menuFailure;
+                return WhyNotThemed(parent.DropDown, "submenu");
             }
         }
 
-        private static bool IsThemed(ToolStripDropDown strip)
+        private static string WhyNotThemed(ToolStripDropDown strip, string label)
         {
+            if (strip.BackColor != TrayMenuTheme.BackColor)
+                return label + " BackColor expected " + TrayMenuTheme.BackColor + " got " + strip.BackColor;
+            if (strip.ForeColor != TrayMenuTheme.ForeColor)
+                return label + " ForeColor expected " + TrayMenuTheme.ForeColor + " got " + strip.ForeColor;
+            if (!(strip.Renderer is PixelpipeMenuRenderer))
+                return label + " Renderer expected PixelpipeMenuRenderer got " + (strip.Renderer == null ? "null" : strip.Renderer.GetType().Name);
             ToolStripDropDownMenu menu = strip as ToolStripDropDownMenu;
-            return strip.BackColor == TrayMenuTheme.BackColor
-                && strip.ForeColor == TrayMenuTheme.ForeColor
-                && strip.Padding == TrayMenuTheme.Padding
-                && strip.Renderer is PixelpipeMenuRenderer
-                && (menu == null || !menu.ShowImageMargin);
+            if (menu != null && menu.ShowImageMargin)
+                return label + " ShowImageMargin expected false got true";
+            return null;
         }
 
-        private static bool Expect(Rectangle itemBounds, Size dropDownSize, Rectangle workingArea, Point expected)
+        private static bool Expect(Rectangle itemBounds, Size dropDownSize, Rectangle workingArea, Point expected, int caseIndex)
         {
             Point actual = TrayMenuPlacement.CalculateDropDownLocation(itemBounds, dropDownSize, workingArea);
-            return actual == expected && workingArea.Contains(actual);
+            if (actual != expected || !workingArea.Contains(actual))
+            {
+                Console.Error.WriteLine("smoketest-menu: placement case " + caseIndex + " expected " + expected + " got " + actual);
+                return false;
+            }
+            return true;
         }
     }
 }

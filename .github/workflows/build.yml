@@ -23,6 +23,15 @@ jobs:
         shell: pwsh
         run: .\scripts\build-release.ps1
 
+      - name: Smoke test tray menu placement and theme
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $Exe = Join-Path $PWD 'dist\Pixelpipe.exe'
+          if (!(Test-Path $Exe)) { throw "Build output missing: $Exe" }
+          & $Exe /smoketest-menu
+          if ($LASTEXITCODE -ne 0) { throw "Tray menu smoke test failed with code $LASTEXITCODE" }
+
       - name: Install Inno Setup for installer build
         if: github.event_name != 'pull_request'
         shell: pwsh
