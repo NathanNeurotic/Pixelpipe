@@ -108,8 +108,28 @@ namespace Pixelpipe
 
             if (DriveLetterInUse(p.DriveLetter))
             {
-                DialogResult r = MessageBox.Show(p.DriveLetter + " appears to already be in use. Continue anyway?", "Pixelpipe", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
-                if (r != DialogResult.Yes) return;
+                // 3-button: Yes = kill orphan rclone for this drive then retry,
+                // No = continue anyway (legacy behaviour), Cancel = abort.
+                // Default is Yes because that's what fixes 95% of these.
+                string prompt = p.DriveLetter + " appears to already be in use.\r\n\r\n"
+                              + "Yes  — find and kill an orphan rclone process for " + p.DriveLetter + " (most common cause), then mount.\r\n"
+                              + "No   — try to mount anyway (rarely works; rclone will probably exit immediately).\r\n"
+                              + "Cancel — leave it alone.";
+                DialogResult r = MessageBox.Show(prompt, "Pixelpipe", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button1);
+                if (r == DialogResult.Cancel) return;
+                if (r == DialogResult.Yes)
+                {
+                    bool killed = KillOrphansForDrive(p.DriveLetter);
+                    if (!killed) return; // user already saw an info dialog from KillOrphansForDrive
+                    // Re-check; if Windows still hasn't released it (e.g. an
+                    // explorer.exe handle), warn and bail rather than getting
+                    // stuck in the immediate-exit loop the user just escaped.
+                    if (DriveLetterInUse(p.DriveLetter))
+                    {
+                        MessageBox.Show(p.DriveLetter + " is still in use after killing the orphan rclone. Something else is holding it — close any File Explorer windows on " + p.DriveLetter + " and try again.", "Pixelpipe", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        return;
+                    }
+                }
             }
 
             if (IsAdministrator() && !adminWarningShown)
@@ -150,6 +170,11 @@ namespace Pixelpipe
                 psi.WindowStyle = ProcessWindowStyle.Hidden;
                 psi.WorkingDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
                 p.MountProcess = Process.Start(psi);
+                // Bind the new rclone to our kill-on-job-close Job Object so
+                // it dies with Pixelpipe even if Pixelpipe is killed via Task
+                // Manager / crashes / etc. Best-effort; the orphan-scan path
+                // catches anything that slips through.
+                RcloneJob.TryAssign(p.MountProcess, delegate(string warn) { LogUiWarn("rclone job assign " + p.Label, warn); });
                 p.StatusText = "mounting " + GetDriveRoot(p);
                 SaveProfiles();
                 RebuildMenu();

@@ -461,6 +461,8 @@ namespace Pixelpipe
             tools.DropDownItems.Add(MenuAction("Export profiles to file...", delegate { ExportProfilesToFile(); }));
             tools.DropDownItems.Add(MenuAction("Import profiles from file...", delegate { ImportProfilesFromFile(); }));
             tools.DropDownItems.Add(new ToolStripSeparator());
+            tools.DropDownItems.Add(MenuAction("Find / kill orphan rclone processes", delegate { PromptAndKillOrphans(FindOrphanRcloneProcesses(), false); }));
+            tools.DropDownItems.Add(new ToolStripSeparator());
             tools.DropDownItems.Add(MenuAction("Refresh usage now", delegate { QueueRefresh(true, true); }));
             tools.DropDownItems.Add(MenuAction("Check for updates", delegate { CheckForUpdates(); }));
             return PrepareDropDownMenu(tools);

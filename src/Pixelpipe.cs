@@ -53,6 +53,12 @@ namespace Pixelpipe
             Directory.CreateDirectory(settingsDir);
             Directory.CreateDirectory(logDir);
 
+            // Set up the kill-on-job-close safety net before ANY rclone is
+            // spawned. After this call every Process we hand to
+            // RcloneJob.TryAssign dies when Pixelpipe dies, regardless of
+            // how Pixelpipe exits (clean, crash, Task Manager, sign-out).
+            RcloneJob.EnsureInitialised(delegate(string warn) { LogUiWarn("rclone job", warn); });
+
             rclonePath = FindRclonePath();
             selectedBandwidth = NormalizeBandwidthLimit(LoadSetting("BandwidthLimit", "off"));
             transferQuotaText = ApiKeyConfigured() ? "Transfer quota: not checked" : "Transfer quota: PixelDrain API key not set";
@@ -132,6 +138,13 @@ namespace Pixelpipe
             // Watch-folder uploader (per-profile FileSystemWatcher + a single
             // 3-second drain timer that hands off ready files to a worker).
             try { StartWatchFolders(); } catch (Exception ex) { LogUiIssue("startup watch folders", ex); }
+
+            // Detect orphan rclone processes from a previous Pixelpipe that
+            // didn't clean up. Runs on a worker thread; if it finds any it
+            // prompts the user via BeginUi. Safe even for users on the
+            // current build because the Job Object already protects against
+            // future orphans; this catches the pre-v0.11.4 install path.
+            try { StartupOrphanCheck(); } catch (Exception ex) { LogUiIssue("startup orphan check kickoff", ex); }
 
             try { RebuildMenu(); }
             catch (Exception ex)

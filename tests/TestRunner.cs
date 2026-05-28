@@ -55,6 +55,7 @@ namespace Pixelpipe.Tests
             Run("NormalizeWatchMode", TestNormalizeWatchMode);
             Run("BuildWatchUploadArgs", TestBuildWatchUploadArgs);
             Run("ComputeWatchNextRetryUtc", TestComputeWatchNextRetryUtc);
+            Run("CommandLineMentionsDrive", TestCommandLineMentionsDrive);
 
             Console.WriteLine();
             Console.WriteLine(total - failures + " / " + total + " passed");
@@ -775,6 +776,37 @@ namespace Pixelpipe.Tests
             string e = TrayContext.BuildWatchUploadArgs(null, "C:\\Watch\\a.bin");
             AssertContains(e, "moveto");
             AssertContains(e, "a.bin");
+        }
+
+        private static void TestCommandLineMentionsDrive()
+        {
+            // The mount argument quoting in QuoteArg always wraps the drive in
+            // double quotes, so the primary pattern to match is `"P:"`.
+            string typical = "C:\\Apps\\rclone\\rclone.exe mount \"Pixeldrain:\" \"P:\" --links --vfs-cache-mode writes";
+            AssertTrue(TrayContext.CommandLineMentionsDrive(typical, "P:"));
+            AssertFalse(TrayContext.CommandLineMentionsDrive(typical, "Q:"));
+
+            // Trailing backslash form (Pixelpipe sometimes hands rclone P:\).
+            string trailing = "rclone mount \"Pixeldrain:\" \"P:\\\" --links";
+            AssertTrue(TrayContext.CommandLineMentionsDrive(trailing, "P:"));
+
+            // Unquoted with whitespace boundary.
+            string unquoted = "rclone mount Pixeldrain: P: --links";
+            AssertTrue(TrayContext.CommandLineMentionsDrive(unquoted, "P:"));
+
+            // Must NOT match remote-name colons (`"Pixeldrain:"` should not
+            // count as mentioning drive `P:` or `n:`).
+            AssertFalse(TrayContext.CommandLineMentionsDrive("rclone mount \"Pixeldrain:\" \"X:\" --links", "P:"));
+            AssertFalse(TrayContext.CommandLineMentionsDrive("rclone mount \"Pixeldrain:\" \"X:\" --links", "n:"));
+
+            // Empty / null inputs are false, not exceptions.
+            AssertFalse(TrayContext.CommandLineMentionsDrive("", "P:"));
+            AssertFalse(TrayContext.CommandLineMentionsDrive(null, "P:"));
+            AssertFalse(TrayContext.CommandLineMentionsDrive("rclone mount", ""));
+            AssertFalse(TrayContext.CommandLineMentionsDrive("rclone mount", null));
+
+            // Case-insensitive.
+            AssertTrue(TrayContext.CommandLineMentionsDrive("rclone mount \"P:\" --links", "p:"));
         }
 
         private static void TestComputeWatchNextRetryUtc()

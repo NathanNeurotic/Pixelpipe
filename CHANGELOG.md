@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.11.4
+
+Orphan-rclone prevention and recovery. User report: a previous Pixelpipe (or rclone) session left an `rclone.exe` process alive holding a drive letter, so the next launch couldn't mount and showed "drive in use" forever.
+
+Added:
+
+- **Win32 Job Object with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`.** Every rclone process Pixelpipe spawns is now assigned to this job. When Pixelpipe exits for ANY reason — clean Exit, crash, Task Manager kill, sign-out, OOM, debugger detach — Windows closes the job handle and forcibly terminates every rclone in it. This is the bulletproof Windows-native way to prevent orphans from this point forward.
+- **Startup orphan scan** (`StartupOrphanCheck`). On launch Pixelpipe lists running `rclone.exe` processes via WMI, matches their command lines against the drive letters of our profiles, and prompts to kill any matches: *"Pixelpipe found N orphan rclone processes from a previous session. Kill them?"*. Covers users upgrading from a pre-v0.11.4 install whose orphans aren't in any job.
+- **Tools / diagnostics → "Find / kill orphan rclone processes"** for manual triggering at any time.
+- **"Drive in use" dialog is now three buttons**: *Yes* (find and kill the orphan rclone for this drive, then mount), *No* (try to mount anyway — usually fails immediately, kept for advanced users), *Cancel*. After a kill, re-checks the drive letter and bails with a clear message if something else (Explorer window, third-party app) is still holding it.
+- `System.Management.dll` added to the build/test reference set for WMI command-line lookup.
+- New unit test `CommandLineMentionsDrive` (43 tests total).
+
 ## 0.11.3
 
 Settings tab layout fix.
