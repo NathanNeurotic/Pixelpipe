@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.3
+
+Fixed:
+
+- `Pixelpipe-Setup.exe` (Inno Setup installer) was silently missing from every release since the workflow started building it. Cause: `scripts/build-installer.ps1` looked for `ISCC.exe` under `"$env:ProgramFiles(x86)\Inno Setup 6\ISCC.exe"`, but in PowerShell `$env:ProgramFiles(x86)` parses as `$env:ProgramFiles` followed by a literal `(x86)`, not the `Program Files (x86)` env var. The script always missed ISCC, the `-Optional` flag silently swallowed the failure, and the workflow's `continue-on-error: true` hid it in CI. Fixed by using the explicit `${env:ProgramFiles(x86)}` syntax, also checking `${env:ProgramData}\chocolatey\bin\ISCC.exe`, and falling back to `Get-Command ISCC.exe`. The workflow's Build-installer step is no longer `continue-on-error`, so a real installer-build failure surfaces in CI; the choco-install step keeps `continue-on-error` since that's the network-flake step.
+- The script now also fails if ISCC ran but did not produce `Pixelpipe-Setup.exe` at the expected path.
+
+Changed:
+
+- `README.md` Quick Start now surfaces both download options side by side: the portable `Pixelpipe.exe` / `-Windows-x64.zip` bundle, and `Pixelpipe-Setup.exe` for users who want Start-Menu / Add-Remove-Programs / per-user install under `%LOCALAPPDATA%\Programs\Pixelpipe\`. Both share the same `%APPDATA%\Pixelpipe\settings.json` so users can switch between them without losing config.
+
 ## 0.4.2
 
 Changed:
