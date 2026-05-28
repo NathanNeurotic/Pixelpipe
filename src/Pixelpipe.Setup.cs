@@ -177,7 +177,7 @@ namespace Pixelpipe
                     setupStatusText = text;
                     lastDependencyRefreshUtc = DateTime.UtcNow;
                     Interlocked.Exchange(ref dependencyRefreshingFlag, 0);
-                    RebuildMenu();
+                    UpdateMenuLiveState();
                 });
             });
         }
