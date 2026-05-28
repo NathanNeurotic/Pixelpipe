@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.8.0
+
+Three real features: per-profile bandwidth overrides, scheduled mount/unmount per profile, and transfer-complete notifications.
+
+Added:
+
+- **Per-profile bandwidth limits.** Each profile gains a `BandwidthLimit` field. Empty (the default) means *inherit the global setting*; any valid value (`off`, `512K`, `1M`, `1.5G`, …) overrides it for just that mount. Editable from the per-profile Edit dialog via a dropdown that shows the global value in the "(inherit global: …)" slot. Live changes use rclone RC just like the global limit, but the global setter now only touches mounted profiles that don't have their own override.
+- **Scheduled mount / unmount per profile.** Each profile gains `ScheduleEnabled`, `ScheduleMountTime` (`HH:mm`, local), `ScheduleUnmountTime` (optional), and `ScheduleDays` (default all seven). A new 30-second timer (`Pixelpipe.Schedule.cs`) checks the schedule and triggers `MountProfile` / `UnmountProfile` at the right time, throttled to once per day-key so it never re-fires within the same minute. Mount/unmount triggered by the schedule shows a balloon and logs to `pixelpipe-ui.log`. Setup via the Edit dialog's new "Scheduled mount / unmount" group: HH:mm fields for mount and unmount, plus day-of-week checkboxes.
+- **Transfer-complete notifications.** When rclone's live stats show an active transfer (`transferring > 0`), Pixelpipe latches the starting byte count. When the transfer batch returns to zero, it fires a balloon `<profile>: transfer finished — N MB moved`, but only if the delta is ≥ 10 MB (so VFS background syncs and trivial dir listings don't spam). Toggle in Settings → Preferences → "Notify when a transfer batch finishes". Setting key: `TransferNotificationsEnabled` (default `1`).
+- **Five new unit tests**: `IsNewer` (from v0.7.0), `ScheduleAllowsDay`, `TryNormalizeScheduleTime`, `ScheduleTimeMatches`. 32 tests total, all green.
+
+Changed:
+
+- `SetBandwidth` (the global setter) now only pushes the new rate to mounted profiles whose `BandwidthLimit` is empty. Profiles with a per-profile override keep their value. The applied-vs-saved balloon text spells this out.
+- `MountProfile` resolves the effective limit through a new helper `EffectiveBandwidthFor(profile)` so the launch path and live RC push always agree.
+- `RemoteProfile` JSON gains `BandwidthLimit`, `ScheduleEnabled`, `ScheduleMountTime`, `ScheduleUnmountTime`, `ScheduleDays`. All optional; older settings files load unchanged with sensible defaults.
+
 ## 0.7.0
 
 Auto-update notification and repo hygiene.

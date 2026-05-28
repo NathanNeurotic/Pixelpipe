@@ -37,7 +37,12 @@ Pixelpipe writes one JSON object with a per-profile array. Pixelpipe normalizes 
       "DriveLetter": "P:",
       "MountMode": "network",
       "AutoMount": false,
-      "FullCache": false
+      "FullCache": false,
+      "BandwidthLimit": "",
+      "ScheduleEnabled": false,
+      "ScheduleMountTime": "",
+      "ScheduleUnmountTime": "",
+      "ScheduleDays": "Mon,Tue,Wed,Thu,Fri,Sat,Sun"
     }
   ]
 }
@@ -58,6 +63,7 @@ Pixelpipe writes `settings.json` atomically (`.tmp` write → rename, keeping th
 | `UpdateCheckEnabled` | `0` / `1` | When `1` (default), Pixelpipe checks the GitHub releases API once per tray-menu open (throttled to once per 24 h). When `0`, never checks; you can still use `Check for updates` to open the releases page manually. Toggle from Settings → Preferences → "Check GitHub for new releases". |
 | `LastUpdateCheckUtc` | ISO 8601 UTC | Timestamp of the last successful update check. Pixelpipe uses this to throttle to one check per day. |
 | `AvailableUpdateVersion` | tag string like `v0.7.0`, or empty | Set when an update check finds a newer release; surfaces a "Pixelpipe vX.Y.Z available — download" item at the top of the tray menu. Cleared when the user opens the releases page from that item, or when a later check shows no update. |
+| `TransferNotificationsEnabled` | `0` / `1` | When `1` (default), Pixelpipe shows a balloon (`<profile>: transfer finished — N MB moved`) when an rclone transfer batch ends, but only if the delta is ≥ 10 MB. Toggle from Settings → Preferences → "Notify when a transfer batch finishes". |
 | `PixeldrainApiKeyProtected` | base64 DPAPI blob | Encrypted by DPAPI for the current Windows user. Not the raw API key. Only decryptable by the same Windows account that wrote it. |
 | `Profiles` | array | Each entry is a remote profile (see below). |
 
@@ -73,6 +79,11 @@ Pixelpipe writes `settings.json` atomically (`.tmp` write → rename, keeping th
 | `MountMode` | `network` / `fixed` | `network` shows under `This PC → Network locations`; `fixed` shows under drives. `network` is the default. |
 | `AutoMount` | `true` / `false` | When the user starts Pixelpipe with `/automount`, profiles with `true` get mounted. |
 | `FullCache` | `true` / `false` | Records the last mount mode used so auto-remount picks the same one. `Mount – full cache` sets it to `true`; `Mount – low overhead` sets it to `false`. |
+| `BandwidthLimit` | empty, or `off` / `512K` / `1M` / `1.5G` / … | Per-profile bandwidth override. Empty (default) means inherit the global `BandwidthLimit`. Any valid value is passed to `rclone mount --bwlimit` at launch and to `rc core/bwlimit` on live changes for this profile only. Editable from the per-profile Edit dialog. |
+| `ScheduleEnabled` | `true` / `false` | When `true` and at least one of `ScheduleMountTime` / `ScheduleUnmountTime` is set, Pixelpipe automatically mounts and/or unmounts this profile at the scheduled local time on each `ScheduleDays` day. |
+| `ScheduleMountTime` | empty or `HH:mm` (24-hour, local) | Local time at which to mount the profile. Empty disables the mount side of the schedule. |
+| `ScheduleUnmountTime` | empty or `HH:mm` (24-hour, local) | Local time at which to unmount the profile. Empty disables the unmount side of the schedule. |
+| `ScheduleDays` | comma-separated subset of `Mon,Tue,Wed,Thu,Fri,Sat,Sun` | Days the schedule fires on. Defaults to all seven. Empty value is treated as "all days" for backwards compatibility. |
 
 ## Command-line flags
 

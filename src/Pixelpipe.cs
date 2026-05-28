@@ -91,6 +91,9 @@ namespace Pixelpipe
             timer.Tick += delegate { MonitorMountHealth(); QueueRefresh(false, false); };
             timer.Start();
 
+            // Separate 30-second timer for per-profile mount/unmount schedules.
+            StartScheduleTimer();
+
             RebuildMenu();
 
             ThreadPool.QueueUserWorkItem(delegate

@@ -72,6 +72,7 @@ namespace Pixelpipe
             private CheckBox startupCheck;
             private CheckBox verboseCheck;
             private CheckBox updateCheck;
+            private CheckBox transferNotifyCheck;
             private Label settingsRcloneStatus;
             private Label settingsWinfspStatus;
             private Label settingsRemoteStatus;
@@ -475,10 +476,21 @@ namespace Pixelpipe
                     owner.SaveSetting("UpdateCheckEnabled", updateCheck.Checked ? "1" : "0");
                 };
 
-                AddSettingRow(grid, "Bandwidth limit:", bwRow);
+                transferNotifyCheck = new CheckBox();
+                transferNotifyCheck.AutoSize = true;
+                transferNotifyCheck.Text = "Notify when a transfer batch finishes (≥ 10 MB)";
+                transferNotifyCheck.ForeColor = FgColor;
+                transferNotifyCheck.Margin = new Padding(0, 8, 0, 8);
+                transferNotifyCheck.CheckedChanged += delegate
+                {
+                    owner.SaveSetting("TransferNotificationsEnabled", transferNotifyCheck.Checked ? "1" : "0");
+                };
+
+                AddSettingRow(grid, "Global bandwidth limit:", bwRow);
                 AddSettingRow(grid, "Startup:", startupCheck);
                 AddSettingRow(grid, "Verbose logging:", verboseCheck);
                 AddSettingRow(grid, "Update check:", updateCheck);
+                AddSettingRow(grid, "Transfer notifications:", transferNotifyCheck);
 
                 g.Controls.Add(grid);
                 return g;
@@ -637,6 +649,11 @@ namespace Pixelpipe
                     {
                         bool enabled = String.Equals(owner.LoadSetting("UpdateCheckEnabled", "1"), "1", StringComparison.OrdinalIgnoreCase);
                         if (updateCheck.Checked != enabled) updateCheck.Checked = enabled;
+                    }
+                    if (transferNotifyCheck != null)
+                    {
+                        bool enabled = String.Equals(owner.LoadSetting("TransferNotificationsEnabled", "1"), "1", StringComparison.OrdinalIgnoreCase);
+                        if (transferNotifyCheck.Checked != enabled) transferNotifyCheck.Checked = enabled;
                     }
                     if (diagBox != null && tabs != null && tabs.SelectedTab != null && tabs.SelectedTab.Text == "Diagnostics")
                     {

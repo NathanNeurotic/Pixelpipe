@@ -34,6 +34,11 @@ namespace Pixelpipe
                             p.MountMode = ToStringValue(GetDictValue(d, "MountMode"), "network");
                             p.AutoMount = ToBool(GetDictValue(d, "AutoMount"));
                             p.FullCache = ToBool(GetDictValue(d, "FullCache"));
+                            p.BandwidthLimit = ToStringValue(GetDictValue(d, "BandwidthLimit"), "");
+                            p.ScheduleEnabled = ToBool(GetDictValue(d, "ScheduleEnabled"));
+                            p.ScheduleMountTime = ToStringValue(GetDictValue(d, "ScheduleMountTime"), "");
+                            p.ScheduleUnmountTime = ToStringValue(GetDictValue(d, "ScheduleUnmountTime"), "");
+                            p.ScheduleDays = ToStringValue(GetDictValue(d, "ScheduleDays"), "Mon,Tue,Wed,Thu,Fri,Sat,Sun");
                             result.Add(p);
                         }
                     }
@@ -74,6 +79,11 @@ namespace Pixelpipe
                     d["MountMode"] = NormalizeMountMode(p.MountMode);
                     d["AutoMount"] = p.AutoMount;
                     d["FullCache"] = p.FullCache;
+                    d["BandwidthLimit"] = p.BandwidthLimit ?? "";
+                    d["ScheduleEnabled"] = p.ScheduleEnabled;
+                    d["ScheduleMountTime"] = p.ScheduleMountTime ?? "";
+                    d["ScheduleUnmountTime"] = p.ScheduleUnmountTime ?? "";
+                    d["ScheduleDays"] = String.IsNullOrWhiteSpace(p.ScheduleDays) ? "Mon,Tue,Wed,Thu,Fri,Sat,Sun" : p.ScheduleDays;
                     list.Add(d);
                 }
                 root["Profiles"] = list.ToArray();

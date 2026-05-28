@@ -137,7 +137,8 @@ namespace Pixelpipe
                           " --log-level INFO" +
                           " --log-file " + QuoteArg(p.LogFile);
 
-            if (!String.Equals(selectedBandwidth, "off", StringComparison.OrdinalIgnoreCase)) args += " --bwlimit " + selectedBandwidth;
+            string effectiveBandwidth = EffectiveBandwidthFor(p);
+            if (!String.Equals(effectiveBandwidth, "off", StringComparison.OrdinalIgnoreCase)) args += " --bwlimit " + effectiveBandwidth;
 
             try
             {
@@ -353,15 +354,54 @@ namespace Pixelpipe
             {
                 RemoteProfile p = snapshot[i];
                 if (!IsMounted(p)) continue;
+                // Only profiles that inherit the global limit get the new value.
+                // Profiles with their own BandwidthLimit are left alone — that's the
+                // whole point of the per-profile override.
+                if (!String.IsNullOrEmpty(p.BandwidthLimit)) continue;
                 any = true;
-                ThreadPool.QueueUserWorkItem(delegate(object state)
+                ApplyBandwidthToMounted(p, selectedBandwidth);
+            }
+            ShowBalloon(any ? "Global bandwidth applied: " + DisplayLimit(selectedBandwidth) + " (profiles with their own limit kept theirs)"
+                            : "Global bandwidth saved for next mount: " + DisplayLimit(selectedBandwidth));
+        }
+
+        // Resolves the limit a profile should mount with: per-profile override
+        // when set and valid, otherwise the global limit. Used by both the mount
+        // launch path and the live RC bwlimit push.
+        private string EffectiveBandwidthFor(RemoteProfile p)
+        {
+            if (p == null) return selectedBandwidth;
+            string per = p.BandwidthLimit;
+            if (!String.IsNullOrWhiteSpace(per) && IsValidBandwidth(per.Trim())) return per.Trim();
+            return selectedBandwidth;
+        }
+
+        // Per-profile bandwidth setter. Empty/null => clear the override and
+        // immediately switch the mounted profile back to the global limit.
+        private void SetProfileBandwidth(RemoteProfile p, string value)
+        {
+            if (p == null) return;
+            string normalized = String.IsNullOrWhiteSpace(value) ? "" : (IsValidBandwidth(value.Trim()) ? value.Trim() : "");
+            p.BandwidthLimit = normalized;
+            SaveProfiles();
+            if (IsMounted(p)) ApplyBandwidthToMounted(p, EffectiveBandwidthFor(p));
+            RebuildMenu();
+            UpdateMainWindowLiveState();
+            ShowBalloon(p.Label + ": bandwidth " + (String.IsNullOrEmpty(normalized) ? "inheriting global (" + DisplayLimit(selectedBandwidth) + ")" : "set to " + DisplayLimit(normalized)));
+        }
+
+        private void ApplyBandwidthToMounted(RemoteProfile p, string rate)
+        {
+            ThreadPool.QueueUserWorkItem(delegate(object state)
+            {
+                try
                 {
                     RemoteProfile profile = (RemoteProfile)state;
-                    string result = RunRcloneCapture("rc core/bwlimit rate=" + selectedBandwidth + " --rc-addr 127.0.0.1:" + profile.RcPort.ToString() + " --rc-no-auth", 4000);
+                    string result = RunRcloneCapture("rc core/bwlimit rate=" + rate + " --rc-addr 127.0.0.1:" + profile.RcPort.ToString() + " --rc-no-auth", 4000);
                     if (result.IndexOf("Failed", StringComparison.OrdinalIgnoreCase) >= 0 || result.IndexOf("error", StringComparison.OrdinalIgnoreCase) >= 0) profile.LastError = result;
-                }, p);
-            }
-            ShowBalloon(any ? "Bandwidth limit applied: " + DisplayLimit(selectedBandwidth) : "Bandwidth limit saved for next mount: " + DisplayLimit(selectedBandwidth));
+                }
+                catch (Exception ex) { LogUiIssue("apply bandwidth", ex); }
+            }, p);
         }
 
         internal static bool IsValidBandwidth(string value)
