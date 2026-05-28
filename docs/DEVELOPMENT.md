@@ -6,6 +6,7 @@ Pixelpipe is intentionally small and dependency-light.
 
 ```text
 src/Pixelpipe.cs              Main WinForms tray app
+src/TrayMenu.cs               Tray menu construction, theming, and placement
 assets/pixelpipe.ico          App/tray icon
 app.manifest                  asInvoker Windows manifest
 Build-Pixelpipe.bat           Double-click local build to Desktop
