@@ -81,7 +81,14 @@ Pixeldrain filesystem access still requires Pixeldrain's filesystem feature. Pix
 
 ## Quick start
 
-Download `Pixelpipe.exe` from the latest release or rolling release, then run it normally.
+Pixelpipe ships in two equivalent formats; pick the one that fits how you want to use it.
+
+| Download | Use when |
+| --- | --- |
+| **`Pixelpipe.exe`** (or the `-Windows-x64.zip` bundle) | You want a single portable executable. Drop it anywhere — Desktop, a USB stick, a synced folder — and double-click. Nothing is written to Program Files; settings live under `%APPDATA%\Pixelpipe\`. |
+| **`Pixelpipe-Setup.exe`** | You want Pixelpipe registered with Windows: Start Menu entry, optional Desktop shortcut, optional auto-start with Windows, Add/Remove Programs entry. Installs to `%LOCALAPPDATA%\Programs\Pixelpipe\` per-user (no admin rights required). |
+
+Both produce the same tray app and read the same settings file. You can install with the setup, uninstall it, and switch to the portable exe (or vice versa) without losing your profile config.
 
 Do **not** run Pixelpipe as Administrator unless you specifically need an elevated mount. Admin-mounted drives can be hidden from normal File Explorer.
 

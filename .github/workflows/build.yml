@@ -82,13 +82,18 @@ jobs:
       - name: Install Inno Setup for installer build
         if: github.event_name != 'pull_request'
         shell: pwsh
+        # Choco install is the only step that can flake on a network outage;
+        # downstream steps handle a missing ISCC gracefully.
         continue-on-error: true
         run: choco install innosetup --no-progress -y
 
       - name: Build installer
         if: github.event_name != 'pull_request'
         shell: pwsh
-        continue-on-error: true
+        # No longer continue-on-error: if the script can't find ISCC it exits 0
+        # in -Optional mode, but if ISCC is found and the actual installer build
+        # fails, the workflow should fail too (the v0.4.0 release shipped without
+        # an installer because this step was silently swallowing the error).
         run: .\scripts\build-installer.ps1 -Optional
 
       - name: Prepare release files
