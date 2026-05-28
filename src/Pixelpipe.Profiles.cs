@@ -418,9 +418,100 @@ namespace Pixelpipe
                 schedStack.Controls.Add(daysRow);
                 schedGroup.Controls.Add(schedStack);
 
+                // Watch folder group ----------------------------------------
+                GroupBox watchGroup = new GroupBox();
+                watchGroup.Text = "Watch folder (auto-upload)";
+                watchGroup.ForeColor = WindowTheme.FgColor;
+                watchGroup.AutoSize = true;
+                watchGroup.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+                watchGroup.Padding = new Padding(10, 6, 10, 10);
+                watchGroup.Margin = new Padding(0, 0, 0, 8);
+                watchGroup.MinimumSize = new Size(560, 0);
+
+                TableLayoutPanel watchGrid = new TableLayoutPanel();
+                watchGrid.AutoSize = true;
+                watchGrid.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+                watchGrid.ColumnCount = 2;
+                watchGrid.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+                watchGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+                watchGrid.Dock = DockStyle.Top;
+
+                CheckBox watchEnabled = new CheckBox();
+                watchEnabled.AutoSize = true;
+                watchEnabled.Text = "Enable watch folder";
+                watchEnabled.Checked = p.WatchFolderEnabled;
+                watchEnabled.ForeColor = WindowTheme.FgColor;
+                watchEnabled.Margin = new Padding(0, 6, 0, 6);
+
+                TextBox watchPathBox = new TextBox();
+                watchPathBox.Width = 380;
+                watchPathBox.Text = p.WatchFolderPath ?? "";
+
+                Button watchPathBrowse = MakeDialogButton("Browse...", DialogResult.None);
+                watchPathBrowse.AutoSize = true;
+                watchPathBrowse.Click += delegate
+                {
+                    using (FolderBrowserDialog fbd = new FolderBrowserDialog())
+                    {
+                        fbd.Description = "Folder to watch for files to upload";
+                        if (!String.IsNullOrWhiteSpace(watchPathBox.Text)) fbd.SelectedPath = watchPathBox.Text;
+                        if (fbd.ShowDialog() == DialogResult.OK) watchPathBox.Text = fbd.SelectedPath;
+                    }
+                };
+
+                FlowLayoutPanel watchPathRow = new FlowLayoutPanel();
+                watchPathRow.AutoSize = true;
+                watchPathRow.FlowDirection = FlowDirection.LeftToRight;
+                watchPathRow.WrapContents = false;
+                watchPathRow.Margin = new Padding(0);
+                watchPathRow.Controls.Add(watchPathBox);
+                watchPathRow.Controls.Add(watchPathBrowse);
+
+                TextBox watchTargetBox = new TextBox();
+                watchTargetBox.Width = 380;
+                watchTargetBox.Text = p.WatchFolderTargetDir ?? "";
+
+                ComboBox watchModeCombo = new ComboBox();
+                watchModeCombo.DropDownStyle = ComboBoxStyle.DropDownList;
+                watchModeCombo.Width = 180;
+                watchModeCombo.BackColor = WindowTheme.InputBg;
+                watchModeCombo.ForeColor = WindowTheme.FgColor;
+                watchModeCombo.Items.Add("move (delete local after upload)");
+                watchModeCombo.Items.Add("copy (keep local)");
+                watchModeCombo.SelectedIndex = NormalizeWatchMode(p.WatchFolderMode) == "copy" ? 1 : 0;
+
+                TextBox watchQuietBox = new TextBox();
+                watchQuietBox.Width = 100;
+                watchQuietBox.Text = (p.WatchFolderQuietMs > 0 ? p.WatchFolderQuietMs : 5000).ToString();
+
+                AddEditRow(watchGrid, 0, "Watch folder path", watchPathRow);
+                AddEditRow(watchGrid, 1, "Remote subdir (optional)", watchTargetBox);
+                AddEditRow(watchGrid, 2, "Mode", watchModeCombo);
+                AddEditRow(watchGrid, 3, "Quiet period (ms)", watchQuietBox);
+                watchGrid.Controls.Add(watchEnabled, 0, 4);
+                watchGrid.SetColumnSpan(watchEnabled, 2);
+
+                Label watchHelp = new Label();
+                watchHelp.AutoSize = true;
+                watchHelp.MaximumSize = new Size(540, 0);
+                watchHelp.Text = "When enabled, Pixelpipe watches the folder for new files. After the quiet period passes without a write, the file is uploaded via rclone. Failed uploads retry with 30s / 2m / 10m backoff (3 attempts then drop).";
+                watchHelp.ForeColor = WindowTheme.MutedColor;
+                watchHelp.Font = new Font("Segoe UI", 8.5f);
+                watchHelp.Margin = new Padding(0, 6, 0, 0);
+
+                FlowLayoutPanel watchStack = new FlowLayoutPanel();
+                watchStack.FlowDirection = FlowDirection.TopDown;
+                watchStack.WrapContents = false;
+                watchStack.AutoSize = true;
+                watchStack.Dock = DockStyle.Top;
+                watchStack.Controls.Add(watchGrid);
+                watchStack.Controls.Add(watchHelp);
+                watchGroup.Controls.Add(watchStack);
+
                 body.Controls.Add(grid);
                 body.Controls.Add(bwGroup);
                 body.Controls.Add(schedGroup);
+                body.Controls.Add(watchGroup);
 
                 FlowLayoutPanel footer = new FlowLayoutPanel();
                 footer.Dock = DockStyle.Fill;
@@ -469,6 +560,19 @@ namespace Pixelpipe
                     // Reset throttling so the new schedule fires on its very next window.
                     p.LastScheduleMountKey = null;
                     p.LastScheduleUnmountKey = null;
+
+                    p.WatchFolderEnabled = watchEnabled.Checked;
+                    p.WatchFolderPath = (watchPathBox.Text ?? "").Trim();
+                    p.WatchFolderTargetDir = (watchTargetBox.Text ?? "").Trim();
+                    p.WatchFolderMode = watchModeCombo.SelectedIndex == 1 ? "copy" : "move";
+                    int parsedQuiet;
+                    p.WatchFolderQuietMs = (Int32.TryParse((watchQuietBox.Text ?? "").Trim(), out parsedQuiet) && parsedQuiet >= 500 && parsedQuiet <= 600000)
+                        ? parsedQuiet
+                        : 5000;
+                    if (p.WatchFolderEnabled && (String.IsNullOrEmpty(p.WatchFolderPath) || !System.IO.Directory.Exists(p.WatchFolderPath)))
+                    {
+                        MessageBox.Show("Watch folder is enabled but the path is empty or does not exist. The folder will not be watched until you fix the path.", "Pixelpipe", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
 
                     AssignRuntimeFields();
                     SaveProfiles();

@@ -93,6 +93,9 @@ namespace Pixelpipe
 
             // Separate 30-second timer for per-profile mount/unmount schedules.
             StartScheduleTimer();
+            // Watch-folder uploader (per-profile FileSystemWatcher + a single
+            // 3-second drain timer that hands off ready files to a worker).
+            StartWatchFolders();
 
             RebuildMenu();
 

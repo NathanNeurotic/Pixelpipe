@@ -84,6 +84,11 @@ Pixelpipe writes `settings.json` atomically (`.tmp` write → rename, keeping th
 | `ScheduleMountTime` | empty or `HH:mm` (24-hour, local) | Local time at which to mount the profile. Empty disables the mount side of the schedule. |
 | `ScheduleUnmountTime` | empty or `HH:mm` (24-hour, local) | Local time at which to unmount the profile. Empty disables the unmount side of the schedule. |
 | `ScheduleDays` | comma-separated subset of `Mon,Tue,Wed,Thu,Fri,Sat,Sun` | Days the schedule fires on. Defaults to all seven. Empty value is treated as "all days" for backwards compatibility. |
+| `WatchFolderEnabled` | `true` / `false` | When `true` and `WatchFolderPath` exists, Pixelpipe runs a `FileSystemWatcher` on it; new files (after the quiet period) are uploaded to the remote. |
+| `WatchFolderPath` | absolute local directory path | Folder to watch. Must exist; if it doesn't, the watcher is skipped for that profile and a warning is recorded in `WatchLastResult`. |
+| `WatchFolderTargetDir` | empty or relative path | Subdirectory on the remote where files land. Empty means the remote root. Leading / trailing slashes are stripped; backslashes normalised to `/`. |
+| `WatchFolderMode` | `move` (default) / `copy` | `move` deletes the local file after `rclone moveto` succeeds; `copy` keeps it. |
+| `WatchFolderQuietMs` | integer milliseconds, 500–600000, default 5000 | How long Pixelpipe waits after the last write on a file before uploading it. Long quiet periods avoid catching files mid-write. |
 
 ## Command-line flags
 

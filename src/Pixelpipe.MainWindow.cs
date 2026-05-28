@@ -778,6 +778,7 @@ namespace Pixelpipe
             private readonly Label trafficLabel;
             private readonly Label speedLabel;
             private readonly Label objectsLabel;
+            private readonly Label watchLabel;
             private readonly Label errorLabel;
             private readonly Button mountLow;
             private readonly Button mountFull;
@@ -867,6 +868,7 @@ namespace Pixelpipe
                 trafficLabel = MakeLine();
                 speedLabel = MakeLine();
                 objectsLabel = MakeLine();
+                watchLabel = MakeLine();
 
                 errorLabel = MakeLine();
                 errorLabel.ForeColor = ErrorColor;
@@ -922,6 +924,7 @@ namespace Pixelpipe
                 AddRow(layout, trafficLabel);
                 AddRow(layout, speedLabel);
                 AddRow(layout, objectsLabel);
+                AddRow(layout, watchLabel);
                 AddRow(layout, errorLabel);
                 AddRow(layout, primary);
                 AddRow(layout, secondary);
@@ -972,6 +975,18 @@ namespace Pixelpipe
 
                 objectsLabel.Visible = cap.SupportsFileCount && Profile.ObjectCount >= 0;
                 if (objectsLabel.Visible) objectsLabel.Text = "Objects: " + Profile.ObjectCount.ToString("N0");
+
+                watchLabel.Visible = Profile.WatchFolderEnabled;
+                if (Profile.WatchFolderEnabled)
+                {
+                    string head = "Watch (" + TrayContext.NormalizeWatchMode(Profile.WatchFolderMode) + "): "
+                        + Profile.WatchQueueCount + " queued, "
+                        + Profile.WatchUploadingCount + " uploading, "
+                        + Profile.WatchUploadedTotal + " uploaded";
+                    if (Profile.WatchFailedTotal > 0) head += ", " + Profile.WatchFailedTotal + " failed";
+                    if (!String.IsNullOrEmpty(Profile.WatchLastResult)) head += " - last: " + TrayContext.TrimForMenu(Profile.WatchLastResult, 80);
+                    watchLabel.Text = head;
+                }
 
                 bool hasError = !String.IsNullOrWhiteSpace(Profile.LastError);
                 errorLabel.Visible = hasError;
