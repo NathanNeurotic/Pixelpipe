@@ -11,11 +11,21 @@ namespace Pixelpipe
     {
         private void MountAutoProfiles()
         {
-            for (int i = 0; i < profiles.Count; i++)
+            RemoteProfile[] snapshot = SnapshotProfiles();
+            int mounted = 0;
+            for (int i = 0; i < snapshot.Length; i++)
             {
-                if (profiles[i].AutoMount) MountProfile(profiles[i], profiles[i].FullCache);
+                if (snapshot[i].AutoMount) { MountProfile(snapshot[i], snapshot[i].FullCache); mounted++; }
             }
-            if (!AnyMounted() && profiles.Count > 0) MountProfile(profiles[0], profiles[0].FullCache);
+            if (mounted == 0)
+            {
+                LogUiInfo("automount", "no profiles tagged auto-mount; nothing started");
+                ShowBalloon("Pixelpipe started; no profiles are tagged for auto-mount.");
+            }
+            else
+            {
+                ShowBalloon("Pixelpipe auto-mounted " + mounted.ToString() + " profile(s).");
+            }
         }
 
         private void TogglePrimaryProfile()
@@ -28,8 +38,17 @@ namespace Pixelpipe
 
         private bool AnyMounted()
         {
-            for (int i = 0; i < profiles.Count; i++) if (IsMounted(profiles[i])) return true;
+            RemoteProfile[] snapshot = SnapshotProfiles();
+            for (int i = 0; i < snapshot.Length; i++) if (IsMounted(snapshot[i])) return true;
             return false;
+        }
+
+        private int CountMounted()
+        {
+            int n = 0;
+            RemoteProfile[] snapshot = SnapshotProfiles();
+            for (int i = 0; i < snapshot.Length; i++) if (IsMounted(snapshot[i])) n++;
+            return n;
         }
 
         private bool IsMounted(RemoteProfile p)
@@ -93,9 +112,10 @@ namespace Pixelpipe
                 if (r != DialogResult.Yes) return;
             }
 
-            if (IsAdministrator())
+            if (IsAdministrator() && !adminWarningShown)
             {
-                MessageBox.Show("This app is currently running as Administrator.\r\n\r\nThe mount may work, but the drive can be hidden from normal File Explorer. Exit and run the app normally unless you specifically need an elevated mount.", "Pixelpipe", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("This app is currently running as Administrator.\r\n\r\nThe mount may work, but the drive can be hidden from normal File Explorer. Exit and run the app normally unless you specifically need an elevated mount.\r\n\r\nThis warning won't show again until you restart Pixelpipe.", "Pixelpipe", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                adminWarningShown = true;
             }
 
             Directory.CreateDirectory(logDir);
@@ -148,7 +168,7 @@ namespace Pixelpipe
                                     p.StatusText = "mount failed";
                                     p.LastError = tail;
                                     RebuildMenu();
-                                    MessageBox.Show("rclone exited immediately.\r\n\r\nMost likely causes:\r\n- WinFsp is missing\r\n- selected drive letter is already in use\r\n- selected rclone remote is not configured\r\n- rclone is being forced to run elevated\r\n\r\nLog tail:\r\n" + tail, "Pixelpipe mount error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                                    MessageBox.Show("rclone exited immediately.\r\n\r\nMost likely causes:\r\n- WinFsp is missing\r\n- selected drive letter is already in use\r\n- selected rclone remote is not configured\r\n- rclone is being forced to run elevated\r\n\r\nLog tail:\r\n" + ScrubSecrets(tail), "Pixelpipe mount error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                                 }
                                 else
                                 {
@@ -175,51 +195,77 @@ namespace Pixelpipe
         private void UnmountProfile(RemoteProfile p, bool silent)
         {
             if (p == null) return;
+            p.DesiredMounted = false;
+            if (!IsMounted(p))
+            {
+                FinalizeUnmounted(p, silent);
+                return;
+            }
+            p.StatusText = "unmounting";
+            RebuildMenu();
+            ThreadPool.QueueUserWorkItem(delegate { UnmountWorker(p, silent); });
+        }
+
+        private void UnmountWorker(RemoteProfile p, bool silent)
+        {
+            string unmountResult = "";
+            string quitResult = "";
             try
             {
-                p.DesiredMounted = false;
+                unmountResult = RunRcloneCapture("rc mount/unmount mountPoint=" + p.DriveLetter + " --rc-addr 127.0.0.1:" + p.RcPort.ToString() + " --rc-no-auth", 2500);
+                Thread.Sleep(800);
+                if (IsMounted(p)) quitResult = RunRcloneCapture("rc core/quit --rc-addr 127.0.0.1:" + p.RcPort.ToString() + " --rc-no-auth", 2500);
+                Thread.Sleep(1200);
+            }
+            catch (Exception ex) { LogUiIssue("unmount worker", ex); }
+
+            BeginUi(delegate
+            {
                 if (IsMounted(p))
                 {
-                    string unmountResult = RunRcloneCapture("rc mount/unmount mountPoint=" + p.DriveLetter + " --rc-addr 127.0.0.1:" + p.RcPort.ToString() + " --rc-no-auth", 2500);
-                    Thread.Sleep(800);
-                    string quitResult = "";
-                    if (IsMounted(p)) quitResult = RunRcloneCapture("rc core/quit --rc-addr 127.0.0.1:" + p.RcPort.ToString() + " --rc-no-auth", 2500);
-                    Thread.Sleep(1200);
-                    if (IsMounted(p))
-                    {
-                        p.LastError = BuildUnmountFallbackText(p, unmountResult, quitResult);
-                        LogUiIssue("unmount fallback", new InvalidOperationException(p.LastError));
+                    p.LastError = BuildUnmountFallbackText(p, unmountResult, quitResult);
+                    LogUiWarn("unmount fallback", p.LastError);
 
-                        if (silent || PromptForceKillUnmount(p) == DialogResult.Yes)
+                    if (silent || PromptForceKillUnmount(p) == DialogResult.Yes)
+                    {
+                        if (!TryKillMountProcess(p))
                         {
-                            if (!TryKillMountProcess(p))
-                            {
-                                p.StatusText = "unmount failed";
-                                RebuildMenu();
-                                if (!silent) MessageBox.Show("Pixelpipe could not stop the rclone process.\r\n\r\n" + p.LastError, "Pixelpipe unmount", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                                return;
-                            }
-                        }
-                        else
-                        {
-                            p.StatusText = "unmount still pending";
+                            p.StatusText = "unmount failed";
                             RebuildMenu();
+                            if (!silent) MessageBox.Show("Pixelpipe could not stop the rclone process. See pixelpipe-ui.log for details.", "Pixelpipe unmount", MessageBoxButtons.OK, MessageBoxIcon.Error);
                             return;
                         }
                     }
+                    else
+                    {
+                        p.StatusText = "unmount still pending";
+                        RebuildMenu();
+                        return;
+                    }
                 }
-                CleanStaleDriveMappings(p, false);
-                p.StatusText = "not mounted";
-                p.SpeedText = "speed not mounted";
-                p.SessionText = "session not mounted";
-                p.MountProcess = null;
-                RebuildMenu();
-                if (!silent) ShowBalloon(p.Label + " unmounted.");
-            }
-            catch (Exception ex)
+                FinalizeUnmounted(p, silent);
+            });
+        }
+
+        private void FinalizeUnmounted(RemoteProfile p, bool silent)
+        {
+            CleanStaleDriveMappings(p, false);
+            p.StatusText = "not mounted";
+            p.SpeedText = "speed not mounted";
+            p.SessionText = "session not mounted";
+            DisposeProcess(p);
+            p.MountProcess = null;
+            RebuildMenu();
+            if (!silent) ShowBalloon(p.Label + " unmounted.");
+        }
+
+        private static void DisposeProcess(RemoteProfile p)
+        {
+            try
             {
-                MessageBox.Show(ex.Message, "Pixelpipe unmount error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                if (p != null && p.MountProcess != null) p.MountProcess.Dispose();
             }
+            catch { }
         }
 
         private DialogResult PromptForceKillUnmount(RemoteProfile p)
@@ -233,10 +279,21 @@ namespace Pixelpipe
             try
             {
                 if (p.MountProcess == null) return !IsMounted(p);
-                if (p.MountProcess != null && !p.MountProcess.HasExited)
+                if (!p.MountProcess.HasExited)
                 {
-                    p.MountProcess.Kill();
+                    // Use taskkill /F /T to also terminate any child process (the rclone
+                    // mount can spawn a WinFsp helper child that holds the drive even
+                    // after the parent dies). .NET Framework 4.x has no entire-process-tree
+                    // overload, so we shell out.
+                    int pid = p.MountProcess.Id;
+                    RunProcessCapture("taskkill.exe", "/F /T /PID " + pid.ToString(), 5000);
                     p.MountProcess.WaitForExit(2500);
+                    if (!p.MountProcess.HasExited)
+                    {
+                        // Last-ditch: in-process Kill in case taskkill couldn't find it.
+                        try { p.MountProcess.Kill(); } catch { }
+                        p.MountProcess.WaitForExit(1000);
+                    }
                 }
                 return p.MountProcess.HasExited;
             }
@@ -291,9 +348,10 @@ namespace Pixelpipe
             RebuildMenu();
 
             bool any = false;
-            for (int i = 0; i < profiles.Count; i++)
+            RemoteProfile[] snapshot = SnapshotProfiles();
+            for (int i = 0; i < snapshot.Length; i++)
             {
-                RemoteProfile p = profiles[i];
+                RemoteProfile p = snapshot[i];
                 if (!IsMounted(p)) continue;
                 any = true;
                 ThreadPool.QueueUserWorkItem(delegate(object state)
@@ -306,12 +364,23 @@ namespace Pixelpipe
             ShowBalloon(any ? "Bandwidth limit applied: " + DisplayLimit(selectedBandwidth) : "Bandwidth limit saved for next mount: " + DisplayLimit(selectedBandwidth));
         }
 
+        internal static bool IsValidBandwidth(string value)
+        {
+            if (String.IsNullOrEmpty(value)) return false;
+            return System.Text.RegularExpressions.Regex.IsMatch(value, "^(off|[0-9]+(\\.[0-9]+)?[KMG]?)$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        }
+
         private void SetCustomBandwidth()
         {
             string value = PromptForValue("Custom bandwidth limit", "Examples: 512K, 1M, 10M, 50M. Use off for unlimited.", selectedBandwidth);
             if (value == null) return;
             value = value.Trim();
             if (value.Length == 0) return;
+            if (!IsValidBandwidth(value))
+            {
+                MessageBox.Show("Bandwidth must look like 512K, 1M, 10M, 1.5G, or 'off'.", "Pixelpipe", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
             SetBandwidth(value);
         }
 

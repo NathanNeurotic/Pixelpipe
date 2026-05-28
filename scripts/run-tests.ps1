@@ -3,6 +3,9 @@ $Root = Split-Path -Parent $PSScriptRoot
 $OutDir = Join-Path $Root 'dist'
 New-Item -ItemType Directory -Force $OutDir | Out-Null
 $Out = Join-Path $OutDir 'Pixelpipe.Tests.exe'
+
+# Avoid "file in use" if a previous test run is still alive.
+try { Get-Process Pixelpipe.Tests -ErrorAction Stop | Stop-Process -Force } catch {}
 $SrcGlob = Join-Path $Root 'src\*.cs'
 $TestsGlob = Join-Path $Root 'tests\*.cs'
 $Manifest = Join-Path $Root 'app.manifest'

@@ -196,6 +196,15 @@ It shows:
 
 It also provides repair buttons for rclone, WinFsp, rclone config, stale drive cleanup, settings, logs, and restart.
 
+## Command-line flags
+
+```text
+Pixelpipe.exe /automount        Mount every profile tagged AutoMount=true and show a balloon with the count. Used by the Windows Startup entry.
+Pixelpipe.exe /smoketest-menu   Run the tray menu placement and theme sanity check, then exit 0/non-zero. Used by CI.
+```
+
+`/automount` is wired up automatically when you toggle `Auto-mount at Windows startup` in the tray menu. You normally don't need to invoke it by hand.
+
 ## Building from source
 
 From the repository root:

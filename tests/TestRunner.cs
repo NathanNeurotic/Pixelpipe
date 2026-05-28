@@ -24,6 +24,11 @@ namespace Pixelpipe.Tests
             Run("SafeFileName", TestSafeFileName);
             Run("TrimForMenu", TestTrimForMenu);
             Run("TrayMenuPlacement", TestTrayMenuPlacement);
+            Run("HasArg", TestHasArg);
+            Run("ProfilePortFor", TestProfilePortFor);
+            Run("IsValidBandwidth", TestIsValidBandwidth);
+            Run("ScrubSecrets", TestScrubSecrets);
+            Run("BoxProvider", TestBoxProvider);
 
             Console.WriteLine();
             Console.WriteLine(total - failures + " / " + total + " passed");
@@ -56,106 +61,106 @@ namespace Pixelpipe.Tests
 
         private static void TestFormatBytes()
         {
-            AssertEqual("unknown", TrayContext.FormatBytesValue(-1));
-            AssertEqual("0 B", TrayContext.FormatBytesValue(0));
-            AssertEqual("512 B", TrayContext.FormatBytesValue(512));
-            AssertEqual("1 KB", TrayContext.FormatBytesValue(1024));
-            AssertEqual("1.5 KB", TrayContext.FormatBytesValue(1536));
-            AssertEqual("1 MB", TrayContext.FormatBytesValue(1024L * 1024));
-            AssertEqual("1 GB", TrayContext.FormatBytesValue(1024L * 1024 * 1024));
-            AssertEqual("1 TB", TrayContext.FormatBytesValue(1024L * 1024 * 1024 * 1024));
+            AssertEqual("unknown", TrayContext.FormatBytes(-1));
+            AssertEqual("0 B", TrayContext.FormatBytes(0));
+            AssertEqual("512 B", TrayContext.FormatBytes(512));
+            AssertEqual("1 KB", TrayContext.FormatBytes(1024));
+            AssertEqual("1.5 KB", TrayContext.FormatBytes(1536));
+            AssertEqual("1 MB", TrayContext.FormatBytes(1024L * 1024));
+            AssertEqual("1 GB", TrayContext.FormatBytes(1024L * 1024 * 1024));
+            AssertEqual("1 TB", TrayContext.FormatBytes(1024L * 1024 * 1024 * 1024));
         }
 
         private static void TestDisplayLimit()
         {
-            AssertEqual("Unlimited", TrayContext.DisplayLimitValue("off"));
-            AssertEqual("Unlimited", TrayContext.DisplayLimitValue("OFF"));
-            AssertEqual("Unlimited", TrayContext.DisplayLimitValue(""));
-            AssertEqual("Unlimited", TrayContext.DisplayLimitValue(null));
-            AssertEqual("1M/s", TrayContext.DisplayLimitValue("1M"));
-            AssertEqual("512K/s", TrayContext.DisplayLimitValue("512K"));
+            AssertEqual("Unlimited", TrayContext.DisplayLimit("off"));
+            AssertEqual("Unlimited", TrayContext.DisplayLimit("OFF"));
+            AssertEqual("Unlimited", TrayContext.DisplayLimit(""));
+            AssertEqual("Unlimited", TrayContext.DisplayLimit(null));
+            AssertEqual("1M/s", TrayContext.DisplayLimit("1M"));
+            AssertEqual("512K/s", TrayContext.DisplayLimit("512K"));
         }
 
         private static void TestNormalizeDriveLetter()
         {
-            AssertEqual("P:", TrayContext.NormalizeDriveLetterValue("p"));
-            AssertEqual("P:", TrayContext.NormalizeDriveLetterValue("P"));
-            AssertEqual("P:", TrayContext.NormalizeDriveLetterValue("P:"));
-            AssertEqual("P:", TrayContext.NormalizeDriveLetterValue("p:"));
-            AssertEqual("P:", TrayContext.NormalizeDriveLetterValue("P:\\"));
-            AssertEqual("P:", TrayContext.NormalizeDriveLetterValue("p:\\foo\\bar"));
-            AssertEqual("Z:", TrayContext.NormalizeDriveLetterValue("z"));
-            AssertEqual("P:", TrayContext.NormalizeDriveLetterValue(""));
-            AssertEqual("P:", TrayContext.NormalizeDriveLetterValue(null));
-            AssertEqual("P:", TrayContext.NormalizeDriveLetterValue("garbage"));
+            AssertEqual("P:", TrayContext.NormalizeDriveLetter("p"));
+            AssertEqual("P:", TrayContext.NormalizeDriveLetter("P"));
+            AssertEqual("P:", TrayContext.NormalizeDriveLetter("P:"));
+            AssertEqual("P:", TrayContext.NormalizeDriveLetter("p:"));
+            AssertEqual("P:", TrayContext.NormalizeDriveLetter("P:\\"));
+            AssertEqual("P:", TrayContext.NormalizeDriveLetter("p:\\foo\\bar"));
+            AssertEqual("Z:", TrayContext.NormalizeDriveLetter("z"));
+            AssertEqual("P:", TrayContext.NormalizeDriveLetter(""));
+            AssertEqual("P:", TrayContext.NormalizeDriveLetter(null));
+            AssertEqual("P:", TrayContext.NormalizeDriveLetter("garbage"));
         }
 
         private static void TestNormalizeRemoteName()
         {
-            AssertEqual("foo:", TrayContext.NormalizeRemoteNameValue("foo"));
-            AssertEqual("foo:", TrayContext.NormalizeRemoteNameValue("foo:"));
-            AssertEqual("Pixeldrain:", TrayContext.NormalizeRemoteNameValue("Pixeldrain"));
-            AssertEqual("Pixeldrain:", TrayContext.NormalizeRemoteNameValue(""));
-            AssertEqual("Pixeldrain:", TrayContext.NormalizeRemoteNameValue(null));
-            AssertEqual("Pixeldrain:", TrayContext.NormalizeRemoteNameValue("   "));
+            AssertEqual("foo:", TrayContext.NormalizeRemoteName("foo"));
+            AssertEqual("foo:", TrayContext.NormalizeRemoteName("foo:"));
+            AssertEqual("Pixeldrain:", TrayContext.NormalizeRemoteName("Pixeldrain"));
+            AssertEqual("Pixeldrain:", TrayContext.NormalizeRemoteName(""));
+            AssertEqual("Pixeldrain:", TrayContext.NormalizeRemoteName(null));
+            AssertEqual("Pixeldrain:", TrayContext.NormalizeRemoteName("   "));
         }
 
         private static void TestRemoteNameBare()
         {
-            AssertEqual("foo", TrayContext.RemoteNameBareValue("foo:"));
-            AssertEqual("foo", TrayContext.RemoteNameBareValue("foo"));
-            AssertEqual("Pixeldrain", TrayContext.RemoteNameBareValue("Pixeldrain:"));
-            AssertEqual("Pixeldrain", TrayContext.RemoteNameBareValue(null));
+            AssertEqual("foo", TrayContext.RemoteNameBare("foo:"));
+            AssertEqual("foo", TrayContext.RemoteNameBare("foo"));
+            AssertEqual("Pixeldrain", TrayContext.RemoteNameBare("Pixeldrain:"));
+            AssertEqual("Pixeldrain", TrayContext.RemoteNameBare(null));
         }
 
         private static void TestNormalizeMountMode()
         {
-            AssertEqual("fixed", TrayContext.NormalizeMountModeValue("fixed"));
-            AssertEqual("fixed", TrayContext.NormalizeMountModeValue("FIXED"));
-            AssertEqual("network", TrayContext.NormalizeMountModeValue("network"));
-            AssertEqual("network", TrayContext.NormalizeMountModeValue("NETWORK"));
-            AssertEqual("network", TrayContext.NormalizeMountModeValue(""));
-            AssertEqual("network", TrayContext.NormalizeMountModeValue(null));
-            AssertEqual("network", TrayContext.NormalizeMountModeValue("garbage"));
+            AssertEqual("fixed", TrayContext.NormalizeMountMode("fixed"));
+            AssertEqual("fixed", TrayContext.NormalizeMountMode("FIXED"));
+            AssertEqual("network", TrayContext.NormalizeMountMode("network"));
+            AssertEqual("network", TrayContext.NormalizeMountMode("NETWORK"));
+            AssertEqual("network", TrayContext.NormalizeMountMode(""));
+            AssertEqual("network", TrayContext.NormalizeMountMode(null));
+            AssertEqual("network", TrayContext.NormalizeMountMode("garbage"));
         }
 
         private static void TestNormalizeProvider()
         {
-            AssertEqual("pixeldrain", TrayContext.NormalizeProviderValue("pixeldrain", ""));
-            AssertEqual("pixeldrain", TrayContext.NormalizeProviderValue("Pixeldrain", ""));
-            AssertEqual("pixeldrain", TrayContext.NormalizeProviderValue("", "Pixeldrain:"));
-            AssertEqual("drive", TrayContext.NormalizeProviderValue("drive", ""));
-            AssertEqual("drive", TrayContext.NormalizeProviderValue("google", ""));
-            AssertEqual("mega", TrayContext.NormalizeProviderValue("mega", ""));
-            AssertEqual("onedrive", TrayContext.NormalizeProviderValue("onedrive", ""));
-            AssertEqual("dropbox", TrayContext.NormalizeProviderValue("dropbox", ""));
-            AssertEqual("box", TrayContext.NormalizeProviderValue("box", ""));
-            AssertEqual("s3", TrayContext.NormalizeProviderValue("s3", ""));
-            AssertEqual("s3", TrayContext.NormalizeProviderValue("b2", ""));
-            AssertEqual("s3", TrayContext.NormalizeProviderValue("r2", ""));
-            AssertEqual("s3", TrayContext.NormalizeProviderValue("wasabi", ""));
-            AssertEqual("webdav", TrayContext.NormalizeProviderValue("webdav", ""));
-            AssertEqual("webdav", TrayContext.NormalizeProviderValue("nextcloud", ""));
-            AssertEqual("sftp", TrayContext.NormalizeProviderValue("sftp", ""));
-            AssertEqual("ftp", TrayContext.NormalizeProviderValue("ftp", ""));
-            AssertEqual("custom", TrayContext.NormalizeProviderValue("", ""));
-            AssertEqual("xyz", TrayContext.NormalizeProviderValue("xyz", ""));
+            AssertEqual("pixeldrain", TrayContext.NormalizeProvider("pixeldrain", ""));
+            AssertEqual("pixeldrain", TrayContext.NormalizeProvider("Pixeldrain", ""));
+            AssertEqual("pixeldrain", TrayContext.NormalizeProvider("", "Pixeldrain:"));
+            AssertEqual("drive", TrayContext.NormalizeProvider("drive", ""));
+            AssertEqual("drive", TrayContext.NormalizeProvider("google", ""));
+            AssertEqual("mega", TrayContext.NormalizeProvider("mega", ""));
+            AssertEqual("onedrive", TrayContext.NormalizeProvider("onedrive", ""));
+            AssertEqual("dropbox", TrayContext.NormalizeProvider("dropbox", ""));
+            AssertEqual("box", TrayContext.NormalizeProvider("box", ""));
+            AssertEqual("s3", TrayContext.NormalizeProvider("s3", ""));
+            AssertEqual("s3", TrayContext.NormalizeProvider("b2", ""));
+            AssertEqual("s3", TrayContext.NormalizeProvider("r2", ""));
+            AssertEqual("s3", TrayContext.NormalizeProvider("wasabi", ""));
+            AssertEqual("webdav", TrayContext.NormalizeProvider("webdav", ""));
+            AssertEqual("webdav", TrayContext.NormalizeProvider("nextcloud", ""));
+            AssertEqual("sftp", TrayContext.NormalizeProvider("sftp", ""));
+            AssertEqual("ftp", TrayContext.NormalizeProvider("ftp", ""));
+            AssertEqual("custom", TrayContext.NormalizeProvider("", ""));
+            AssertEqual("xyz", TrayContext.NormalizeProvider("xyz", ""));
         }
 
         private static void TestDisplayProvider()
         {
-            AssertEqual("Pixeldrain", TrayContext.DisplayProviderValue("pixeldrain"));
-            AssertEqual("Google Drive", TrayContext.DisplayProviderValue("drive"));
-            AssertEqual("MEGA", TrayContext.DisplayProviderValue("mega"));
-            AssertEqual("OneDrive", TrayContext.DisplayProviderValue("onedrive"));
-            AssertEqual("Dropbox", TrayContext.DisplayProviderValue("dropbox"));
-            AssertEqual("Box", TrayContext.DisplayProviderValue("box"));
-            AssertEqual("S3-compatible", TrayContext.DisplayProviderValue("s3"));
-            AssertEqual("WebDAV", TrayContext.DisplayProviderValue("webdav"));
-            AssertEqual("SFTP", TrayContext.DisplayProviderValue("sftp"));
-            AssertEqual("FTP", TrayContext.DisplayProviderValue("ftp"));
-            AssertEqual("Custom", TrayContext.DisplayProviderValue("xyz"));
-            AssertEqual("Custom", TrayContext.DisplayProviderValue(""));
+            AssertEqual("Pixeldrain", TrayContext.DisplayProvider("pixeldrain"));
+            AssertEqual("Google Drive", TrayContext.DisplayProvider("drive"));
+            AssertEqual("MEGA", TrayContext.DisplayProvider("mega"));
+            AssertEqual("OneDrive", TrayContext.DisplayProvider("onedrive"));
+            AssertEqual("Dropbox", TrayContext.DisplayProvider("dropbox"));
+            AssertEqual("Box", TrayContext.DisplayProvider("box"));
+            AssertEqual("S3-compatible", TrayContext.DisplayProvider("s3"));
+            AssertEqual("WebDAV", TrayContext.DisplayProvider("webdav"));
+            AssertEqual("SFTP", TrayContext.DisplayProvider("sftp"));
+            AssertEqual("FTP", TrayContext.DisplayProvider("ftp"));
+            AssertEqual("Custom", TrayContext.DisplayProvider("xyz"));
+            AssertEqual("Custom", TrayContext.DisplayProvider(""));
         }
 
         private static void TestToStringValue()
@@ -222,6 +227,71 @@ namespace Pixelpipe.Tests
             AssertEqual(
                 new System.Drawing.Point(0, 20),
                 TrayMenuPlacement.CalculateDropDownLocation(new System.Drawing.Rectangle(10, 20, 80, 24), new System.Drawing.Size(1200, 60), screen));
+        }
+
+        private static void TestHasArg()
+        {
+            AssertTrue(Program.HasArg(new string[] { "/foo", "/bar" }, "/foo"));
+            AssertTrue(Program.HasArg(new string[] { "/FOO" }, "/foo"));
+            AssertTrue(Program.HasArg(new string[] { "/automount" }, "/AUTOMOUNT"));
+            AssertFalse(Program.HasArg(new string[] { "/bar" }, "/foo"));
+            AssertFalse(Program.HasArg(new string[0], "/foo"));
+            AssertFalse(Program.HasArg(null, "/foo"));
+        }
+
+        private static void TestProfilePortFor()
+        {
+            int a = TrayContext.ProfilePortFor("abc123");
+            int b = TrayContext.ProfilePortFor("abc123");
+            AssertEqual(a, b); // deterministic
+            AssertTrue(a >= 55729 && a < 62729);
+
+            int c = TrayContext.ProfilePortFor("xyz999");
+            AssertTrue(c >= 55729 && c < 62729);
+
+            int empty = TrayContext.ProfilePortFor("");
+            AssertEqual(55729, empty); // empty hash maps to base
+        }
+
+        private static void TestIsValidBandwidth()
+        {
+            AssertTrue(TrayContext.IsValidBandwidth("off"));
+            AssertTrue(TrayContext.IsValidBandwidth("OFF"));
+            AssertTrue(TrayContext.IsValidBandwidth("512K"));
+            AssertTrue(TrayContext.IsValidBandwidth("1M"));
+            AssertTrue(TrayContext.IsValidBandwidth("1.5G"));
+            AssertTrue(TrayContext.IsValidBandwidth("10"));
+            AssertFalse(TrayContext.IsValidBandwidth(""));
+            AssertFalse(TrayContext.IsValidBandwidth(null));
+            AssertFalse(TrayContext.IsValidBandwidth("garbage"));
+            AssertFalse(TrayContext.IsValidBandwidth("1MB"));
+            AssertFalse(TrayContext.IsValidBandwidth("-5M"));
+        }
+
+        private static void TestScrubSecrets()
+        {
+            string scrubbed = TrayContext.ScrubSecrets("api_key=abcdef1234567890");
+            AssertContains(scrubbed, "api_key=***");
+            AssertFalse(scrubbed.Contains("abcdef1234567890"));
+
+            string longToken = TrayContext.ScrubSecrets("token here: " + new string('A', 40));
+            AssertContains(longToken, "***");
+
+            string benign = TrayContext.ScrubSecrets("rclone version v1.71.1");
+            AssertEqual("rclone version v1.71.1", benign);
+
+            AssertEqual(null, TrayContext.ScrubSecrets(null));
+            AssertEqual("", TrayContext.ScrubSecrets(""));
+        }
+
+        private static void TestBoxProvider()
+        {
+            // Box has to be matched by exact string, not IndexOf, because "box" appears
+            // inside words like "dropbox".
+            AssertEqual("box", TrayContext.NormalizeProvider("box", ""));
+            AssertEqual("dropbox", TrayContext.NormalizeProvider("dropbox", ""));
+            AssertEqual("Box", TrayContext.DisplayProvider("box"));
+            AssertEqual("Dropbox", TrayContext.DisplayProvider("dropbox"));
         }
 
         private static void AssertEqual(object expected, object actual)

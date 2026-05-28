@@ -9,6 +9,18 @@ on:
 permissions:
   contents: write
 
+# Serialize the rolling-release publish so two quick pushes don't race on the
+# `rolling` tag. PR builds and non-main pushes still run in parallel because the
+# concurrency group is keyed by ref.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  # Opt in to Node 24 for actions until the runners switch over, so the Node 20
+  # deprecation warning stops showing up in every CI run.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   build:
     runs-on: windows-latest
@@ -18,6 +30,33 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Read version and changelog section
+        id: changelog
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $Changelog = Get-Content -Raw -Path CHANGELOG.md
+          $Match = [regex]::Match($Changelog, '(?ms)^##\s+(?<version>\d+\.\d+\.\d+)\s*\r?\n(?<body>.*?)(?=^##\s+\d+\.\d+\.\d+\s*\r?\n|\z)')
+          if (!$Match.Success) { throw 'Could not find a version header (## X.Y.Z) in CHANGELOG.md' }
+          $Version = $Match.Groups['version'].Value
+          $Body = $Match.Groups['body'].Value.Trim()
+          "version=$Version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding ascii
+          $BodyFile = Join-Path $env:RUNNER_TEMP 'release-body.md'
+          Set-Content -Path $BodyFile -Value $Body -Encoding utf8
+          "body_file=$BodyFile" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding ascii
+          Write-Host "Detected version: $Version"
+
+      - name: Sync installer version
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.changelog.outputs.version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $Iss = 'installer\Pixelpipe.iss'
+          $Content = Get-Content -Raw -Path $Iss
+          $Updated = [regex]::Replace($Content, '#define MyAppVersion "\d+\.\d+\.\d+"', "#define MyAppVersion `"$env:VERSION`"")
+          Set-Content -Path $Iss -Value $Updated -Encoding utf8
 
       - name: Build Pixelpipe
         shell: pwsh
@@ -85,23 +124,7 @@ jobs:
             dist/Pixelpipe-Setup.exe
             dist/SHA256SUMS.txt
           if-no-files-found: ignore
-
-      - name: Read version and changelog section
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-        id: changelog
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $Changelog = Get-Content -Raw -Path CHANGELOG.md
-          $Match = [regex]::Match($Changelog, '(?ms)^##\s+(?<version>\d+\.\d+\.\d+)\s*\r?\n(?<body>.*?)(?=^##\s+\d+\.\d+\.\d+\s*\r?\n|\z)')
-          if (!$Match.Success) { throw 'Could not find a version header (## X.Y.Z) in CHANGELOG.md' }
-          $Version = $Match.Groups['version'].Value
-          $Body = $Match.Groups['body'].Value.Trim()
-          "version=$Version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding ascii
-          $BodyFile = Join-Path $env:RUNNER_TEMP 'release-body.md'
-          Set-Content -Path $BodyFile -Value $Body -Encoding utf8
-          "body_file=$BodyFile" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding ascii
-          Write-Host "Detected CHANGELOG version: $Version"
+          retention-days: 14
 
       - name: Publish versioned release if new
         if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')

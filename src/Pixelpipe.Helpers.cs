@@ -97,7 +97,7 @@ namespace Pixelpipe
             return 0.0;
         }
 
-        internal static string FormatBytesValue(double bytes)
+        internal static string FormatBytes(double bytes)
         {
             if (bytes < 0) return "unknown";
             string[] units = new string[] { "B", "KB", "MB", "GB", "TB", "PB" };
@@ -108,23 +108,13 @@ namespace Pixelpipe
             return value.ToString("0.##") + " " + units[unit];
         }
 
-        private string FormatBytes(double bytes)
-        {
-            return FormatBytesValue(bytes);
-        }
-
-        internal static string DisplayLimitValue(string value)
+        internal static string DisplayLimit(string value)
         {
             if (String.IsNullOrEmpty(value) || String.Equals(value, "off", StringComparison.OrdinalIgnoreCase)) return "Unlimited";
             return value + "/s";
         }
 
-        private string DisplayLimit(string value)
-        {
-            return DisplayLimitValue(value);
-        }
-
-        internal static string NormalizeDriveLetterValue(string value)
+        internal static string NormalizeDriveLetter(string value)
         {
             if (String.IsNullOrWhiteSpace(value)) return DefaultDriveLetter;
             string v = value.Trim().ToUpperInvariant();
@@ -133,45 +123,25 @@ namespace Pixelpipe
             return DefaultDriveLetter;
         }
 
-        private string NormalizeDriveLetter(string value)
-        {
-            return NormalizeDriveLetterValue(value);
-        }
-
-        internal static string NormalizeRemoteNameValue(string value)
+        internal static string NormalizeRemoteName(string value)
         {
             if (String.IsNullOrWhiteSpace(value)) return DefaultRemoteName;
             string v = value.Trim();
             return v.EndsWith(":") ? v : v + ":";
         }
 
-        private string NormalizeRemoteName(string value)
-        {
-            return NormalizeRemoteNameValue(value);
-        }
-
-        internal static string RemoteNameBareValue(string value)
+        internal static string RemoteNameBare(string value)
         {
             string v = value ?? DefaultRemoteName;
             return v.EndsWith(":") ? v.Substring(0, v.Length - 1) : v;
         }
 
-        private string RemoteNameBare(string value)
-        {
-            return RemoteNameBareValue(value);
-        }
-
-        internal static string NormalizeMountModeValue(string value)
+        internal static string NormalizeMountMode(string value)
         {
             return String.Equals(value, "fixed", StringComparison.OrdinalIgnoreCase) ? "fixed" : "network";
         }
 
-        private string NormalizeMountMode(string value)
-        {
-            return NormalizeMountModeValue(value);
-        }
-
-        internal static string NormalizeProviderValue(string provider, string remote)
+        internal static string NormalizeProvider(string provider, string remote)
         {
             string p = (provider ?? "").Trim().ToLowerInvariant();
             if (p.Length == 0) p = (remote ?? "").ToLowerInvariant();
@@ -188,14 +158,9 @@ namespace Pixelpipe
             return p.Length == 0 ? "custom" : p;
         }
 
-        private string NormalizeProvider(string provider, string remote)
+        internal static string DisplayProvider(string provider)
         {
-            return NormalizeProviderValue(provider, remote);
-        }
-
-        internal static string DisplayProviderValue(string provider)
-        {
-            string p = NormalizeProviderValue(provider, "");
+            string p = NormalizeProvider(provider, "");
             if (p == "pixeldrain") return "Pixeldrain";
             if (p == "drive") return "Google Drive";
             if (p == "mega") return "MEGA";
@@ -209,11 +174,6 @@ namespace Pixelpipe
             return "Custom";
         }
 
-        private string DisplayProvider(string provider)
-        {
-            return DisplayProviderValue(provider);
-        }
-
         private string GetDriveRoot(RemoteProfile p)
         {
             return NormalizeDriveLetter(p == null ? DefaultDriveLetter : p.DriveLetter) + "\\";
@@ -221,15 +181,28 @@ namespace Pixelpipe
 
         private string FirstFreePreferredDrive(string preferred)
         {
-            string[] order = new string[] { preferred, "P:", "G:", "M:", "R:", "X:", "Y:", "Z:", "W:", "S:", "O:", "B:" };
-            for (int i = 0; i < order.Length; i++)
+            // Try the caller's preferred letter first, then a sensible default order
+            // skipping the preferred to avoid checking it twice.
+            string normalizedPreferred = NormalizeDriveLetter(preferred);
+            string[] fallback = new string[] { "P:", "G:", "M:", "R:", "X:", "Y:", "Z:", "W:", "S:", "O:", "K:" };
+            string[] candidates = new string[fallback.Length + 1];
+            candidates[0] = normalizedPreferred;
+            int idx = 1;
+            for (int i = 0; i < fallback.Length; i++)
             {
-                string d = NormalizeDriveLetter(order[i]);
+                string norm = NormalizeDriveLetter(fallback[i]);
+                if (norm == normalizedPreferred) continue;
+                candidates[idx++] = norm;
+            }
+            RemoteProfile[] snapshot = SnapshotProfiles();
+            for (int i = 0; i < idx; i++)
+            {
+                string d = candidates[i];
                 bool usedByProfile = false;
-                for (int j = 0; j < profiles.Count; j++) if (String.Equals(profiles[j].DriveLetter, d, StringComparison.OrdinalIgnoreCase)) usedByProfile = true;
+                for (int j = 0; j < snapshot.Length; j++) if (String.Equals(snapshot[j].DriveLetter, d, StringComparison.OrdinalIgnoreCase)) usedByProfile = true;
                 if (!usedByProfile && !DriveLetterInUse(d)) return d;
             }
-            return NormalizeDriveLetter(preferred);
+            return normalizedPreferred;
         }
 
         private string UniqueLabel(string baseLabel)
@@ -302,11 +275,6 @@ namespace Pixelpipe
         {
             if (value == null) return "\"\"";
             return "\"" + value.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
-        }
-
-        private bool HasArg(string[] args, string wanted)
-        {
-            return Program.HasArg(args, wanted);
         }
 
         private Form MakeDialog(string title, int width, int height)

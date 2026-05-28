@@ -16,7 +16,7 @@ namespace Pixelpipe
             p.Remote = UniqueRemoteName("Pixeldrain") + ":";
             p.DriveLetter = FirstFreePreferredDrive("P:");
             p.MountMode = "network";
-            profiles.Add(p);
+            lock (profilesLock) profiles.Add(p);
             AssignRuntimeFields();
             SaveProfiles();
 
@@ -47,7 +47,7 @@ namespace Pixelpipe
             p.Remote = NormalizeRemoteName(remoteName);
             p.DriveLetter = NormalizeDriveLetter(drive);
             p.MountMode = "network";
-            profiles.Add(p);
+            lock (profilesLock) profiles.Add(p);
             AssignRuntimeFields();
             SaveProfiles();
             RebuildMenu();
@@ -96,7 +96,7 @@ namespace Pixelpipe
             p.Provider = DetectProviderForRemote(selected);
             p.DriveLetter = NormalizeDriveLetter(drive);
             p.MountMode = "network";
-            profiles.Add(p);
+            lock (profilesLock) profiles.Add(p);
             AssignRuntimeFields();
             SaveProfiles();
             RebuildMenu();
@@ -121,7 +121,7 @@ namespace Pixelpipe
                 p.Provider = DetectProviderForRemote(r);
                 p.DriveLetter = FirstFreePreferredDrive("Z:");
                 p.MountMode = "network";
-                profiles.Add(p);
+                lock (profilesLock) profiles.Add(p);
                 added++;
             }
             AssignRuntimeFields();
@@ -206,15 +206,22 @@ namespace Pixelpipe
             }
             else
             {
-                MessageBox.Show("rclone did not report " + p.Remote + " after configuration.\r\n\r\nOutput:\r\n" + result, "Pixelpipe setup", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                LogUiWarn("configure remote", "rclone did not report " + p.Remote + " after config create; raw output: " + result);
+                MessageBox.Show("rclone did not report " + p.Remote + " after configuration. See pixelpipe-ui.log for details.", "Pixelpipe setup", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
 
         private RemoteProfile GetPrimaryProfile()
         {
-            if (profiles.Count == 0)
+            lock (profilesLock)
             {
-                profiles.Add(new RemoteProfile());
+                if (profiles.Count == 0)
+                {
+                    profiles.Add(new RemoteProfile());
+                }
+            }
+            if (profiles.Count > 0 && String.IsNullOrWhiteSpace(profiles[0].Id))
+            {
                 AssignRuntimeFields();
             }
             return profiles[0];
@@ -222,9 +229,13 @@ namespace Pixelpipe
 
         private void MakePrimaryProfile(RemoteProfile p)
         {
-            if (p == null || profiles.Count < 2) return;
-            profiles.Remove(p);
-            profiles.Insert(0, p);
+            if (p == null) return;
+            lock (profilesLock)
+            {
+                if (profiles.Count < 2) return;
+                profiles.Remove(p);
+                profiles.Insert(0, p);
+            }
             AssignRuntimeFields();
             SaveProfiles();
             RebuildMenu();
@@ -295,8 +306,11 @@ namespace Pixelpipe
             if (p == null || IsMounted(p)) return;
             DialogResult r = MessageBox.Show("Remove Pixelpipe profile for " + p.Label + "?\r\n\r\nThis does not delete the underlying rclone remote.", "Pixelpipe", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
             if (r != DialogResult.Yes) return;
-            profiles.Remove(p);
-            if (profiles.Count == 0) profiles.Add(new RemoteProfile());
+            lock (profilesLock)
+            {
+                profiles.Remove(p);
+                if (profiles.Count == 0) profiles.Add(new RemoteProfile());
+            }
             AssignRuntimeFields();
             SaveProfiles();
             RebuildMenu();
@@ -336,6 +350,7 @@ namespace Pixelpipe
             Button primary = new Button(); primary.Text = "Set primary"; primary.Left = 386; primary.Top = 392; primary.Width = 110; primary.Click += delegate { if (list.SelectedItems.Count > 0) { MakePrimaryProfile((RemoteProfile)list.SelectedItems[0].Tag); form.Close(); } };
             Button close = new Button(); close.Text = "Close"; close.Left = 662; close.Top = 432; close.Width = 90; close.Click += delegate { form.Close(); };
             form.Controls.Add(list); form.Controls.Add(add); form.Controls.Add(import); form.Controls.Add(edit); form.Controls.Add(primary); form.Controls.Add(close);
+            form.FormClosed += delegate { form.Dispose(); };
             form.Show();
         }
     }
