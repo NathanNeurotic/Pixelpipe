@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.1
+
+Fixed:
+
+- Main window, quick-controls popup, and setup wizard were unusable — labels overlapped each other, buttons clipped their captions ("Mount all" / "Unmount all" / "Add cloud remote..." / "Refresh now" all truncated), profile cards collapsed onto themselves. Cause: hardcoded `Left`/`Top`/`Width` pixel coordinates that don't match how WinForms actually renders Segoe UI at the user's font and DPI scale.
+- Rewrote all three windows with proper layout containers (`TableLayoutPanel`, `FlowLayoutPanel`, `AutoSize` labels and buttons, `MaximumSize` for word-wrap, `AutoScaleMode.Dpi`). Cards grow with their content; buttons grow with their captions; text never overlaps. Window contents now scale cleanly across font sizes and DPI scaling.
+
 ## 0.5.0
 
 GUI windows. Pixelpipe is no longer tray-only; the tray menu and the new windows are full peers and you can do everything from either.

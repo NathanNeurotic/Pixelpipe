@@ -28,17 +28,19 @@ namespace Pixelpipe
             if (quickWindow != null && !quickWindow.IsDisposed) quickWindow.ApplyLiveState();
         }
 
-        // Compact always-on-top window meant for active transfers. Shows aggregate
-        // speed + per-profile speed + a bandwidth selector. Stays on top so users
-        // can drag it to a corner of the screen.
         private sealed class QuickControlWindow : Form
         {
+            private static readonly Color BgColor = Color.FromArgb(18, 22, 28);
+            private static readonly Color FgColor = Color.WhiteSmoke;
+            private static readonly Color MutedColor = Color.FromArgb(160, 170, 184);
+            private static readonly Color AccentColor = Color.FromArgb(110, 200, 255);
+
             private readonly TrayContext owner;
+            private Label mountSummary;
             private Label aggregateSpeed;
             private Label aggregateTraffic;
-            private Label mountSummary;
             private ComboBox bandwidthCombo;
-            private Panel profilesPanel;
+            private FlowLayoutPanel profilesPanel;
             private readonly List<Label> perProfileLabels = new List<Label>();
             private readonly string[] bwChoices = new string[] { "off", "512K", "1M", "5M", "10M", "25M", "50M", "100M", "250M" };
 
@@ -47,39 +49,62 @@ namespace Pixelpipe
                 this.owner = owner;
                 Text = "Pixelpipe quick controls";
                 StartPosition = FormStartPosition.Manual;
-                Location = new Point(Screen.PrimaryScreen.WorkingArea.Right - 360, Screen.PrimaryScreen.WorkingArea.Bottom - 320);
-                Width = 340; Height = 280;
+                Location = new Point(Screen.PrimaryScreen.WorkingArea.Right - 380, Screen.PrimaryScreen.WorkingArea.Bottom - 360);
+                Width = 360;
+                Height = 320;
+                MinimumSize = new Size(300, 260);
                 FormBorderStyle = FormBorderStyle.SizableToolWindow;
                 TopMost = true;
-                BackColor = Color.FromArgb(18, 22, 28);
-                ForeColor = Color.WhiteSmoke;
-                MinimumSize = new Size(280, 220);
+                BackColor = BgColor;
+                ForeColor = FgColor;
+                Font = new Font("Segoe UI", 9.25f);
+                AutoScaleMode = AutoScaleMode.Dpi;
+
+                TableLayoutPanel layout = new TableLayoutPanel();
+                layout.Dock = DockStyle.Fill;
+                layout.ColumnCount = 2;
+                layout.RowCount = 5;
+                layout.BackColor = BgColor;
+                layout.Padding = new Padding(10);
+
+                layout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+                layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+
+                layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));    // mount summary
+                layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));    // big speed
+                layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));    // traffic
+                layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));    // bandwidth row
+                layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100f)); // per-profile list
 
                 mountSummary = new Label();
-                mountSummary.Left = 12; mountSummary.Top = 8; mountSummary.Width = 300; mountSummary.Height = 20;
+                mountSummary.AutoSize = true;
                 mountSummary.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
-                mountSummary.ForeColor = Color.WhiteSmoke;
+                mountSummary.ForeColor = FgColor;
+                mountSummary.Margin = new Padding(0, 0, 0, 4);
 
                 aggregateSpeed = new Label();
-                aggregateSpeed.Left = 12; aggregateSpeed.Top = 32; aggregateSpeed.Width = 300; aggregateSpeed.Height = 24;
-                aggregateSpeed.Font = new Font("Segoe UI", 14f, FontStyle.Bold);
-                aggregateSpeed.ForeColor = Color.FromArgb(110, 200, 255);
+                aggregateSpeed.AutoSize = true;
+                aggregateSpeed.Font = new Font("Segoe UI", 16f, FontStyle.Bold);
+                aggregateSpeed.ForeColor = AccentColor;
+                aggregateSpeed.Margin = new Padding(0, 0, 0, 2);
 
                 aggregateTraffic = new Label();
-                aggregateTraffic.Left = 12; aggregateTraffic.Top = 60; aggregateTraffic.Width = 300; aggregateTraffic.Height = 20;
-                aggregateTraffic.ForeColor = Color.WhiteSmoke;
+                aggregateTraffic.AutoSize = true;
+                aggregateTraffic.ForeColor = MutedColor;
+                aggregateTraffic.Margin = new Padding(0, 0, 0, 8);
 
                 Label bwL = new Label();
-                bwL.Left = 12; bwL.Top = 92; bwL.Width = 110; bwL.Height = 22;
+                bwL.AutoSize = true;
                 bwL.Text = "Bandwidth:";
-                bwL.ForeColor = Color.WhiteSmoke;
-                bwL.TextAlign = ContentAlignment.MiddleLeft;
+                bwL.ForeColor = FgColor;
+                bwL.Margin = new Padding(0, 6, 8, 0);
 
                 bandwidthCombo = new ComboBox();
-                bandwidthCombo.Left = 120; bandwidthCombo.Top = 90; bandwidthCombo.Width = 196;
                 bandwidthCombo.DropDownStyle = ComboBoxStyle.DropDownList;
                 bandwidthCombo.BackColor = Color.FromArgb(14, 18, 24);
-                bandwidthCombo.ForeColor = Color.WhiteSmoke;
+                bandwidthCombo.ForeColor = FgColor;
+                bandwidthCombo.Dock = DockStyle.Fill;
+                bandwidthCombo.Margin = new Padding(0, 2, 0, 8);
                 for (int i = 0; i < bwChoices.Length; i++)
                 {
                     bandwidthCombo.Items.Add(bwChoices[i] == "off" ? "Unlimited" : bwChoices[i] + "/s");
@@ -95,20 +120,25 @@ namespace Pixelpipe
                     }
                 };
 
-                profilesPanel = new Panel();
-                profilesPanel.Left = 12; profilesPanel.Top = 122;
-                profilesPanel.Width = ClientSize.Width - 24;
-                profilesPanel.Height = ClientSize.Height - 132;
-                profilesPanel.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom;
+                profilesPanel = new FlowLayoutPanel();
+                profilesPanel.Dock = DockStyle.Fill;
+                profilesPanel.FlowDirection = FlowDirection.TopDown;
+                profilesPanel.WrapContents = false;
                 profilesPanel.AutoScroll = true;
+                profilesPanel.BackColor = BgColor;
 
-                Controls.Add(mountSummary);
-                Controls.Add(aggregateSpeed);
-                Controls.Add(aggregateTraffic);
-                Controls.Add(bwL);
-                Controls.Add(bandwidthCombo);
-                Controls.Add(profilesPanel);
+                layout.Controls.Add(mountSummary, 0, 0);
+                layout.SetColumnSpan(mountSummary, 2);
+                layout.Controls.Add(aggregateSpeed, 0, 1);
+                layout.SetColumnSpan(aggregateSpeed, 2);
+                layout.Controls.Add(aggregateTraffic, 0, 2);
+                layout.SetColumnSpan(aggregateTraffic, 2);
+                layout.Controls.Add(bwL, 0, 3);
+                layout.Controls.Add(bandwidthCombo, 1, 3);
+                layout.Controls.Add(profilesPanel, 0, 4);
+                layout.SetColumnSpan(profilesPanel, 2);
 
+                Controls.Add(layout);
                 ApplyLiveState();
             }
 
@@ -136,11 +166,9 @@ namespace Pixelpipe
                     aggregateSpeed.Text = TrayContext.FormatBytes(aggregateBytesPerSec) + "/s";
                     aggregateTraffic.Text = "Session traffic: " + TrayContext.FormatBytes(aggregateBytes);
 
-                    // Bandwidth combo sync
                     int idx = Array.FindIndex(bwChoices, s => String.Equals(s, owner.selectedBandwidth, StringComparison.OrdinalIgnoreCase));
                     if (idx >= 0 && bandwidthCombo.SelectedIndex != idx) bandwidthCombo.SelectedIndex = idx;
 
-                    // Per-profile lines: rebuild if count drifted.
                     if (perProfileLabels.Count != snapshot.Length)
                     {
                         profilesPanel.SuspendLayout();
@@ -149,9 +177,10 @@ namespace Pixelpipe
                         for (int i = 0; i < snapshot.Length; i++)
                         {
                             Label l = new Label();
-                            l.Left = 0; l.Top = i * 20; l.Width = profilesPanel.ClientSize.Width - 4; l.Height = 18;
-                            l.ForeColor = Color.WhiteSmoke;
-                            l.Font = new Font("Segoe UI", 9f);
+                            l.AutoSize = true;
+                            l.ForeColor = FgColor;
+                            l.Font = new Font("Segoe UI", 9.25f);
+                            l.Margin = new Padding(0, 2, 0, 0);
                             profilesPanel.Controls.Add(l);
                             perProfileLabels.Add(l);
                         }
@@ -162,13 +191,12 @@ namespace Pixelpipe
                         RemoteProfile p = snapshot[i];
                         bool m = owner.IsMounted(p);
                         string speed = m ? p.SpeedText : "—";
-                        perProfileLabels[i].Text = (m ? "● " : "○ ") + p.Label + "  " + p.DriveLetter + "  " + speed;
-                        perProfileLabels[i].ForeColor = m ? Color.WhiteSmoke : Color.FromArgb(140, 145, 155);
+                        perProfileLabels[i].Text = (m ? "● " : "○ ") + p.Label + "  " + p.DriveLetter + "    " + speed;
+                        perProfileLabels[i].ForeColor = m ? FgColor : MutedColor;
                     }
                 }
                 catch (Exception ex) { owner.LogUiIssue("quick popup live", ex); }
             }
-
         }
     }
 }

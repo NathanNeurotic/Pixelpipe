@@ -8,7 +8,7 @@ namespace Pixelpipe
     {
         // Multi-step wizard replacing the old MessageBox-chain first-launch path.
         // Returns true if the user completed the wizard (any combination of steps).
-        // Returns false if they cancelled at the welcome screen.
+        // Returns false if they cancelled.
         private bool ShowSetupWizard(bool manualReRun)
         {
             using (SetupWizard wizard = new SetupWizard(this, manualReRun))
@@ -20,6 +20,12 @@ namespace Pixelpipe
 
         private sealed class SetupWizard : Form
         {
+            private static readonly Color BgColor = Color.FromArgb(18, 22, 28);
+            private static readonly Color FgColor = Color.WhiteSmoke;
+            private static readonly Color MutedColor = Color.FromArgb(180, 200, 220);
+            private static readonly Color ButtonBg = Color.FromArgb(40, 44, 52);
+            private static readonly Color ButtonBorder = Color.FromArgb(70, 80, 92);
+
             private readonly TrayContext owner;
             private readonly bool manualReRun;
             private int step;
@@ -37,6 +43,7 @@ namespace Pixelpipe
             private Button installRcloneBtn;
             private Button winfspBtn;
             private Button configureRemoteBtn;
+            private TableLayoutPanel actionsRow;
 
             public SetupWizard(TrayContext owner, bool manualReRun)
             {
@@ -44,71 +51,132 @@ namespace Pixelpipe
                 this.manualReRun = manualReRun;
                 Text = "Pixelpipe setup";
                 StartPosition = FormStartPosition.CenterScreen;
-                Width = 560; Height = 380;
-                FormBorderStyle = FormBorderStyle.FixedDialog;
+                Width = 620;
+                Height = 460;
+                MinimumSize = new Size(560, 400);
+                FormBorderStyle = FormBorderStyle.Sizable;
                 MinimizeBox = false;
                 MaximizeBox = false;
-                BackColor = Color.FromArgb(18, 22, 28);
-                ForeColor = Color.WhiteSmoke;
+                BackColor = BgColor;
+                ForeColor = FgColor;
+                Font = new Font("Segoe UI", 9.25f);
+                AutoScaleMode = AutoScaleMode.Dpi;
+
+                // Outer layout: header / body (fills) / footer with buttons
+                TableLayoutPanel root = new TableLayoutPanel();
+                root.Dock = DockStyle.Fill;
+                root.ColumnCount = 1;
+                root.RowCount = 3;
+                root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                root.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+                root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                root.Padding = new Padding(16);
+                root.BackColor = BgColor;
 
                 header = new Label();
-                header.Left = 16; header.Top = 16; header.Width = 520; header.Height = 28;
-                header.Font = new Font("Segoe UI", 12f, FontStyle.Bold);
-                header.ForeColor = Color.WhiteSmoke;
+                header.AutoSize = true;
+                header.Font = new Font("Segoe UI", 13f, FontStyle.Bold);
+                header.ForeColor = FgColor;
+                header.Margin = new Padding(0, 0, 0, 10);
+
+                // Body region: a vertical FlowLayoutPanel that auto-sizes its contents
+                FlowLayoutPanel bodyPanel = new FlowLayoutPanel();
+                bodyPanel.Dock = DockStyle.Fill;
+                bodyPanel.FlowDirection = FlowDirection.TopDown;
+                bodyPanel.WrapContents = false;
+                bodyPanel.AutoScroll = true;
+                bodyPanel.BackColor = BgColor;
 
                 body = new Label();
-                body.Left = 16; body.Top = 52; body.Width = 520; body.Height = 100;
-                body.ForeColor = Color.WhiteSmoke;
+                body.AutoSize = true;
+                body.MaximumSize = new Size(560, 0);
+                body.ForeColor = FgColor;
+                body.Margin = new Padding(0, 0, 0, 12);
 
                 depStatus = new Label();
-                depStatus.Left = 16; depStatus.Top = 156; depStatus.Width = 520; depStatus.Height = 40;
-                depStatus.ForeColor = Color.FromArgb(180, 200, 220);
+                depStatus.AutoSize = true;
+                depStatus.ForeColor = MutedColor;
+                depStatus.Margin = new Padding(0, 0, 0, 12);
 
-                installRcloneBtn = MakeButton("Download portable rclone", 220, 16, 200);
-                installRcloneBtn.Visible = false;
+                actionsRow = new TableLayoutPanel();
+                actionsRow.AutoSize = true;
+                actionsRow.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+                actionsRow.ColumnCount = 1;
+                actionsRow.RowCount = 1;
+                actionsRow.BackColor = BgColor;
+                actionsRow.Margin = new Padding(0, 0, 0, 8);
+
+                installRcloneBtn = MakeButton("Download portable rclone");
                 installRcloneBtn.Click += delegate { owner.DownloadRclonePortableWithUi(); RefreshDeps(); };
 
-                winfspBtn = MakeButton("Install WinFsp (winget)", 220, 16, 200);
-                winfspBtn.Visible = false;
+                winfspBtn = MakeButton("Install WinFsp (winget)");
                 winfspBtn.Click += delegate { owner.InstallWinFspWithWinget(); RefreshDeps(); };
 
-                configureRemoteBtn = MakeButton("Configure Pixeldrain remote", 220, 16, 240);
-                configureRemoteBtn.Visible = false;
+                configureRemoteBtn = MakeButton("Configure Pixeldrain remote");
                 configureRemoteBtn.Click += delegate { owner.ConfigurePixeldrainRemoteFromPrompt(owner.GetPrimaryProfile()); RefreshDeps(); };
 
                 apiKeyBox = new TextBox();
-                apiKeyBox.Left = 16; apiKeyBox.Top = 220; apiKeyBox.Width = 520;
                 apiKeyBox.UseSystemPasswordChar = true;
-                apiKeyBox.Visible = false;
-                apiKeyBox.Text = owner.LoadApiKey();
+                apiKeyBox.Width = 540;
+                apiKeyBox.Margin = new Padding(0, 0, 0, 8);
+                apiKeyBox.BackColor = Color.FromArgb(14, 18, 24);
+                apiKeyBox.ForeColor = FgColor;
+                apiKeyBox.BorderStyle = BorderStyle.FixedSingle;
 
                 dontAskAgain = new CheckBox();
-                dontAskAgain.Left = 16; dontAskAgain.Top = 260; dontAskAgain.Width = 520;
+                dontAskAgain.AutoSize = true;
                 dontAskAgain.Text = "Don't show this wizard again if dependencies are missing";
-                dontAskAgain.ForeColor = Color.WhiteSmoke;
-                dontAskAgain.Visible = false;
+                dontAskAgain.ForeColor = FgColor;
+                dontAskAgain.Margin = new Padding(0, 0, 0, 4);
 
-                backBtn = MakeButton("Back", 280, 300, 80);
-                backBtn.Click += delegate { step--; Render(); };
-                nextBtn = MakeButton("Next", 366, 300, 80);
-                nextBtn.Click += delegate { OnNext(); };
-                skipBtn = MakeButton("Skip", 194, 300, 80);
-                skipBtn.Click += delegate { step++; Render(); };
-                cancelBtn = MakeButton("Cancel", 452, 300, 80);
+                bodyPanel.Controls.Add(body);
+                bodyPanel.Controls.Add(depStatus);
+                bodyPanel.Controls.Add(actionsRow);
+                bodyPanel.Controls.Add(apiKeyBox);
+                bodyPanel.Controls.Add(dontAskAgain);
+
+                // Footer: cancel on the left, skip/back/next on the right
+                TableLayoutPanel footer = new TableLayoutPanel();
+                footer.AutoSize = true;
+                footer.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+                footer.ColumnCount = 2;
+                footer.RowCount = 1;
+                footer.Dock = DockStyle.Top;
+                footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+                footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+                footer.BackColor = BgColor;
+                footer.Margin = new Padding(0, 12, 0, 0);
+
+                cancelBtn = MakeButton("Cancel");
                 cancelBtn.Click += delegate { DialogResult = DialogResult.Cancel; Close(); };
 
-                Controls.Add(header);
-                Controls.Add(body);
-                Controls.Add(depStatus);
-                Controls.Add(installRcloneBtn);
-                Controls.Add(winfspBtn);
-                Controls.Add(configureRemoteBtn);
-                Controls.Add(apiKeyBox);
-                Controls.Add(dontAskAgain);
-                Controls.Add(backBtn);
-                Controls.Add(nextBtn);
-                Controls.Add(skipBtn);
-                Controls.Add(cancelBtn);
+                FlowLayoutPanel rightButtons = new FlowLayoutPanel();
+                rightButtons.AutoSize = true;
+                rightButtons.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+                rightButtons.FlowDirection = FlowDirection.RightToLeft;
+                rightButtons.Dock = DockStyle.Fill;
+
+                nextBtn = MakeButton("Next");
+                nextBtn.Click += delegate { OnNext(); };
+
+                backBtn = MakeButton("Back");
+                backBtn.Click += delegate { step--; Render(); };
+
+                skipBtn = MakeButton("Skip");
+                skipBtn.Click += delegate { step++; Render(); };
+
+                rightButtons.Controls.Add(nextBtn);
+                rightButtons.Controls.Add(backBtn);
+                rightButtons.Controls.Add(skipBtn);
+
+                footer.Controls.Add(cancelBtn, 0, 0);
+                footer.Controls.Add(rightButtons, 1, 0);
+
+                root.Controls.Add(header, 0, 0);
+                root.Controls.Add(bodyPanel, 0, 1);
+                root.Controls.Add(footer, 0, 2);
+
+                Controls.Add(root);
 
                 step = 0;
                 Render();
@@ -116,9 +184,8 @@ namespace Pixelpipe
 
             private void OnNext()
             {
-                if (step == 4)
+                if (step == StepCount - 1)
                 {
-                    // Last step: save API key if filled, persist skip preference, finish.
                     string apiKey = (apiKeyBox.Text ?? "").Trim();
                     if (apiKey.Length > 0) owner.SaveApiKey(apiKey);
                     owner.SaveSetting("SkipMissingDepWizard", dontAskAgain.Checked ? "1" : "0");
@@ -136,9 +203,8 @@ namespace Pixelpipe
                 if (step < 0) step = 0;
                 if (step > StepCount - 1) step = StepCount - 1;
 
-                installRcloneBtn.Visible = false;
-                winfspBtn.Visible = false;
-                configureRemoteBtn.Visible = false;
+                actionsRow.Controls.Clear();
+                actionsRow.Visible = false;
                 apiKeyBox.Visible = false;
                 dontAskAgain.Visible = false;
                 depStatus.Visible = true;
@@ -160,19 +226,31 @@ namespace Pixelpipe
                     case 1:
                         header.Text = "Step 1 of 4 — rclone";
                         body.Text = "Pixelpipe uses rclone to talk to cloud backends. If you don't already have it, we can drop a portable copy under your user profile.";
-                        installRcloneBtn.Visible = !owner.RcloneAvailable();
+                        if (!owner.RcloneAvailable())
+                        {
+                            actionsRow.Visible = true;
+                            actionsRow.Controls.Add(installRcloneBtn);
+                        }
                         RefreshDeps();
                         break;
                     case 2:
                         header.Text = "Step 2 of 4 — WinFsp";
                         body.Text = "rclone mount needs WinFsp to expose a cloud remote as a Windows drive. Install via winget (an elevation prompt will appear).";
-                        winfspBtn.Visible = !owner.WinFspInstalled();
+                        if (!owner.WinFspInstalled())
+                        {
+                            actionsRow.Visible = true;
+                            actionsRow.Controls.Add(winfspBtn);
+                        }
                         RefreshDeps();
                         break;
                     case 3:
                         header.Text = "Step 3 of 4 — rclone remote";
                         body.Text = "Configure your first remote so you have something to mount. The Pixeldrain helper does everything in one prompt; for other providers use rclone config.";
-                        configureRemoteBtn.Visible = !owner.AnyRemoteConfigured();
+                        if (!owner.AnyRemoteConfigured())
+                        {
+                            actionsRow.Visible = true;
+                            actionsRow.Controls.Add(configureRemoteBtn);
+                        }
                         RefreshDeps();
                         break;
                     case 4:
@@ -198,15 +276,20 @@ namespace Pixelpipe
                                  "  rclone remote: " + (remote ? "configured" : "missing");
             }
 
-            private static Button MakeButton(string text, int left, int top, int width)
+            private static Button MakeButton(string text)
             {
                 Button b = new Button();
                 b.Text = text;
-                b.Left = left; b.Top = top; b.Width = width; b.Height = 28;
+                b.AutoSize = true;
+                b.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+                b.MinimumSize = new Size(0, 30);
+                b.Padding = new Padding(12, 4, 12, 4);
+                b.Margin = new Padding(4, 0, 4, 0);
                 b.FlatStyle = FlatStyle.Flat;
-                b.BackColor = Color.FromArgb(40, 44, 52);
-                b.ForeColor = Color.WhiteSmoke;
-                b.FlatAppearance.BorderColor = Color.FromArgb(70, 80, 92);
+                b.BackColor = ButtonBg;
+                b.ForeColor = FgColor;
+                b.FlatAppearance.BorderColor = ButtonBorder;
+                b.UseVisualStyleBackColor = false;
                 return b;
             }
         }
