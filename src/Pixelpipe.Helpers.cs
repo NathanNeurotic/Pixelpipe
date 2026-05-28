@@ -328,11 +328,6 @@ namespace Pixelpipe
             }
         }
 
-        private string Quote(string s)
-        {
-            return QuoteArg(s);
-        }
-
         internal static string QuoteArg(string value)
         {
             if (value == null) return "\"\"";

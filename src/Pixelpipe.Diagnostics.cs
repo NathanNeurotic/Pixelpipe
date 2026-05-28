@@ -154,7 +154,7 @@ namespace Pixelpipe
                     }
                     else
                     {
-                        key.SetValue(AppName, Quote(Application.ExecutablePath) + " /automount", RegistryValueKind.String);
+                        key.SetValue(AppName, QuoteArg(Application.ExecutablePath) + " /automount", RegistryValueKind.String);
                         ShowBalloon("Startup auto-mount enabled.");
                     }
                 }

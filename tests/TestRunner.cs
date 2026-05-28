@@ -33,6 +33,7 @@ namespace Pixelpipe.Tests
             Run("NormalizeBandwidthLimit", TestNormalizeBandwidthLimit);
             Run("WriteAllTextAtomic", TestWriteAllTextAtomic);
             Run("PreflightFormatting", TestPreflightFormatting);
+            Run("PreflightShortSummary", TestPreflightShortSummary);
             Run("FirstNonEmptyLine", TestFirstNonEmptyLine);
             Run("ScrubSecrets", TestScrubSecrets);
             Run("BoxProvider", TestBoxProvider);
@@ -327,6 +328,30 @@ namespace Pixelpipe.Tests
 
             string fail = warn + Environment.NewLine + TrayContext.FormatPreflightLine("fail", "remote", "missing");
             AssertTrue(TrayContext.PreflightHasFailures(fail));
+        }
+
+        private static void TestPreflightShortSummary()
+        {
+            // No failures and no warnings -> empty string.
+            string allOk = TrayContext.FormatPreflightLine("OK", "rclone", "found") + Environment.NewLine +
+                           TrayContext.FormatPreflightLine("OK", "WinFsp", "installed");
+            AssertEqual("", TrayContext.PreflightShortSummary(allOk));
+
+            // Warning only -> returns the first [WARN] line.
+            string warnOnly = TrayContext.FormatPreflightLine("OK", "rclone", "found") + Environment.NewLine +
+                              TrayContext.FormatPreflightLine("WARN", "storage probe", "not reported") + Environment.NewLine +
+                              TrayContext.FormatPreflightLine("WARN", "rclone version", "stale");
+            AssertEqual("[WARN] storage probe: not reported", TrayContext.PreflightShortSummary(warnOnly));
+
+            // Failure -> returns the first [FAIL] line, even if warnings precede it.
+            string mixed = TrayContext.FormatPreflightLine("WARN", "storage probe", "not reported") + Environment.NewLine +
+                           TrayContext.FormatPreflightLine("FAIL", "rclone remote", "missing") + Environment.NewLine +
+                           TrayContext.FormatPreflightLine("FAIL", "WinFsp", "not detected");
+            AssertEqual("[FAIL] rclone remote: missing", TrayContext.PreflightShortSummary(mixed));
+
+            // Null / empty -> empty string.
+            AssertEqual("", TrayContext.PreflightShortSummary(null));
+            AssertEqual("", TrayContext.PreflightShortSummary(""));
         }
 
         private static void TestFirstNonEmptyLine()

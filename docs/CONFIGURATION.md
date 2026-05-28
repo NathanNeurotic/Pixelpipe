@@ -22,6 +22,7 @@ Pixelpipe writes one JSON object with a per-profile array. Pixelpipe normalizes 
   "FirstLaunchSetupDone": "1",
   "SkipMissingDepWizard": "0",
   "VerboseLogging": "0",
+  "WelcomeBalloonShown": "1",
   "PixeldrainApiKeyProtected": "<DPAPI base64; not the raw key>",
   "Profiles": [
     {
@@ -38,14 +39,17 @@ Pixelpipe writes one JSON object with a per-profile array. Pixelpipe normalizes 
 }
 ```
 
+Pixelpipe writes `settings.json` atomically (`.tmp` write → rename, keeping the previous file as `.bak`). If the main file is unreadable on next launch — e.g. truncated by a power loss mid-write — Pixelpipe transparently loads `settings.json.bak` and logs a `[warn]` line.
+
 ## Top-level keys
 
 | Key | Values | Notes |
 | --- | --- | --- |
-| `BandwidthLimit` | `off`, `512K`, `1M`, `10M`, `1.5G`, … | Applied to Pixelpipe-launched mounts live through rclone RC. Validated against `^(off|\d+(\.\d+)?[KMG]?)$`. |
+| `BandwidthLimit` | `off`, `512K`, `1M`, `10M`, `1.5G`, … | Applied to Pixelpipe-launched mounts live through rclone RC. Validated against `^(off\|\d+(\.\d+)?[KMG]?)$`; invalid values fold to `off` on load. |
 | `FirstLaunchSetupDone` | `0` / `1` | Pixelpipe sets to `1` after the wizard runs once. |
 | `SkipMissingDepWizard` | `0` / `1` | Set to `1` if you decline the wizard while dependencies are missing, so it doesn't re-open every launch. Re-run from `Setup / dependencies → Run first-time setup wizard`. |
-| `VerboseLogging` | `0` / `1` | Toggle in `Diagnostics / repair`. When `1`, Pixelpipe writes `[debug]` lines for menu placement and refresh timing to `pixelpipe-ui.log`. |
+| `VerboseLogging` | `0` / `1` | Toggle in Settings → Preferences. When `1`, Pixelpipe writes `[debug]` lines for menu placement and refresh timing to `pixelpipe-ui.log`. |
+| `WelcomeBalloonShown` | `0` / `1` | Set to `1` after the one-time welcome balloon ("Pixelpipe is in your system tray…") fires on a non-`/automount` launch. Delete or reset to `0` to make it show again. |
 | `PixeldrainApiKeyProtected` | base64 DPAPI blob | Encrypted by DPAPI for the current Windows user. Not the raw API key. Only decryptable by the same Windows account that wrote it. |
 | `Profiles` | array | Each entry is a remote profile (see below). |
 
