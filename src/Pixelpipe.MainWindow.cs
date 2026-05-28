@@ -478,7 +478,10 @@ namespace Pixelpipe
                 row.Controls.Add(MakeAction("Open settings file", delegate { owner.OpenSettingsFile(); }));
                 row.Controls.Add(MakeAction("Copy diagnostics", delegate { owner.CopyDiagnostics(); }));
                 row.Controls.Add(MakeAction("Check for updates", delegate { owner.CheckForUpdates(); }));
-                row.Controls.Add(MakeAction("Exit Pixelpipe", delegate { owner.ExitApp(); }));
+                // No "Exit Pixelpipe" here on purpose: the only way to quit the tray
+                // app should be the tray menu's Exit item, where it sits next to "stop
+                // all mounts first" prompts. A second exit button here would just be
+                // an easy way to close the window by accident and lose the tray icon.
 
                 g.Controls.Add(row);
                 return g;

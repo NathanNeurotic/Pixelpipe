@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Net;
 using System.Windows.Forms;
 
@@ -26,6 +27,21 @@ namespace Pixelpipe
                 Environment.ExitCode = TrayMenuPlacementSmokeTest.Run();
                 return;
             }
+
+            // Trap any exception that would otherwise terminate the process. The default
+            // .NET WinForms handler shows a dialog and tears the app down; for a tray
+            // app that means the icon vanishes and the user thinks Pixelpipe "randomly
+            // closed". Log everything to pixelpipe-ui.log and keep running where we can.
+            Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+            Application.ThreadException += delegate(object sender, System.Threading.ThreadExceptionEventArgs e)
+            {
+                LogCrash("UI thread exception", e.Exception);
+            };
+            AppDomain.CurrentDomain.UnhandledException += delegate(object sender, UnhandledExceptionEventArgs e)
+            {
+                LogCrash("AppDomain unhandled" + (e.IsTerminating ? " (terminating)" : ""), e.ExceptionObject as Exception);
+            };
+
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
             Application.Run(new TrayContext(args));
@@ -36,6 +52,24 @@ namespace Pixelpipe
             if (args == null) return false;
             for (int i = 0; i < args.Length; i++) if (String.Equals(args[i], wanted, StringComparison.OrdinalIgnoreCase)) return true;
             return false;
+        }
+
+        // Use the same on-disk log location as TrayContext.LogUiIssue so users only have
+        // one place to look. Direct-write here instead of routing through TrayContext
+        // because TrayContext may itself be the source of the exception.
+        private static void LogCrash(string area, Exception ex)
+        {
+            try
+            {
+                string logDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Pixelpipe", "logs");
+                Directory.CreateDirectory(logDir);
+                string path = Path.Combine(logDir, "pixelpipe-ui.log");
+                string line = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " [error] [" + area + "] " +
+                              (ex == null ? "(null exception)" : ex.GetType().Name + ": " + ex.Message + Environment.NewLine + ex.StackTrace) +
+                              Environment.NewLine;
+                File.AppendAllText(path, line);
+            }
+            catch { }
         }
     }
 }
