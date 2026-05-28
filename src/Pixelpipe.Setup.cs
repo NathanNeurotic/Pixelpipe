@@ -23,7 +23,7 @@ namespace Pixelpipe
                     SaveSetting("FirstLaunchSetupDone", "1");
                 }
             }
-            catch { }
+            catch (Exception ex) { LogUiIssue("first launch setup", ex); }
         }
 
         private void RunFirstLaunchSetup(bool manual)

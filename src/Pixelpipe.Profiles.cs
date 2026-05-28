@@ -156,7 +156,7 @@ namespace Pixelpipe
                 Match m = Regex.Match(output, "type\\s*=\\s*([^\\r\\n]+)", RegexOptions.IgnoreCase);
                 if (m.Success) return NormalizeProvider(m.Groups[1].Value.Trim(), remote);
             }
-            catch { }
+            catch (Exception ex) { LogUiIssue("detect provider " + remote, ex); }
             return NormalizeProvider("custom", remote);
         }
 

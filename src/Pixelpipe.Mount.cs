@@ -158,7 +158,7 @@ namespace Pixelpipe
                                     RebuildMenu();
                                 }
                             }
-                            catch { }
+                            catch (Exception ex) { LogUiIssue("mount post-launch check", ex); }
                         }
                     });
                 });
@@ -344,7 +344,7 @@ namespace Pixelpipe
                     MountProfile(p, p.FullCache);
                 }
             }
-            catch { }
+            catch (Exception ex) { LogUiIssue("mount health monitor", ex); }
         }
 
         private void CleanStaleDriveMappings(RemoteProfile p, bool show)

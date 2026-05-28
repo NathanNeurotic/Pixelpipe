@@ -39,7 +39,7 @@ namespace Pixelpipe
                     }
                 }
             }
-            catch { }
+            catch (Exception ex) { LogUiIssue("load profiles", ex); }
 
             if (result.Count == 0)
             {
@@ -79,7 +79,7 @@ namespace Pixelpipe
                 root["BandwidthLimit"] = selectedBandwidth;
                 WriteSettingsRoot(root);
             }
-            catch { }
+            catch (Exception ex) { LogUiIssue("save profiles", ex); }
         }
 
         private Dictionary<string, object> ReadSettingsRoot()
@@ -92,7 +92,7 @@ namespace Pixelpipe
                 Dictionary<string, object> parsed = js.DeserializeObject(json) as Dictionary<string, object>;
                 if (parsed != null) return new Dictionary<string, object>(parsed, StringComparer.OrdinalIgnoreCase);
             }
-            catch { }
+            catch (Exception ex) { LogUiIssue("read settings", ex); }
             return new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
         }
 
@@ -104,7 +104,7 @@ namespace Pixelpipe
                 JavaScriptSerializer js = new JavaScriptSerializer();
                 File.WriteAllText(settingsFile, js.Serialize(root), Encoding.UTF8);
             }
-            catch { }
+            catch (Exception ex) { LogUiIssue("write settings", ex); }
         }
 
         private string LoadSettingRaw(string name)
@@ -151,7 +151,7 @@ namespace Pixelpipe
                 root[name] = value ?? "";
                 WriteSettingsRoot(root);
             }
-            catch { }
+            catch (Exception ex) { LogUiIssue("save setting " + name, ex); }
         }
 
         private void DeleteSetting(string name)
@@ -162,12 +162,12 @@ namespace Pixelpipe
                 if (root.ContainsKey(name)) root.Remove(name);
                 WriteSettingsRoot(root);
             }
-            catch { }
+            catch (Exception ex) { LogUiIssue("delete setting (json) " + name, ex); }
             try
             {
                 using (RegistryKey key = Registry.CurrentUser.CreateSubKey("Software\\" + AppName)) { key.DeleteValue(name, false); }
             }
-            catch { }
+            catch (Exception ex) { LogUiIssue("delete setting (registry) " + name, ex); }
         }
     }
 }

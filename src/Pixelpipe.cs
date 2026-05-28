@@ -138,7 +138,7 @@ namespace Pixelpipe
                 Icon extracted = Icon.ExtractAssociatedIcon(exeIcon);
                 if (extracted != null) return extracted;
             }
-            catch { }
+            catch (Exception ex) { LogUiIssue("load app icon", ex); }
             Bitmap bmp = new Bitmap(32, 32);
             using (Graphics g = Graphics.FromImage(bmp))
             {

@@ -134,7 +134,8 @@ namespace Pixelpipe
 
         private void ClearApiKey()
         {
-            try { DeleteSetting("PixeldrainApiKeyProtected"); } catch { }
+            try { DeleteSetting("PixeldrainApiKeyProtected"); }
+            catch (Exception ex) { LogUiIssue("clear api key", ex); }
             transferQuotaText = "Transfer quota: PixelDrain API key not set";
             RebuildMenu();
             ShowBalloon("PixelDrain API key cleared.");
