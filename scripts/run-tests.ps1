@@ -1,37 +1,29 @@
-param(
-  [string]$OutDir,
-  [string]$OutFile,
-  [switch]$Tests
-)
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
-if (-not $OutDir) { $OutDir = Join-Path $Root 'dist' }
+$OutDir = Join-Path $Root 'dist'
 New-Item -ItemType Directory -Force $OutDir | Out-Null
-if (-not $OutFile) { $OutFile = 'Pixelpipe.exe' }
-$Out = Join-Path $OutDir $OutFile
+$Out = Join-Path $OutDir 'Pixelpipe.Tests.exe'
 $SrcGlob = Join-Path $Root 'src\*.cs'
-$Ico = Join-Path $Root 'assets\pixelpipe.ico'
+$TestsGlob = Join-Path $Root 'tests\*.cs'
 $Manifest = Join-Path $Root 'app.manifest'
 $Csc = "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
 if (!(Test-Path $Csc)) { $Csc = "$env:WINDIR\Microsoft.NET\Framework\v4.0.30319\csc.exe" }
 if (!(Test-Path $Csc)) { throw 'csc.exe not found. Install .NET Framework Developer Pack or Visual Studio Build Tools.' }
-$CommonArgs = @(
-  '/nologo','/target:winexe','/platform:anycpu','/optimize+',
-  "/out:$Out","/win32icon:$Ico","/win32manifest:$Manifest",
+
+$Args = @(
+  '/nologo','/target:exe','/platform:anycpu','/optimize+',
+  "/out:$Out","/win32manifest:$Manifest",
+  '/main:Pixelpipe.Tests.TestRunner',
   '/reference:System.dll','/reference:System.Core.dll',
   '/reference:System.Drawing.dll','/reference:System.Windows.Forms.dll',
   '/reference:System.Web.Extensions.dll','/reference:System.Security.dll',
   '/reference:System.IO.Compression.dll','/reference:System.IO.Compression.FileSystem.dll',
-  '/reference:Microsoft.CSharp.dll',"/recurse:$SrcGlob"
+  '/reference:Microsoft.CSharp.dll',
+  "/recurse:$SrcGlob","/recurse:$TestsGlob"
 )
-& $Csc @CommonArgs
+& $Csc @Args
 if ($LASTEXITCODE -ne 0) { throw "csc.exe failed with code $LASTEXITCODE" }
-Write-Host "Built $Out"
 
-if ($Tests) {
-  $TestRunner = Join-Path $Root 'scripts\run-tests.ps1'
-  if (Test-Path $TestRunner) {
-    & $TestRunner -Exe $Out
-    if ($LASTEXITCODE -ne 0) { throw "Tests failed with code $LASTEXITCODE" }
-  }
-}
+Write-Host "Running $Out"
+& $Out
+if ($LASTEXITCODE -ne 0) { throw "Tests failed with code $LASTEXITCODE" }

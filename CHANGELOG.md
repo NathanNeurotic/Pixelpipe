@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.3.0
+
+Tray menu placement, refactor, and tests.
+
+Added:
+
+- PerMonitorV2 DPI awareness in the Windows manifest so the tray menu and submenus position correctly under mixed-DPI multi-monitor setups.
+- `/smoketest-menu` non-interactive check verifies tray submenu placement math and dark-theme application without spawning the tray; gated by CI.
+- Unit test runner `scripts\run-tests.ps1` over the pure helpers and tray menu placement math; gated by CI.
+- Shared tray submenu placement and theming helpers in `src/TrayMenu.cs`.
+- `docs/SMOKE_TEST.md` manual checklist for mount, unmount, bandwidth, setup, diagnostics, menu placement, and startup.
+- `.editorconfig` pins CRLF on Windows-targeted files and standard indentation.
+- `Tools / diagnostics` submenu that groups logs, settings, refresh, and update actions to keep the top-level tray menu shorter.
+- UI log entries for previously silent failures in settings persistence, profile load/save, first-launch setup, mount post-launch state checks, mount health monitor, ClearApiKey, and DetectProviderForRemote.
+
+Changed:
+
+- `TrayContext` split into partial files by domain (`Pixelpipe.cs` core, plus `.Setup`, `.Profiles`, `.Mount`, `.Refresh`, `.Diagnostics`, `.Settings`, `.Helpers`); `Pixelpipe.cs` is now ~220 lines instead of 2,209.
+- Tray submenus now re-anchor to their parent item and clamp inside the active screen, fixing the bug where they popped to the top-left of the desktop in WinForms' default style.
+- Stuck-unmount fallback defaults to No, explains what Yes does, logs the choice, and silent paths no longer block on it.
+- Menu-open refresh work is throttled to once per 30 seconds.
+- `Build-Pixelpipe.bat` now delegates to `scripts\build-release.ps1` instead of duplicating the csc.exe invocation; build flags can no longer drift between the two.
+
+Fixed:
+
+- `NormalizeProvider("onedrive", ...)` returned `"drive"` because the substring check for `"drive"` ran before `"onedrive"`. OneDrive profiles would have been saved with `Provider="drive"` and displayed in the tray as `Google Drive`. The onedrive check now runs first.
+
 ## 0.2.0
 
 Added multi-remote rclone profile support.
