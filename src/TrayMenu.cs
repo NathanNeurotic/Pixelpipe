@@ -1,9 +1,22 @@
 using System;
 using System.Drawing;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
 namespace Pixelpipe
 {
+    internal static class NativeMethods
+    {
+        public const uint SWP_NOSIZE = 0x0001;
+        public const uint SWP_NOZORDER = 0x0004;
+        public const uint SWP_NOACTIVATE = 0x0010;
+        public const uint SWP_ASYNCWINDOWPOS = 0x4000;
+
+        [DllImport("user32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+    }
+
     internal sealed partial class TrayContext
     {
         private const int MenuOpenRefreshThrottleSeconds = 30;
@@ -141,28 +154,76 @@ namespace Pixelpipe
         private ToolStripMenuItem PrepareDropDownMenu(ToolStripMenuItem item)
         {
             ApplyTrayMenuTheme(item.DropDown);
-            item.DropDownOpened += delegate { RepositionDropDownNearOwner(item); };
+            item.DropDownOpening += delegate { RepositionDropDownNearOwner(item, "opening"); };
+            item.DropDownOpened += delegate { RepositionDropDownNearOwner(item, "opened"); };
             return item;
         }
 
-        private void RepositionDropDownNearOwner(ToolStripMenuItem item)
+        private void RepositionDropDownNearOwner(ToolStripMenuItem item, string phase)
         {
             try
             {
                 ToolStrip owner = item.Owner;
                 ToolStripDropDown dropDown = item.DropDown;
-                if (owner == null || dropDown == null || !dropDown.Visible) return;
+                if (owner == null || dropDown == null)
+                {
+                    LogUiIssue("tray submenu positioning", new InvalidOperationException(phase + " skipped: owner=" + (owner == null ? "null" : owner.GetType().Name) + " dropDown=" + (dropDown == null ? "null" : dropDown.GetType().Name)));
+                    return;
+                }
 
+                if (dropDown.IsDisposed || (dropDown.Items.Count == 0)) return;
+
+                dropDown.PerformLayout();
                 Size size = dropDown.Size;
                 if (size.Width <= 0 || size.Height <= 0) size = dropDown.GetPreferredSize(Size.Empty);
+                if (size.Width <= 0 || size.Height <= 0)
+                {
+                    LogUiIssue("tray submenu positioning", new InvalidOperationException(phase + " skipped for '" + item.Text + "': dropdown has no size after layout"));
+                    return;
+                }
 
-                Point itemScreenLocation = owner.PointToScreen(item.Bounds.Location);
-                Rectangle itemBounds = new Rectangle(itemScreenLocation, item.Bounds.Size);
+                Point itemScreenLocation;
+                try { itemScreenLocation = owner.PointToScreen(item.Bounds.Location); }
+                catch (Exception ex)
+                {
+                    LogUiIssue("tray submenu positioning", new InvalidOperationException(phase + " PointToScreen failed for '" + item.Text + "': " + ex.Message));
+                    itemScreenLocation = Cursor.Position;
+                }
+
+                Size itemSize = item.Bounds.Size;
+                if (itemSize.Width <= 0) itemSize = new Size(1, itemSize.Height > 0 ? itemSize.Height : 20);
+                Rectangle itemBounds = new Rectangle(itemScreenLocation, itemSize);
                 Rectangle workingArea = Screen.FromRectangle(itemBounds).WorkingArea;
+                Point target = TrayMenuPlacement.CalculateDropDownLocation(itemBounds, size, workingArea);
 
-                dropDown.Location = TrayMenuPlacement.CalculateDropDownLocation(itemBounds, size, workingArea);
+                LogUiDebug("submenu position " + phase + " '" + item.Text + "': ownerType=" + owner.GetType().Name + " ownerVisible=" + owner.Visible + " item.Bounds=" + item.Bounds + " screenLoc=" + itemScreenLocation + " dropSize=" + size + " workArea=" + workingArea + " target=" + target + " current=" + dropDown.Location);
+
+                dropDown.Location = target;
+
+                if (dropDown.IsHandleCreated)
+                {
+                    NativeMethods.SetWindowPos(
+                        dropDown.Handle,
+                        IntPtr.Zero,
+                        target.X,
+                        target.Y,
+                        0,
+                        0,
+                        NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_ASYNCWINDOWPOS);
+                }
             }
             catch (Exception ex) { LogUiIssue("tray submenu positioning", ex); }
+        }
+
+        private void LogUiDebug(string message)
+        {
+            try
+            {
+                System.IO.Directory.CreateDirectory(logDir);
+                string line = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " [debug] " + message + Environment.NewLine;
+                System.IO.File.AppendAllText(uiLogFile, line);
+            }
+            catch { }
         }
 
         private void AddDisabled(string text)
