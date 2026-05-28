@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.11.3
+
+Settings tab layout fix.
+
+Fixed:
+
+- **Settings tab groups collapsed to ~30 px wide.** `MakeGroup` (GroupBox) used `AutoSizeMode = GrowAndShrink` and its inner `MakeKeyValueGrid` used `Dock = DockStyle.Top` with `AutoSize + GrowAndShrink` and two AutoSize columns. WinForms could resolve the circular "GroupBox sizes to child / child fills parent" dependency to "as narrow as possible", which clipped every Settings row to its first character.
+- `MakeGroup` now uses `GrowOnly` and a `MinimumSize = (960, 0)` floor.
+- `MakeKeyValueGrid` switches the value column to `Percent 100` so the editor / button row stretches to the GroupBox width.
+
 ## 0.11.2
 
 Second hotfix for the v0.11.0 menu issue. v0.11.1 added a defensive fallback for cases where `RebuildMenu` threw, but the underlying complaint turned out to be different: on Windows 11 the default NotifyIcon → ContextMenuStrip auto-show path can stop responding to right-click entirely (most reliably when the icon lives in the "Show hidden icons" overflow). Double-click still worked; right-click silently did nothing.

@@ -545,7 +545,14 @@ namespace Pixelpipe
                 GroupBox g = new GroupBox();
                 g.Text = title;
                 g.AutoSize = true;
-                g.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+                // GrowOnly (not GrowAndShrink). With GrowAndShrink + a Dock=Top
+                // inner TableLayoutPanel, WinForms could resolve the circular
+                // "I size to my child / child sizes to me" dependency to a
+                // ~30px-wide collapsed GroupBox, which only showed the first
+                // character of each label. Locking the MinimumSize ensures
+                // every Settings group is wide enough to display its content.
+                g.AutoSizeMode = AutoSizeMode.GrowOnly;
+                g.MinimumSize = new Size(960, 0);
                 g.Padding = new Padding(8, 10, 8, 10);
                 g.Margin = new Padding(0, 0, 0, 12);
                 g.ForeColor = FgColor;
@@ -558,10 +565,15 @@ namespace Pixelpipe
                 TableLayoutPanel grid = new TableLayoutPanel();
                 grid.Dock = DockStyle.Top;
                 grid.AutoSize = true;
-                grid.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+                grid.AutoSizeMode = AutoSizeMode.GrowOnly;
                 grid.ColumnCount = 2;
+                // Left column: AutoSize for the label so it shrinks to fit the
+                // text. Right column: Percent 100 so the editor / button row
+                // takes the rest of the GroupBox's width. With both columns
+                // AutoSize, an AutoSize GroupBox could resolve to "narrow
+                // enough to clip the labels" — see the comment on MakeGroup.
                 grid.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-                grid.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+                grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
                 grid.BackColor = BgColor;
                 return grid;
             }
