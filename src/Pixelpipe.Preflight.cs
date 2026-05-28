@@ -17,23 +17,49 @@ namespace Pixelpipe
             {
                 string report = BuildProfilePreflightText(p);
                 bool failed = PreflightHasFailures(report);
+                bool warned = !failed && PreflightHasWarnings(report);
+                // Always write the full report to pixelpipe-ui.log so the user can
+                // refer back to it even after dismissing the MessageBox. Use a level
+                // matching the worst state in the report.
+                string area = "preflight " + p.Label;
+                if (failed) LogUiWarn(area, report);
+                else if (warned) LogUiWarn(area, report);
+                else LogUiInfo(area, report);
+
                 BeginUi(delegate
                 {
-                    if (failed)
-                    {
-                        p.LastError = "Preflight found an issue. Open Test profile for details.";
-                        LogUiWarn("preflight " + p.Label, report);
-                    }
-                    else
-                    {
-                        p.LastError = "";
-                        LogUiInfo("preflight " + p.Label, "passed");
-                    }
+                    if (failed) p.LastError = PreflightShortSummary(report);
+                    else if (warned) p.LastError = "Preflight: " + PreflightShortSummary(report);
+                    else p.LastError = "";
                     RebuildMenu();
                     UpdateMainWindowLiveState();
                     MessageBox.Show(report, p.Label + " preflight", MessageBoxButtons.OK, failed ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
                 });
             });
+        }
+
+        // Pulls the actionable line out of the report. Returns the first [FAIL] line,
+        // or the first [WARN] line if there are no failures, or empty string if all OK.
+        // Lets the profile card / tray menu show a meaningful "Last error" instead of
+        // the previous meta-message that vanished as soon as the dialog was dismissed.
+        internal static string PreflightShortSummary(string report)
+        {
+            if (String.IsNullOrEmpty(report)) return "";
+            string[] lines = report.Replace("\r", "").Split('\n');
+            string firstWarn = null;
+            for (int i = 0; i < lines.Length; i++)
+            {
+                string line = lines[i].Trim();
+                if (line.StartsWith("[FAIL]", StringComparison.OrdinalIgnoreCase))
+                {
+                    return TrimForMenu(line, 220);
+                }
+                if (firstWarn == null && line.StartsWith("[WARN]", StringComparison.OrdinalIgnoreCase))
+                {
+                    firstWarn = line;
+                }
+            }
+            return firstWarn == null ? "" : TrimForMenu(firstWarn, 220);
         }
 
         private string BuildProfilePreflightText(RemoteProfile p)

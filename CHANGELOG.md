@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.6.0
+
+A reliability and consolidation release. Single-instance protection, atomic settings writes, profile preflight, hardened argument quoting, and layout-managed dialogs. Per-profile `Test profile` now wired into both the tray and the main window.
+
+Added:
+
+- **Single-instance protection.** A named mutex (`Local\Pixelpipe.TrayApp`) prevents a second tray icon. Launching the EXE again while Pixelpipe is running pops "Pixelpipe is already running in the system tray." (silent when called with `/automount`).
+- **Atomic settings writes.** `settings.json` is written through `.tmp` + rename, with the previous file preserved as `.bak`. On load, if the main file is unreadable Pixelpipe transparently falls back to `.bak` and logs a `[warn]` line.
+- **Profile preflight (`Test profile`).** New `src/Pixelpipe.Preflight.cs` runs a battery of checks (rclone presence + version, WinFsp, remote configured in rclone, drive letter free, RC port free, storage probe) and emits a per-line report with `[OK] / [WARN] / [FAIL]` states. Triggered from the tray submenu and from the new `Test` button on each main-window profile card.
+- **Bandwidth normalization.** `NormalizeBandwidthLimit` accepts `off` / `OFF` / `1m` / `1M` / `1.5G` and folds invalid input to `off` on load and save.
+- **Tests.** Five new unit tests (`QuoteArg`, `NormalizeBandwidthLimit`, `WriteAllTextAtomic`, `PreflightFormatting`, `FirstNonEmptyLine`). 26 total, all green.
+
+Changed:
+
+- **`QuoteArg` follows Microsoft's `CommandLineToArgvW` rules** (backslash doubling before `"`, trailing-backslash handling). Replaces the previous naive escape that mishandled certain label/remote values. `MountProfile`, `UnmountProfile`, and `Pixelpipe.Diagnostics` now use it for every interpolated path, drive letter, and remote name.
+- **All in-process dialogs (`EditProfile`, `PromptForValue`, `ChooseFromList`, `PromptForApiKey`)** rebuilt on `TableLayoutPanel` + `AutoSize`. No more fixed pixel coordinates that clipped buttons at higher DPI.
+- **Preflight now logs the full report** to `pixelpipe-ui.log` (level matches the worst state in the report) so users can refer back to it after dismissing the dialog. `RemoteProfile.LastError` gets a one-line summary (the first `[FAIL]` line, or first `[WARN]` if no failures) instead of the previous meta-message.
+- **`WelcomeBalloonShown` setting** documented in `docs/CONFIGURATION.md`.
+
+Removed:
+
+- **Dead `Quote(string)` alias** in `Pixelpipe.Helpers.cs`. Its single caller (`ToggleStartup`) now uses `QuoteArg` directly.
+
 ## 0.5.5
 
 Changed:
