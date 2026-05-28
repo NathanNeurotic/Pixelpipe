@@ -30,6 +30,7 @@ $CommonArgs = @(
   '/reference:System.Drawing.dll','/reference:System.Windows.Forms.dll',
   '/reference:System.Web.Extensions.dll','/reference:System.Security.dll',
   '/reference:System.IO.Compression.dll','/reference:System.IO.Compression.FileSystem.dll',
+  '/reference:System.Management.dll',
   '/reference:Microsoft.CSharp.dll',"/recurse:$SrcGlob"
 )
 & $Csc @CommonArgs
