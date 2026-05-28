@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.11.2
+
+Second hotfix for the v0.11.0 menu issue. v0.11.1 added a defensive fallback for cases where `RebuildMenu` threw, but the underlying complaint turned out to be different: on Windows 11 the default NotifyIcon → ContextMenuStrip auto-show path can stop responding to right-click entirely (most reliably when the icon lives in the "Show hidden icons" overflow). Double-click still worked; right-click silently did nothing.
+
+Fixed:
+
+- **Wire `NotifyIcon.MouseUp` ourselves.** When the right button comes up and the menu isn't already showing, Pixelpipe now calls `menu.Show(Cursor.Position)` explicitly. The existing `ContextMenuStrip` assignment stays so systems where the default path works don't double-show (the `menu.Visible` check skips the manual call in that case).
+
 ## 0.11.1
 
 Hotfix for a v0.11.0 startup regression where a single exception in the constructor could leave the tray icon visible with a completely empty context menu, which read as "the app is dead" even when only the menu-build path had failed.

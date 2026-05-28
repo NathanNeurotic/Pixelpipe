@@ -85,6 +85,31 @@ namespace Pixelpipe
             tray.ContextMenuStrip = menu;
             tray.Visible = true;
             tray.DoubleClick += delegate { TogglePrimaryProfile(); };
+            // Windows 11 doesn't reliably auto-show ContextMenuStrip on
+            // right-click when the icon is in the "Show hidden icons"
+            // overflow, and a few users have reported the auto-show stops
+            // working entirely after a session. Wire MouseUp ourselves so
+            // we own the show path and Windows can't decide to skip it.
+            // (DoubleClick fires for double-left so we don't need to touch
+            //  that case here.)
+            tray.MouseUp += delegate(object sender, MouseEventArgs e)
+            {
+                try
+                {
+                    if (e.Button != MouseButtons.Right) return;
+                    if (menu == null) return;
+                    // On systems where the default NotifyIcon → ContextMenuStrip
+                    // auto-show path works, the menu is already up by the time
+                    // we get here — bail without re-showing it (otherwise the
+                    // first click would dismiss the menu, second click would
+                    // re-show it, etc.). On systems where the auto-show didn't
+                    // fire, menu.Visible is still false and we open it
+                    // ourselves at the cursor.
+                    if (menu.Visible) return;
+                    menu.Show(Cursor.Position);
+                }
+                catch (Exception ex) { LogUiIssue("tray right-click", ex); }
+            };
 
             // Every constructor step from here down is wrapped so that a
             // failure (FileSystemWatcher init, schedule timer creation, even a
