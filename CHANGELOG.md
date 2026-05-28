@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.2
+
+Changed:
+
+- Tray menu now updates in place while it's open. Status lines (rclone / WinFsp / quota, per-profile status / storage / traffic / speed / last error), bandwidth checkmarks, startup checkmark, and the Mount / Unmount / Mount-all / Unmount-all enabled state all refresh live as the background data fetch completes; no more flash, no more "have to close and reopen to see fresh values".
+- The previous v0.4.1 fix deferred a full `RebuildMenu` while the menu was visible. We now go further: `RebuildMenu` builds the menu once and holds references to every dynamic item; `UpdateMenuLiveState` edits `.Text` / `.Enabled` / `.Checked` / `.Visible` on those references each refresh tick. Structural rebuilds (profile add/remove/reorder, startup-state changes) still happen on the next close-and-reopen.
+
 ## 0.4.1
 
 Fixed:

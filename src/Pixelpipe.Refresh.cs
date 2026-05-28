@@ -37,7 +37,7 @@ namespace Pixelpipe
                     BeginUi(delegate
                     {
                         Interlocked.Exchange(ref refreshingFlag, 0);
-                        RebuildMenu();
+                        UpdateMenuLiveState();
                     });
                 }
             });

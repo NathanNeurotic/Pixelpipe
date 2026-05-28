@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
@@ -26,6 +27,40 @@ namespace Pixelpipe
         private const int MenuOpenRefreshThrottleSeconds = 30;
         private DateTime lastMenuOpenRefreshUtc = DateTime.MinValue;
 
+        // Held references to dynamic top-level menu items so UpdateMenuLiveState
+        // can update their Text / Enabled / Checked without rebuilding the menu.
+        private ToolStripMenuItem globalStatusItem;
+        private ToolStripMenuItem adminWarningItem;
+        private ToolStripMenuItem rcloneStatusItem;
+        private ToolStripMenuItem winfspStatusItem;
+        private ToolStripMenuItem quotaItem;
+        private ToolStripMenuItem mountAllItem;
+        private ToolStripMenuItem unmountAllItem;
+        private ToolStripMenuItem startupItem;
+        private ToolStripMenuItem setupStatusItem;
+        private ToolStripMenuItem bandwidthHeaderItem;
+        private readonly List<ProfileMenuRefs> profileMenuRefs = new List<ProfileMenuRefs>();
+
+        private sealed class ProfileMenuRefs
+        {
+            public RemoteProfile Profile;
+            public ToolStripMenuItem ProfileItem;
+            public ToolStripMenuItem RemoteLabel;
+            public ToolStripMenuItem DriveLabel;
+            public ToolStripMenuItem StatusLabel;
+            public ToolStripMenuItem StorageLabel;
+            public ToolStripMenuItem TrafficLabel;
+            public ToolStripMenuItem SpeedLabel;
+            public ToolStripMenuItem LastErrorLabel;
+            public ToolStripMenuItem MountLow;
+            public ToolStripMenuItem MountFull;
+            public ToolStripMenuItem Unmount;
+            public ToolStripMenuItem OpenDriveItem;
+            public ToolStripMenuItem EditItem;
+            public ToolStripMenuItem AutoMountItem;
+            public ToolStripMenuItem RemoveItem;
+        }
+
         private void OnMenuOpening()
         {
             RebuildMenu();
@@ -44,55 +79,47 @@ namespace Pixelpipe
         private void RebuildMenu()
         {
             // If the menu is currently displayed, clearing menu.Items would make it
-            // visibly flash — the seven-second timer would cause a blink every tick.
-            // Mark the rebuild as pending so the Closed handler picks it up. The
-            // Opening handler always calls RebuildMenu first, so the user sees fresh
-            // content on the next open either way.
+            // visibly flash. Defer the rebuild and apply any live updates in place
+            // so the user still sees fresh values while the menu is open.
             if (menu != null && menu.Visible)
             {
                 rebuildPendingWhileOpen = true;
+                UpdateMenuLiveState();
                 return;
             }
             menu.Items.Clear();
+            profileMenuRefs.Clear();
+
             AddDisabled("Pixelpipe");
-            AddDisabled("Status: " + BuildGlobalStatus());
-            if (IsAdministrator()) AddDisabled("Warning: running as Administrator; mounted drives may be hidden from normal Explorer");
-            AddDisabled("rclone: " + (RcloneAvailable() ? "found" : "missing"));
-            AddDisabled("WinFsp: " + (WinFspInstalled() ? "found" : "missing"));
-            AddDisabled(transferQuotaText);
+            globalStatusItem = AddDisabledRef("Status: " + BuildGlobalStatus());
+            adminWarningItem = AddDisabledRef("Warning: running as Administrator; mounted drives may be hidden from normal Explorer");
+            adminWarningItem.Visible = IsAdministrator();
+            rcloneStatusItem = AddDisabledRef("rclone: " + (RcloneAvailable() ? "found" : "missing"));
+            winfspStatusItem = AddDisabledRef("WinFsp: " + (WinFspInstalled() ? "found" : "missing"));
+            quotaItem = AddDisabledRef(transferQuotaText);
             menu.Items.Add(new ToolStripSeparator());
 
             for (int i = 0; i < profiles.Count; i++)
             {
                 RemoteProfile p = profiles[i];
-                ToolStripMenuItem profileMenu = new ToolStripMenuItem(ProfileTitle(p));
-                profileMenu.DropDownItems.Add(DisabledItem("Remote: " + p.Remote));
-                profileMenu.DropDownItems.Add(DisabledItem("Drive: " + GetDriveRoot(p)));
-                profileMenu.DropDownItems.Add(DisabledItem("Provider: " + DisplayProvider(p.Provider)));
-                profileMenu.DropDownItems.Add(DisabledItem("Status: " + p.StatusText));
-                profileMenu.DropDownItems.Add(DisabledItem("Storage: " + p.StorageText));
-                profileMenu.DropDownItems.Add(DisabledItem("Traffic: " + p.SessionText));
-                profileMenu.DropDownItems.Add(DisabledItem("Speed: " + p.SpeedText));
-                if (!String.IsNullOrWhiteSpace(p.LastError)) profileMenu.DropDownItems.Add(DisabledItem("Last error: " + TrimForMenu(p.LastError, 90)));
-                profileMenu.DropDownItems.Add(new ToolStripSeparator());
-                profileMenu.DropDownItems.Add(MenuAction("Mount - low overhead", delegate { MountProfile(p, false); }, !IsMounted(p)));
-                profileMenu.DropDownItems.Add(MenuAction("Mount - full cache", delegate { MountProfile(p, true); }, !IsMounted(p)));
-                profileMenu.DropDownItems.Add(MenuAction("Unmount", delegate { UnmountProfile(p, false); }, IsMounted(p)));
-                profileMenu.DropDownItems.Add(MenuAction("Open " + GetDriveRoot(p), delegate { OpenDrive(p); }, IsMounted(p)));
-                profileMenu.DropDownItems.Add(new ToolStripSeparator());
-                profileMenu.DropDownItems.Add(MenuAction("Edit profile...", delegate { EditProfile(p); }, !IsMounted(p)));
-                profileMenu.DropDownItems.Add(MenuAction("Set as primary", delegate { MakePrimaryProfile(p); }));
-                profileMenu.DropDownItems.Add(MenuAction("Auto-mount this profile", delegate { ToggleProfileAutoMount(p); }, true, p.AutoMount));
-                profileMenu.DropDownItems.Add(MenuAction("Remove profile", delegate { RemoveProfile(p); }, !IsMounted(p) && profiles.Count > 1));
-                menu.Items.Add(PrepareDropDownMenu(profileMenu));
+                ProfileMenuRefs refs = BuildProfileMenu(p);
+                profileMenuRefs.Add(refs);
+                menu.Items.Add(PrepareDropDownMenu(refs.ProfileItem));
             }
 
             menu.Items.Add(new ToolStripSeparator());
             if (profiles.Count > 1)
             {
-                menu.Items.Add(MenuAction("Mount all", delegate { MountAllProfiles(); }, CountMounted() < profiles.Count));
-                menu.Items.Add(MenuAction("Unmount all", delegate { UnmountAllProfiles(); }, CountMounted() > 0));
+                mountAllItem = MenuAction("Mount all", delegate { MountAllProfiles(); }, CountMounted() < profiles.Count);
+                unmountAllItem = MenuAction("Unmount all", delegate { UnmountAllProfiles(); }, CountMounted() > 0);
+                menu.Items.Add(mountAllItem);
+                menu.Items.Add(unmountAllItem);
                 menu.Items.Add(new ToolStripSeparator());
+            }
+            else
+            {
+                mountAllItem = null;
+                unmountAllItem = null;
             }
             menu.Items.Add(BuildAddRemoteMenu());
             menu.Items.Add(BuildBandwidthMenu());
@@ -101,9 +128,117 @@ namespace Pixelpipe
             menu.Items.Add(MenuAction("Manage remotes...", delegate { ShowManageRemotesWindow(); }));
             menu.Items.Add(BuildToolsMenu());
             menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add(MenuAction("Auto-mount at Windows startup", delegate { ToggleStartup(); }, true, StartupEnabled()));
+            startupItem = MenuAction("Auto-mount at Windows startup", delegate { ToggleStartup(); }, true, StartupEnabled());
+            menu.Items.Add(startupItem);
             menu.Items.Add(MenuAction("Exit", delegate { ExitApp(); }));
 
+            UpdateTrayTooltip();
+        }
+
+        private ProfileMenuRefs BuildProfileMenu(RemoteProfile p)
+        {
+            ProfileMenuRefs r = new ProfileMenuRefs();
+            r.Profile = p;
+            r.ProfileItem = new ToolStripMenuItem(ProfileTitle(p));
+            r.RemoteLabel = DisabledItem("Remote: " + p.Remote);
+            r.DriveLabel = DisabledItem("Drive: " + GetDriveRoot(p));
+            ToolStripMenuItem providerLabel = DisabledItem("Provider: " + DisplayProvider(p.Provider));
+            r.StatusLabel = DisabledItem("Status: " + p.StatusText);
+            r.StorageLabel = DisabledItem("Storage: " + p.StorageText);
+            r.TrafficLabel = DisabledItem("Traffic: " + p.SessionText);
+            r.SpeedLabel = DisabledItem("Speed: " + p.SpeedText);
+            r.LastErrorLabel = DisabledItem("Last error: " + TrimForMenu(p.LastError, 90));
+            r.LastErrorLabel.Visible = !String.IsNullOrWhiteSpace(p.LastError);
+
+            r.ProfileItem.DropDownItems.Add(r.RemoteLabel);
+            r.ProfileItem.DropDownItems.Add(r.DriveLabel);
+            r.ProfileItem.DropDownItems.Add(providerLabel);
+            r.ProfileItem.DropDownItems.Add(r.StatusLabel);
+            r.ProfileItem.DropDownItems.Add(r.StorageLabel);
+            r.ProfileItem.DropDownItems.Add(r.TrafficLabel);
+            r.ProfileItem.DropDownItems.Add(r.SpeedLabel);
+            r.ProfileItem.DropDownItems.Add(r.LastErrorLabel);
+            r.ProfileItem.DropDownItems.Add(new ToolStripSeparator());
+            r.MountLow = MenuAction("Mount - low overhead", delegate { MountProfile(p, false); }, !IsMounted(p));
+            r.MountFull = MenuAction("Mount - full cache", delegate { MountProfile(p, true); }, !IsMounted(p));
+            r.Unmount = MenuAction("Unmount", delegate { UnmountProfile(p, false); }, IsMounted(p));
+            r.OpenDriveItem = MenuAction("Open " + GetDriveRoot(p), delegate { OpenDrive(p); }, IsMounted(p));
+            r.ProfileItem.DropDownItems.Add(r.MountLow);
+            r.ProfileItem.DropDownItems.Add(r.MountFull);
+            r.ProfileItem.DropDownItems.Add(r.Unmount);
+            r.ProfileItem.DropDownItems.Add(r.OpenDriveItem);
+            r.ProfileItem.DropDownItems.Add(new ToolStripSeparator());
+            r.EditItem = MenuAction("Edit profile...", delegate { EditProfile(p); }, !IsMounted(p));
+            r.AutoMountItem = MenuAction("Auto-mount this profile", delegate { ToggleProfileAutoMount(p); }, true, p.AutoMount);
+            r.RemoveItem = MenuAction("Remove profile", delegate { RemoveProfile(p); }, !IsMounted(p) && profiles.Count > 1);
+            r.ProfileItem.DropDownItems.Add(r.EditItem);
+            r.ProfileItem.DropDownItems.Add(MenuAction("Set as primary", delegate { MakePrimaryProfile(p); }));
+            r.ProfileItem.DropDownItems.Add(r.AutoMountItem);
+            r.ProfileItem.DropDownItems.Add(r.RemoveItem);
+            return r;
+        }
+
+        // Live update path: called from the refresh worker on the UI thread without
+        // rebuilding menu.Items. Safe to call while the menu is open — only edits
+        // properties on existing items, which WinForms repaints in place without
+        // tearing the menu down.
+        private void UpdateMenuLiveState()
+        {
+            try
+            {
+                if (menu == null || menu.Items.Count == 0) { return; }
+                if (globalStatusItem != null) globalStatusItem.Text = "Status: " + BuildGlobalStatus();
+                if (adminWarningItem != null) adminWarningItem.Visible = IsAdministrator();
+                if (rcloneStatusItem != null) rcloneStatusItem.Text = "rclone: " + (RcloneAvailable() ? "found" : "missing");
+                if (winfspStatusItem != null) winfspStatusItem.Text = "WinFsp: " + (WinFspInstalled() ? "found" : "missing");
+                if (quotaItem != null) quotaItem.Text = transferQuotaText;
+                if (setupStatusItem != null) setupStatusItem.Text = setupStatusText;
+                if (bandwidthHeaderItem != null) bandwidthHeaderItem.Text = "Bandwidth limit: " + DisplayLimit(selectedBandwidth);
+                for (int b = 0; b < bandwidthItems.Count; b++)
+                {
+                    ToolStripMenuItem item = bandwidthItems[b];
+                    string value = item.Tag as string;
+                    item.Checked = value != null && String.Equals(selectedBandwidth, value, StringComparison.OrdinalIgnoreCase);
+                }
+                if (startupItem != null) startupItem.Checked = StartupEnabled();
+
+                int mountedCount = CountMounted();
+                if (mountAllItem != null) mountAllItem.Enabled = mountedCount < profiles.Count;
+                if (unmountAllItem != null) unmountAllItem.Enabled = mountedCount > 0;
+
+                // Update per-profile items.
+                for (int i = 0; i < profileMenuRefs.Count; i++)
+                {
+                    ProfileMenuRefs r = profileMenuRefs[i];
+                    RemoteProfile p = r.Profile;
+                    bool mounted = IsMounted(p);
+                    r.ProfileItem.Text = ProfileTitle(p);
+                    r.RemoteLabel.Text = "Remote: " + p.Remote;
+                    r.DriveLabel.Text = "Drive: " + GetDriveRoot(p);
+                    r.StatusLabel.Text = "Status: " + p.StatusText;
+                    r.StorageLabel.Text = "Storage: " + p.StorageText;
+                    r.TrafficLabel.Text = "Traffic: " + p.SessionText;
+                    r.SpeedLabel.Text = "Speed: " + p.SpeedText;
+                    bool hasError = !String.IsNullOrWhiteSpace(p.LastError);
+                    r.LastErrorLabel.Visible = hasError;
+                    if (hasError) r.LastErrorLabel.Text = "Last error: " + TrimForMenu(p.LastError, 90);
+                    r.MountLow.Enabled = !mounted;
+                    r.MountFull.Enabled = !mounted;
+                    r.Unmount.Enabled = mounted;
+                    r.OpenDriveItem.Enabled = mounted;
+                    r.OpenDriveItem.Text = "Open " + GetDriveRoot(p);
+                    r.EditItem.Enabled = !mounted;
+                    r.AutoMountItem.Checked = p.AutoMount;
+                    r.RemoveItem.Enabled = !mounted && profiles.Count > 1;
+                }
+
+                UpdateTrayTooltip();
+            }
+            catch (Exception ex) { LogUiIssue("update live menu", ex); }
+        }
+
+        private void UpdateTrayTooltip()
+        {
             int mountedCount = CountMounted();
             // NotifyIcon.Text has a 63-char limit; keep it short.
             tray.Text = profiles.Count == 0
@@ -111,6 +246,13 @@ namespace Pixelpipe
                 : (mountedCount == 0
                     ? "Pixelpipe (none mounted)"
                     : "Pixelpipe (" + mountedCount + "/" + profiles.Count + " mounted)");
+        }
+
+        private ToolStripMenuItem AddDisabledRef(string text)
+        {
+            ToolStripMenuItem item = DisabledItem(text);
+            menu.Items.Add(item);
+            return item;
         }
 
         private void MountAllProfiles()
@@ -157,6 +299,7 @@ namespace Pixelpipe
         {
             bandwidthItems.Clear();
             ToolStripMenuItem m = new ToolStripMenuItem("Bandwidth limit: " + DisplayLimit(selectedBandwidth));
+            bandwidthHeaderItem = m;
             AddBandwidthChoice(m, "off", "Unlimited");
             AddBandwidthChoice(m, "512K", "512 KB/s");
             AddBandwidthChoice(m, "1M", "1 MB/s");
@@ -174,7 +317,8 @@ namespace Pixelpipe
         private ToolStripMenuItem BuildSetupMenu()
         {
             ToolStripMenuItem setup = new ToolStripMenuItem("Setup / dependencies");
-            setup.DropDownItems.Add(DisabledItem(setupStatusText));
+            setupStatusItem = DisabledItem(setupStatusText);
+            setup.DropDownItems.Add(setupStatusItem);
             setup.DropDownItems.Add(new ToolStripSeparator());
             setup.DropDownItems.Add(MenuAction("Run first-time setup wizard", delegate { RunFirstLaunchSetup(true); }));
             setup.DropDownItems.Add(MenuAction("Download portable rclone now", delegate { DownloadRclonePortableWithUi(); }));
