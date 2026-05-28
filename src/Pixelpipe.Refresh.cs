@@ -17,6 +17,10 @@ namespace Pixelpipe
         private void QueueRefresh(bool forceAbout, bool showErrors)
         {
             if (Interlocked.CompareExchange(ref refreshingFlag, 1, 0) != 0) return;
+            // Stamp when the flag was claimed so the heartbeat deadman can
+            // force-reset it if this worker silently dies or its BeginUi
+            // back-edge gets stuck behind a frozen UI thread.
+            refreshStartedUtc = DateTime.UtcNow;
             ThreadPool.QueueUserWorkItem(delegate
             {
                 try

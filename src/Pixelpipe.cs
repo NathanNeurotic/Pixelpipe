@@ -145,6 +145,21 @@ namespace Pixelpipe
             // current build because the Job Object already protects against
             // future orphans; this catches the pre-v0.11.4 install path.
             try { StartupOrphanCheck(); } catch (Exception ex) { LogUiIssue("startup orphan check kickoff", ex); }
+            // UI heartbeat + refresh deadman. Heartbeat writes a line every
+            // 30 s which the Activity tab parses, so a freeze leaves a
+            // visible gap. The deadman force-resets refreshingFlag if it's
+            // been stuck for > 90 s so the refresh loop self-heals.
+            try { StartLivenessTimers(); } catch (Exception ex) { LogUiIssue("liveness timers kickoff", ex); }
+            // Named-pipe server so a second-launch Pixelpipe can ask us to
+            // show the main window. If we're hung the second launch will
+            // time out and terminate us — see SingleInstanceChannel.
+            try
+            {
+                SingleInstanceChannel.StartServer(
+                    delegate { BeginUi(delegate { try { ShowMainWindow(); } catch (Exception ex) { LogUiIssue("wake show window", ex); } }); },
+                    delegate(string area, Exception ex) { LogUiIssue(area, ex); });
+            }
+            catch (Exception ex) { LogUiIssue("wake server kickoff", ex); }
 
             try { RebuildMenu(); }
             catch (Exception ex)

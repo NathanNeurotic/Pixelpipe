@@ -461,7 +461,17 @@ namespace Pixelpipe
             tools.DropDownItems.Add(MenuAction("Export profiles to file...", delegate { ExportProfilesToFile(); }));
             tools.DropDownItems.Add(MenuAction("Import profiles from file...", delegate { ImportProfilesFromFile(); }));
             tools.DropDownItems.Add(new ToolStripSeparator());
-            tools.DropDownItems.Add(MenuAction("Find / kill orphan rclone processes", delegate { PromptAndKillOrphans(FindOrphanRcloneProcesses(), false); }));
+            // Orphan scan does WMI lookups that can take several seconds on
+            // a stressed machine. Off the UI thread so the click handler
+            // returns immediately and the user gets a balloon when done.
+            tools.DropDownItems.Add(MenuAction("Find / kill orphan rclone processes", delegate {
+                ShowBalloon("Scanning for orphan rclone processes...");
+                System.Threading.ThreadPool.QueueUserWorkItem(delegate {
+                    System.Collections.Generic.List<OrphanRclone> found = FindOrphanRcloneProcesses();
+                    BeginUi(delegate { PromptAndKillOrphans(found, false); });
+                });
+            }));
+            tools.DropDownItems.Add(MenuAction("Test UI responsiveness", delegate { TestUiResponsiveness(); }));
             tools.DropDownItems.Add(MenuAction("Open settings backups folder", delegate { OpenSettingsBackupsFolder(); }));
             tools.DropDownItems.Add(new ToolStripSeparator());
             tools.DropDownItems.Add(MenuAction("Refresh usage now", delegate { QueueRefresh(true, true); }));

@@ -57,6 +57,11 @@ namespace Pixelpipe
             try { return !p.MountProcess.HasExited; } catch { return false; }
         }
 
+        // Entry point — UI-thread guard. The expensive checks (rclone path
+        // probe, listremotes for remote config, drive enumeration) move to
+        // a worker thread so the menu click doesn't freeze the UI for the
+        // few seconds those take. Dialogs and the actual process spawn
+        // happen back on the UI thread once the worker reports.
         private void MountProfile(RemoteProfile p, bool fullCache)
         {
             if (p == null) return;
@@ -65,9 +70,33 @@ namespace Pixelpipe
                 ShowBalloon(p.Label + " is already mounted.");
                 return;
             }
+            ShowBalloon(p.Label + ": preparing mount...");
+            System.Threading.ThreadPool.QueueUserWorkItem(delegate
+            {
+                try
+                {
+                    rclonePath = FindRclonePath();
+                    bool rclonePresent = RcloneAvailable();
+                    bool winfspPresent = WinFspInstalled();
+                    bool remoteOk = rclonePresent ? RemoteConfigured(p) : false;
+                    bool driveTaken = DriveLetterInUse(p.DriveLetter);
+                    BeginUi(delegate
+                    {
+                        try { ContinueMountOnUiThread(p, fullCache, rclonePresent, winfspPresent, remoteOk, driveTaken); }
+                        catch (Exception ex) { LogUiIssue("continue mount " + p.Label, ex); }
+                    });
+                }
+                catch (Exception ex)
+                {
+                    LogUiIssue("mount precheck " + p.Label, ex);
+                    BeginUi(delegate { ShowBalloon(p.Label + ": mount preparation failed: " + ex.Message); });
+                }
+            });
+        }
 
-            rclonePath = FindRclonePath();
-            if (!RcloneAvailable())
+        private void ContinueMountOnUiThread(RemoteProfile p, bool fullCache, bool rclonePresent, bool winfspPresent, bool remoteOk, bool driveTaken)
+        {
+            if (!rclonePresent)
             {
                 DialogResult r = MessageBox.Show("rclone.exe was not found.\r\n\r\nDownload the portable Windows rclone build into your user profile now?", "Pixelpipe setup", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
                 if (r == DialogResult.Yes) DownloadRclonePortableWithUi();
@@ -76,9 +105,10 @@ namespace Pixelpipe
                     MessageBox.Show("rclone is still unavailable. Use Setup / dependencies from the tray menu, or install rclone manually.", "Pixelpipe", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return;
                 }
+                rclonePresent = true;
             }
 
-            if (!WinFspInstalled())
+            if (!winfspPresent)
             {
                 DialogResult r = MessageBox.Show("WinFsp is required for rclone mount on Windows and does not appear to be installed.\r\n\r\nInstall WinFsp with winget now?", "Pixelpipe setup", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
                 if (r == DialogResult.Yes) InstallWinFspWithWinget();
@@ -86,7 +116,7 @@ namespace Pixelpipe
                 return;
             }
 
-            if (!RemoteConfigured(p))
+            if (!remoteOk)
             {
                 DialogResult r;
                 if (String.Equals(p.Provider, "pixeldrain", StringComparison.OrdinalIgnoreCase))
@@ -99,6 +129,8 @@ namespace Pixelpipe
                     r = MessageBox.Show(p.Remote + " is not configured in rclone.\r\n\r\nOpen rclone config now?", "Pixelpipe setup", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
                     if (r == DialogResult.Yes) OpenRcloneConfigTerminal();
                 }
+                // Re-check remote config (this is a synchronous rclone
+                // listremotes — small price, only on the failure path).
                 if (!RemoteConfigured(p))
                 {
                     MessageBox.Show("The selected rclone remote is still not configured. The mount cannot start until rclone has this remote.", "Pixelpipe", MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -106,11 +138,8 @@ namespace Pixelpipe
                 }
             }
 
-            if (DriveLetterInUse(p.DriveLetter))
+            if (driveTaken)
             {
-                // 3-button: Yes = kill orphan rclone for this drive then retry,
-                // No = continue anyway (legacy behaviour), Cancel = abort.
-                // Default is Yes because that's what fixes 95% of these.
                 string prompt = p.DriveLetter + " appears to already be in use.\r\n\r\n"
                               + "Yes  — find and kill an orphan rclone process for " + p.DriveLetter + " (most common cause), then mount.\r\n"
                               + "No   — try to mount anyway (rarely works; rclone will probably exit immediately).\r\n"
@@ -120,10 +149,7 @@ namespace Pixelpipe
                 if (r == DialogResult.Yes)
                 {
                     bool killed = KillOrphansForDrive(p.DriveLetter);
-                    if (!killed) return; // user already saw an info dialog from KillOrphansForDrive
-                    // Re-check; if Windows still hasn't released it (e.g. an
-                    // explorer.exe handle), warn and bail rather than getting
-                    // stuck in the immediate-exit loop the user just escaped.
+                    if (!killed) return;
                     if (DriveLetterInUse(p.DriveLetter))
                     {
                         MessageBox.Show(p.DriveLetter + " is still in use after killing the orphan rclone. Something else is holding it — close any File Explorer windows on " + p.DriveLetter + " and try again.", "Pixelpipe", MessageBoxButtons.OK, MessageBoxIcon.Warning);

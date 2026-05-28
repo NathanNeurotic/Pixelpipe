@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.12.1
+
+Direct fixes for the freeze / linger symptoms — no more whack-a-mole. Five proactive changes that close known classes of UI-thread block:
+
+Fixed:
+
+- **`MountProfile` no longer blocks the UI thread.** The slow validation checks (`RcloneAvailable`, `RemoteConfigured`, `DriveLetterInUse`) used to run synchronously on the menu-click handler, freezing the UI for several seconds per mount (and N × that for "Mount all"). They now run on a worker thread; dialogs and the actual `rclone mount` spawn happen on the UI thread when the worker reports back via `BeginUi`.
+- **Orphan-rclone scan menu action** also moves to a worker thread. The WMI `Win32_Process` lookup can take a few seconds on a stressed system; previously that froze the menu click.
+- **Hung previous-instance recovery** via a named pipe (`Pixelpipe.TrayApp.WakePipe`). On launch, if the single-instance mutex is held, the new process sends a `WAKE` over the pipe with a 2 s timeout. Healthy holder acks and the new process exits silently (with the holder showing its main window). Hung holder doesn't respond — the new process terminates every other `Pixelpipe.exe`, re-acquires the mutex, and proceeds. Replaces the old "Pixelpipe is already running" dead-end when the holder was wedged.
+- **UI thread heartbeat.** A `[info] heartbeat` line every 30 s, surfaced through the new Activity tab so a freeze leaves a visible "heartbeats stopped at 14:32" gap. Free observability if a future freeze happens.
+- **Refresh deadman.** If `refreshingFlag` stays set for more than 90 s the heartbeat tick force-resets it, so a hung worker can't permanently swallow subsequent refresh requests for the rest of the session.
+
+Added:
+
+- **Tools / diagnostics → "Test UI responsiveness"** — measures round-trip through `BeginUi` and shows a "responded in N ms" / "did NOT respond within 5 s" dialog. Useful when the user suspects a freeze and wants to confirm.
+
 ## 0.12.0
 
 Bandwidth schedule, Activity tab, and timestamped settings backups. Three quality-of-life features extending systems we already have.

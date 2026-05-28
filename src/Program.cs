@@ -30,15 +30,34 @@ namespace Pixelpipe
             }
 
             bool createdNew;
-            using (Mutex singleInstance = new Mutex(true, @"Local\Pixelpipe.TrayApp", out createdNew))
+            Mutex singleInstance = new Mutex(true, @"Local\Pixelpipe.TrayApp", out createdNew);
+            try
             {
                 if (!createdNew)
                 {
-                    if (!HasArg(args, "/automount"))
+                    // Existing instance might be healthy OR hung. Try the
+                    // wake-pipe first; if it answers within 2 s we yield to
+                    // it. If it doesn't, the holder is hung — terminate any
+                    // other Pixelpipe.exe and re-acquire the mutex.
+                    bool woke = SingleInstanceChannel.TryWakeExisting();
+                    if (woke)
                     {
-                        MessageBox.Show("Pixelpipe is already running in the system tray.", "Pixelpipe", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        if (!HasArg(args, "/automount"))
+                        {
+                            // Existing instance acked; it should already be
+                            // bringing the main window forward. Quiet exit.
+                        }
+                        return;
                     }
-                    return;
+                    // Hung holder. Kill it and retry the mutex.
+                    int killed = SingleInstanceChannel.TerminateOtherInstances();
+                    singleInstance.Dispose();
+                    singleInstance = new Mutex(true, @"Local\Pixelpipe.TrayApp", out createdNew);
+                    if (!createdNew)
+                    {
+                        MessageBox.Show("Pixelpipe could not start because another instance is holding the single-instance lock and did not respond. " + killed + " other process" + (killed == 1 ? "" : "es") + " were terminated; please try again.", "Pixelpipe", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        return;
+                    }
                 }
 
                 // Trap any exception that would otherwise terminate the process. The default
@@ -59,6 +78,11 @@ namespace Pixelpipe
                 Application.SetCompatibleTextRenderingDefault(false);
                 Application.Run(new TrayContext(args));
                 GC.KeepAlive(singleInstance);
+            }
+            finally
+            {
+                try { SingleInstanceChannel.StopServer(); } catch { }
+                try { if (singleInstance != null) singleInstance.Dispose(); } catch { }
             }
         }
 
