@@ -36,6 +36,7 @@ namespace Pixelpipe.Tests
             Run("PreflightShortSummary", TestPreflightShortSummary);
             Run("FirstNonEmptyLine", TestFirstNonEmptyLine);
             Run("IndentLines", TestIndentLines);
+            Run("IsNewer", TestIsNewer);
             Run("ScrubSecrets", TestScrubSecrets);
             Run("BoxProvider", TestBoxProvider);
             Run("ParseBytesPerSec", TestParseBytesPerSec);
@@ -368,6 +369,34 @@ namespace Pixelpipe.Tests
                               Environment.NewLine +
                               "    [OK] drive: P:";
             AssertEqual(expected, TrayContext.IndentLines(input, "    "));
+        }
+
+        private static void TestIsNewer()
+        {
+            // Plain semver bump.
+            AssertTrue(TrayContext.IsNewer("0.7.0", "0.6.1"));
+            AssertTrue(TrayContext.IsNewer("v0.7.0", "0.6.1"));
+            AssertTrue(TrayContext.IsNewer("V1.0.0", "0.9.9"));
+
+            // Equal versions are not newer (even with v prefix and zero padding).
+            AssertFalse(TrayContext.IsNewer("v0.6.1", "0.6.1"));
+            AssertFalse(TrayContext.IsNewer("0.7.0", "0.7.0.0"));
+
+            // Older remote.
+            AssertFalse(TrayContext.IsNewer("v0.5.0", "0.6.1"));
+
+            // Unparseable / empty inputs return false (no false notifications).
+            AssertFalse(TrayContext.IsNewer("", "0.6.1"));
+            AssertFalse(TrayContext.IsNewer(null, "0.6.1"));
+            AssertFalse(TrayContext.IsNewer("v0.6.1", ""));
+            AssertFalse(TrayContext.IsNewer("v0.6.1", null));
+            AssertFalse(TrayContext.IsNewer("not-a-version", "0.6.1"));
+            AssertFalse(TrayContext.IsNewer("v0.6.1", "not-a-version"));
+
+            // Each component is compared independently.
+            AssertTrue(TrayContext.IsNewer("v0.6.10", "0.6.9"));
+            AssertTrue(TrayContext.IsNewer("v1.0.0", "0.999.999"));
+            AssertFalse(TrayContext.IsNewer("v0.6.9", "0.6.10"));
         }
 
         private static void TestFirstNonEmptyLine()

@@ -12,6 +12,11 @@ $Out = Join-Path $OutDir $OutFile
 
 # Avoid "file in use" if a previous Pixelpipe is still running.
 try { Get-Process Pixelpipe -ErrorAction Stop | Stop-Process -Force } catch {}
+
+# Stamp the CHANGELOG version into a generated AssemblyVersion.cs so
+# Application.ProductVersion at runtime matches the released version.
+& (Join-Path $PSScriptRoot 'generate-version.ps1')
+
 $SrcGlob = Join-Path $Root 'src\*.cs'
 $Ico = Join-Path $Root 'assets\pixelpipe.ico'
 $Manifest = Join-Path $Root 'app.manifest'

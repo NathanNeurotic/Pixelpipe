@@ -23,6 +23,10 @@ Pixelpipe writes one JSON object with a per-profile array. Pixelpipe normalizes 
   "SkipMissingDepWizard": "0",
   "VerboseLogging": "0",
   "WelcomeBalloonShown": "1",
+  "QuickControlPinned": "1",
+  "UpdateCheckEnabled": "1",
+  "LastUpdateCheckUtc": "2026-05-28T16:10:18.0000000Z",
+  "AvailableUpdateVersion": "v0.7.0",
   "PixeldrainApiKeyProtected": "<DPAPI base64; not the raw key>",
   "Profiles": [
     {
@@ -50,6 +54,10 @@ Pixelpipe writes `settings.json` atomically (`.tmp` write → rename, keeping th
 | `SkipMissingDepWizard` | `0` / `1` | Set to `1` if you decline the wizard while dependencies are missing, so it doesn't re-open every launch. Re-run from `Setup / dependencies → Run first-time setup wizard`. |
 | `VerboseLogging` | `0` / `1` | Toggle in Settings → Preferences. When `1`, Pixelpipe writes `[debug]` lines for menu placement and refresh timing to `pixelpipe-ui.log`. |
 | `WelcomeBalloonShown` | `0` / `1` | Set to `1` after the one-time welcome balloon ("Pixelpipe is in your system tray…") fires on a non-`/automount` launch. Delete or reset to `0` to make it show again. |
+| `QuickControlPinned` | `0` / `1` | Whether the Quick controls popup stays on top of other windows. Toggled by the "Pin on top" checkbox inside the popup. |
+| `UpdateCheckEnabled` | `0` / `1` | When `1` (default), Pixelpipe checks the GitHub releases API once per tray-menu open (throttled to once per 24 h). When `0`, never checks; you can still use `Check for updates` to open the releases page manually. Toggle from Settings → Preferences → "Check GitHub for new releases". |
+| `LastUpdateCheckUtc` | ISO 8601 UTC | Timestamp of the last successful update check. Pixelpipe uses this to throttle to one check per day. |
+| `AvailableUpdateVersion` | tag string like `v0.7.0`, or empty | Set when an update check finds a newer release; surfaces a "Pixelpipe vX.Y.Z available — download" item at the top of the tray menu. Cleared when the user opens the releases page from that item, or when a later check shows no update. |
 | `PixeldrainApiKeyProtected` | base64 DPAPI blob | Encrypted by DPAPI for the current Windows user. Not the raw API key. Only decryptable by the same Windows account that wrote it. |
 | `Profiles` | array | Each entry is a remote profile (see below). |
 

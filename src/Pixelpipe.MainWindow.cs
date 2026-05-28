@@ -71,6 +71,7 @@ namespace Pixelpipe
             private ComboBox bandwidthCombo;
             private CheckBox startupCheck;
             private CheckBox verboseCheck;
+            private CheckBox updateCheck;
             private Label settingsRcloneStatus;
             private Label settingsWinfspStatus;
             private Label settingsRemoteStatus;
@@ -464,9 +465,20 @@ namespace Pixelpipe
                     owner.SaveSetting("VerboseLogging", verboseCheck.Checked ? "1" : "0");
                 };
 
+                updateCheck = new CheckBox();
+                updateCheck.AutoSize = true;
+                updateCheck.Text = "Check GitHub for new releases (once per day, on tray menu open)";
+                updateCheck.ForeColor = FgColor;
+                updateCheck.Margin = new Padding(0, 8, 0, 8);
+                updateCheck.CheckedChanged += delegate
+                {
+                    owner.SaveSetting("UpdateCheckEnabled", updateCheck.Checked ? "1" : "0");
+                };
+
                 AddSettingRow(grid, "Bandwidth limit:", bwRow);
                 AddSettingRow(grid, "Startup:", startupCheck);
                 AddSettingRow(grid, "Verbose logging:", verboseCheck);
+                AddSettingRow(grid, "Update check:", updateCheck);
 
                 g.Controls.Add(grid);
                 return g;
@@ -621,6 +633,11 @@ namespace Pixelpipe
                     }
                     if (startupCheck != null) startupCheck.Checked = owner.StartupEnabled();
                     if (verboseCheck != null) verboseCheck.Checked = owner.verboseLogging;
+                    if (updateCheck != null)
+                    {
+                        bool enabled = String.Equals(owner.LoadSetting("UpdateCheckEnabled", "1"), "1", StringComparison.OrdinalIgnoreCase);
+                        if (updateCheck.Checked != enabled) updateCheck.Checked = enabled;
+                    }
                     if (diagBox != null && tabs != null && tabs.SelectedTab != null && tabs.SelectedTab.Text == "Diagnostics")
                     {
                         diagBox.Text = owner.BuildDiagnosticsText();
