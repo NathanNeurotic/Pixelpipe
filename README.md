@@ -1,4 +1,4 @@
-<img width="1774" height="887" src="https://github.com/user-attachments/assets/eccffc6c-2cce-404e-82fd-e6b72a483e33" />
+<a href="https://github.com/NathanNeurotic/Pixelpipe/releases/tag/rolling" target="_blank"><img width="1774" height="887" src="https://github.com/user-attachments/assets/eccffc6c-2cce-404e-82fd-e6b72a483e33" /></a>
 
 # Pixelpipe
 
