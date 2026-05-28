@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.5.2
+
+The main window now has every action the tray menu has, and the profile cards no longer clip.
+
+Fixed:
+
+- Profile-card status pill clipped its caption to "unmounte". Cause: the pill was inside a `TableLayoutPanel` cell whose `AutoSize` width was being squeezed by the percent-column sibling. Replaced with a plain `Panel` and `Dock.Right` so the pill claims exactly the width its text needs before the title gets the rest.
+- Profile card cropped its bottom action buttons (only "Mount" and "Mount (full cache)" were visible). Cause: the buttons row wrapped to a second flow line that the parent didn't grow to include. Card now uses a vertical `FlowLayoutPanel` with `AutoSize` so it always grows to fit primary + secondary action rows.
+
+Added (main window now has feature parity with the tray):
+
+- **Status strip across the top of the Profiles tab**: live "Status: N/M mounted", "rclone: found/missing", "WinFsp: found/missing", transfer-quota line, and an admin warning chip when running elevated.
+- **Add cloud remote ▾ dropdown**: same provider list as the tray submenu — Pixeldrain, Google Drive, MEGA, OneDrive, Dropbox, Box, S3/R2/B2/Wasabi, WebDAV/Nextcloud, SFTP, plus Custom existing rclone remote and Open rclone config terminal.
+- **Import existing rclone remotes** button on the Profiles top bar.
+- **Per-profile secondary action row**: Edit, Set primary, Auto-mount toggle (label updates to "Auto-mount: on/off"), Remove. Edit/Remove disable while the profile is mounted.
+- **Settings tab reorganized into groups**:
+  - *Dependencies*: rclone status + Download portable / Install via winget, WinFsp status + Install via winget, Open rclone config terminal.
+  - *Pixeldrain quota*: primary remote configured/not, Configure Pixeldrain remote, API key Set/Clear, Open pixeldrain.com API keys page.
+  - *Preferences*: bandwidth limit + Custom..., Auto-mount at Windows startup, Verbose logging.
+  - *Maintenance*: Run setup wizard, Open log folder, Open settings file, Copy diagnostics, Check for updates, Exit Pixelpipe.
+- Logs tab gains an Open log folder button next to Refresh.
+- Diagnostics tab gains a "Clear stale primary drive" button matching the old Diagnostics window's action.
+
 ## 0.5.1
 
 Fixed:
