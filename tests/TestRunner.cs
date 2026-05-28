@@ -45,6 +45,12 @@ namespace Pixelpipe.Tests
             Run("ParseBytesPerSec", TestParseBytesPerSec);
             Run("ParseBytes", TestParseBytes);
             Run("ParseStoragePercent", TestParseStoragePercent);
+            Run("ComputeStoragePercent", TestComputeStoragePercent);
+            Run("FilterLogText", TestFilterLogText);
+            Run("ProviderCapabilitiesDefaults", TestProviderCapabilitiesDefaults);
+            Run("BuildProfilesExportJson", TestBuildProfilesExportJson);
+            Run("TryParseProfilesExportJson", TestTryParseProfilesExportJson);
+            Run("PlanProfileImport", TestPlanProfileImport);
 
             Console.WriteLine();
             Console.WriteLine(total - failures + " / " + total + " passed");
@@ -526,6 +532,170 @@ namespace Pixelpipe.Tests
             AssertEqual(50, TrayContext.ParseStoragePercent("3 GB / 6 GB used (50%, 3 GB left, 30d)"));
             AssertEqual(99, TrayContext.ParseStoragePercent("x (99.4%)"));
             AssertEqual(100, TrayContext.ParseStoragePercent("(150%)")); // clamped
+        }
+
+        private static void TestComputeStoragePercent()
+        {
+            // Missing data returns -1 so the caller knows to fall back.
+            AssertEqual(-1, TrayContext.ComputeStoragePercent(-1, 100));
+            AssertEqual(-1, TrayContext.ComputeStoragePercent(5, 0));
+            AssertEqual(-1, TrayContext.ComputeStoragePercent(5, -1));
+
+            AssertEqual(0, TrayContext.ComputeStoragePercent(0, 100));
+            AssertEqual(50, TrayContext.ComputeStoragePercent(50, 100));
+            AssertEqual(100, TrayContext.ComputeStoragePercent(100, 100));
+            // Over-budget clamped.
+            AssertEqual(100, TrayContext.ComputeStoragePercent(150, 100));
+            // Rounded.
+            AssertEqual(33, TrayContext.ComputeStoragePercent(1, 3));
+        }
+
+        private static void TestFilterLogText()
+        {
+            // Empty/null inputs pass through cleanly.
+            AssertEqual("", TrayContext.FilterLogText(null, "anything"));
+            AssertEqual("", TrayContext.FilterLogText("", "anything"));
+            // Empty filter returns input untouched.
+            AssertEqual("hello\nworld", TrayContext.FilterLogText("hello\nworld", ""));
+            AssertEqual("hello\nworld", TrayContext.FilterLogText("hello\nworld", null));
+            // Case-insensitive substring match, line-by-line.
+            string log = "2026-05-28 mount profile=Pixeldrain\r\n2026-05-28 unmount profile=Drive\r\n2026-05-28 mount profile=Pixeldrain done";
+            string filtered = TrayContext.FilterLogText(log, "pixeldrain");
+            AssertContains(filtered, "Pixeldrain");
+            AssertFalse(filtered.Contains("Drive\r") || filtered.Contains("Drive\n"));
+            // No match returns the stub.
+            string none = TrayContext.FilterLogText(log, "ZZZZ");
+            AssertContains(none, "no lines match filter");
+        }
+
+        private static void TestProviderCapabilitiesDefaults()
+        {
+            // Pixeldrain reports everything.
+            ProviderCapabilities pd = ProviderCapabilities.For("pixeldrain");
+            AssertTrue(pd.SupportsStorageQuota);
+            AssertTrue(pd.SupportsTransferQuota);
+            AssertTrue(pd.SupportsFileCount);
+
+            // Drive has storage but no transfer-quota concept in our model.
+            ProviderCapabilities drive = ProviderCapabilities.For("drive");
+            AssertTrue(drive.SupportsStorageQuota);
+            AssertFalse(drive.SupportsTransferQuota);
+            AssertContains(drive.DefaultTransferQuotaText(), "not applicable");
+
+            // S3 has neither — labels reflect that.
+            ProviderCapabilities s3 = ProviderCapabilities.For("s3");
+            AssertFalse(s3.SupportsStorageQuota);
+            AssertFalse(s3.SupportsTransferQuota);
+            AssertContains(s3.DefaultStorageText(), "not applicable");
+            AssertContains(s3.DefaultTransferQuotaText(), "not applicable");
+
+            // Unknown provider falls into custom defaults rather than throwing.
+            ProviderCapabilities custom = ProviderCapabilities.For("madeup");
+            AssertEqual("custom", custom.Provider);
+            AssertTrue(custom.SupportsStorageQuota);
+            AssertFalse(custom.SupportsTransferQuota);
+
+            // Reading by remote string also resolves the provider.
+            ProviderCapabilities byRemote = ProviderCapabilities.For("Pixeldrain:");
+            AssertEqual("pixeldrain", byRemote.Provider);
+        }
+
+        private static void TestBuildProfilesExportJson()
+        {
+            RemoteProfile p = new RemoteProfile();
+            p.Id = "abc123";
+            p.Label = "Pixeldrain primary";
+            p.Provider = "pixeldrain";
+            p.Remote = "Pixeldrain:";
+            p.DriveLetter = "P:";
+            p.MountMode = "network";
+            p.AutoMount = true;
+            p.FullCache = false;
+            p.BandwidthLimit = "1M";
+            p.ScheduleEnabled = true;
+            p.ScheduleMountTime = "09:00";
+            p.ScheduleUnmountTime = "18:00";
+            p.ScheduleDays = "Mon,Wed,Fri";
+
+            string json = TrayContext.BuildProfilesExportJson(new RemoteProfile[] { p });
+            AssertContains(json, "\"_pixelpipeExport\"");
+            AssertContains(json, "\"version\":\"" + "0.9" + "\"");
+            AssertContains(json, "\"profiles\":");
+            AssertContains(json, "\"Id\":\"abc123\"");
+            AssertContains(json, "\"BandwidthLimit\":\"1M\"");
+            AssertContains(json, "\"ScheduleDays\":\"Mon,Wed,Fri\"");
+            // Encrypted secrets must NOT leak into exports.
+            AssertFalse(json.IndexOf("PixeldrainApiKeyProtected", StringComparison.OrdinalIgnoreCase) >= 0);
+        }
+
+        private static void TestTryParseProfilesExportJson()
+        {
+            // Round-trip: export → parse → check fields preserved.
+            RemoteProfile p = new RemoteProfile();
+            p.Id = "deadbeef";
+            p.Label = "Drive personal";
+            p.Provider = "drive";
+            p.Remote = "Drive:";
+            p.DriveLetter = "G:";
+            p.AutoMount = true;
+            p.ScheduleEnabled = true;
+            p.ScheduleMountTime = "07:30";
+            p.ScheduleDays = "Mon,Tue,Wed,Thu,Fri";
+
+            string json = TrayContext.BuildProfilesExportJson(new RemoteProfile[] { p });
+            List<RemoteProfile> parsed;
+            string error;
+            AssertTrue(TrayContext.TryParseProfilesExportJson(json, out parsed, out error));
+            AssertEqual(1, parsed.Count);
+            AssertEqual("deadbeef", parsed[0].Id);
+            AssertEqual("Drive personal", parsed[0].Label);
+            AssertEqual("drive", parsed[0].Provider);
+            AssertEqual("Drive:", parsed[0].Remote);
+            AssertEqual("G:", parsed[0].DriveLetter);
+            AssertTrue(parsed[0].AutoMount);
+            AssertTrue(parsed[0].ScheduleEnabled);
+            AssertEqual("07:30", parsed[0].ScheduleMountTime);
+            AssertEqual("Mon,Tue,Wed,Thu,Fri", parsed[0].ScheduleDays);
+
+            // Empty/garbage inputs return false with a usable message.
+            List<RemoteProfile> ignored;
+            AssertFalse(TrayContext.TryParseProfilesExportJson("", out ignored, out error));
+            AssertContains(error, "empty");
+            AssertFalse(TrayContext.TryParseProfilesExportJson("not-json", out ignored, out error));
+            // {"foo":1} is parsable JSON but missing "profiles".
+            AssertFalse(TrayContext.TryParseProfilesExportJson("{\"foo\":1}", out ignored, out error));
+            AssertContains(error, "profiles");
+
+            // Legacy capitalisation: a raw settings.json with "Profiles" still imports.
+            string legacy = "{\"Profiles\":[{\"Id\":\"x\",\"Label\":\"L\",\"Provider\":\"drive\",\"Remote\":\"R:\",\"DriveLetter\":\"X:\"}]}";
+            AssertTrue(TrayContext.TryParseProfilesExportJson(legacy, out parsed, out error));
+            AssertEqual(1, parsed.Count);
+        }
+
+        private static void TestPlanProfileImport()
+        {
+            RemoteProfile already = new RemoteProfile();
+            already.Id = "already-here";
+            already.Label = "A";
+            RemoteProfile fresh = new RemoteProfile();
+            fresh.Id = "brand-new";
+            fresh.Label = "B";
+            RemoteProfile noId = new RemoteProfile();
+            noId.Id = "";
+            noId.Label = "C";
+
+            HashSet<string> existing = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            existing.Add("already-here");
+
+            List<RemoteProfile> incoming = new List<RemoteProfile>();
+            incoming.Add(already);
+            incoming.Add(fresh);
+            incoming.Add(noId);
+
+            TrayContext.ImportPlan plan = TrayContext.PlanProfileImport(incoming, existing);
+            AssertEqual(2, plan.NewProfiles.Count); // fresh + noId (treated as new)
+            AssertEqual(1, plan.AlreadyPresent.Count);
+            AssertEqual("already-here", plan.AlreadyPresent[0].Id);
         }
 
         private static void AssertEqual(object expected, object actual)

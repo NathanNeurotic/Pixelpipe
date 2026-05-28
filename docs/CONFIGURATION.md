@@ -92,6 +92,42 @@ Pixelpipe writes `settings.json` atomically (`.tmp` write → rename, keeping th
 | `/automount` | Pixelpipe mounts every profile with `AutoMount=true` ~5 s after launch and shows a balloon with the count. Set by the Windows Startup registry entry when you toggle `Auto-mount at Windows startup` in the tray. |
 | `/smoketest-menu` | Runs the tray-menu placement-math and dark-theme sanity check, then exits. Exit code 0 means OK. CI gates on this; you can run it yourself any time. |
 
+## Provider capability table
+
+Pixelpipe ships a static table (`src/ProviderCapabilities.cs`) describing what each backend can report:
+
+| Provider | Storage quota | Transfer quota | Object count |
+| --- | --- | --- | --- |
+| `pixeldrain` | yes | yes (via Pixeldrain API) | yes |
+| `drive` (Google Drive) | yes | no | yes |
+| `onedrive` | yes | no | yes |
+| `dropbox` | yes | no | yes |
+| `box` | yes | no | yes |
+| `mega` | yes | (hint only — read on the MEGA web account) | yes |
+| `s3` (S3, R2, B2, Wasabi) | no | no | no |
+| `webdav` | no (server-dependent) | no | no |
+| `sftp` | yes (when `statfs` works) | no | no |
+| `ftp` | no | no | no |
+| `custom` / unknown | yes (best-effort) | no | yes |
+
+When a flag is `no`, the UI shows "not applicable for this provider" or a provider-specific hint instead of "0" or "unavailable". When a flag is `yes` but the backend doesn't respond (e.g. a WebDAV server that doesn't implement quota), the line shows "not reported by backend".
+
+## Profile import / export
+
+`Tools / diagnostics → Export profiles to file…` writes a JSON file containing every profile's editable fields. `Import profiles from file…` reads such a file and lets you pick a profile to add.
+
+- Encrypted secrets (`PixeldrainApiKeyProtected`, rclone passwords inside rclone config) are **not** included — DPAPI binds them to the writing Windows account, so they're useless on another machine.
+- rclone remote configuration itself is **not** exported. Pixelpipe only manages the *display profile*; the underlying `rclone config` file still needs to be in place on the target machine (or you'll re-create the remote there).
+- Profiles whose `Id` already exists in the receiving Pixelpipe are skipped. Drive letter and label collisions are resolved automatically by picking the next free letter and suffixing the label.
+- Export file shape:
+
+```json
+{
+  "_pixelpipeExport": { "version": "0.9", "exportedAt": "2026-…Z", "appVersion": "0.9.0", "machine": "DESKTOP" },
+  "profiles": [ { "Id": "…", "Label": "…", "Provider": "…", "Remote": "…", "DriveLetter": "…", "MountMode": "network", "AutoMount": false, "FullCache": false, "BandwidthLimit": "", "ScheduleEnabled": false, "ScheduleMountTime": "", "ScheduleUnmountTime": "", "ScheduleDays": "Mon,Tue,Wed,Thu,Fri,Sat,Sun" } ]
+}
+```
+
 ## DPAPI and the API key
 
 The optional PixelDrain API key is stored in `PixeldrainApiKeyProtected` as a base64 DPAPI blob. DPAPI binds the encryption to the Windows account. Copying the settings file to another machine or another Windows user will silently fail to decrypt the key (Pixelpipe will treat the key as missing).

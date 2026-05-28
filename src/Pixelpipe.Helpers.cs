@@ -300,6 +300,38 @@ namespace Pixelpipe
             return (long)v;
         }
 
+        // Returns only the lines of `text` that contain `filter` (case-insensitive).
+        // Empty filter returns the input untouched. Empty match returns a stub
+        // string so the user sees what happened instead of a blank field.
+        internal static string FilterLogText(string text, string filter)
+        {
+            if (String.IsNullOrEmpty(text)) return text ?? "";
+            if (String.IsNullOrEmpty(filter)) return text;
+            string[] lines = text.Replace("\r", "").Split('\n');
+            StringBuilder sb = new StringBuilder();
+            int kept = 0;
+            for (int i = 0; i < lines.Length; i++)
+            {
+                if (lines[i].IndexOf(filter, StringComparison.OrdinalIgnoreCase) < 0) continue;
+                sb.AppendLine(lines[i]);
+                kept++;
+            }
+            if (kept == 0) return "(no lines match filter '" + filter + "')";
+            return sb.ToString();
+        }
+
+        // Computes used/total as 0..100 from raw bytes. Returns -1 when either
+        // value is missing so callers can fall back to ParseStoragePercent or
+        // skip the bar entirely.
+        internal static int ComputeStoragePercent(long usedBytes, long totalBytes)
+        {
+            if (usedBytes < 0 || totalBytes <= 0) return -1;
+            double pct = (double)usedBytes * 100.0 / (double)totalBytes;
+            if (pct < 0) pct = 0;
+            if (pct > 100) pct = 100;
+            return (int)Math.Round(pct);
+        }
+
         // Parses a percentage out of a storage line like
         // "1.11 GB / 7.28 TB used (0.5%, 7.27 TB left, 30d)". Returns 0..100, clamped.
         internal static int ParseStoragePercent(string text)
