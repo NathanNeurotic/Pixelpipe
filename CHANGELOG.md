@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.4
+
+Fixed:
+
+- Profile card was missing its title and "MOUNTED / unmounted" pill. The previous version put both in a Panel with `Dock = Left` / `Dock = Right` children — `Panel.AutoSize` doesn't measure docked children well and collapsed the header to zero height, so the title vanished. Header rewritten as a `TableLayoutPanel` with two `AutoSize` columns (title in col 0, pill in col 1), which `AutoSize` handles correctly.
+- Profile card was clipping the `Unmount` button on the right and wrapping `Open` to its own row. Card was 460 px wide but four `AutoSize` buttons needed ~540 px. Card minimum width is now 560 px, the action rows have `WrapContents = false` so they stay on one line, and the long "Mount (cache)" button label is shortened to "Full cache".
+- Card body switched from `FlowLayoutPanel` to `TableLayoutPanel` for the vertical stack. The TLP's `AutoSize` reliably measures the docked title and pill row; the flow panel's was the indirect cause of both the missing header and the wrapped buttons.
+
 ## 0.5.3
 
 Fixed:

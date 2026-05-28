@@ -713,6 +713,11 @@ namespace Pixelpipe
                 this.owner = owner;
                 this.Profile = p;
 
+                // Card root: a Panel just for the border and background. Content lives
+                // in a TableLayoutPanel docked Fill so the Panel's AutoSize can measure
+                // a real width (Panel.AutoSize doesn't handle Dock=Left/Right children
+                // well — it collapses them to zero height, which is what made the title
+                // and status pill vanish in v0.5.2).
                 Root = new Panel();
                 Root.AutoSize = true;
                 Root.AutoSizeMode = AutoSizeMode.GrowAndShrink;
@@ -720,26 +725,40 @@ namespace Pixelpipe
                 Root.Padding = new Padding(14);
                 Root.BackColor = CardBg;
                 Root.BorderStyle = BorderStyle.FixedSingle;
-                Root.MinimumSize = new Size(460, 0);
+                Root.MinimumSize = new Size(560, 0);
 
-                FlowLayoutPanel layout = new FlowLayoutPanel();
+                TableLayoutPanel layout = new TableLayoutPanel();
                 layout.Dock = DockStyle.Top;
                 layout.AutoSize = true;
                 layout.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-                layout.FlowDirection = FlowDirection.TopDown;
-                layout.WrapContents = false;
+                layout.ColumnCount = 1;
+                layout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
                 layout.BackColor = CardBg;
                 layout.Margin = new Padding(0);
                 layout.Padding = new Padding(0);
+                layout.GrowStyle = TableLayoutPanelGrowStyle.AddRows;
 
-                // Header: title docks left, status pill docks right.
-                Panel header = new Panel();
-                header.Dock = DockStyle.Top;
+                // Header is a TableLayoutPanel with two AutoSize columns. No percent
+                // column — those force GrowAndShrink to collapse and were the cause of
+                // the "unmounte" clipping bug. We just put the pill right next to the
+                // title with a small gap; visually that reads as a chip on the right.
+                TableLayoutPanel header = new TableLayoutPanel();
                 header.AutoSize = true;
                 header.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-                header.MinimumSize = new Size(420, 0);
+                header.ColumnCount = 2;
+                header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+                header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+                header.RowCount = 1;
+                header.RowStyles.Add(new RowStyle(SizeType.AutoSize));
                 header.Margin = new Padding(0, 0, 0, 8);
+                header.Padding = new Padding(0);
                 header.BackColor = CardBg;
+
+                titleLabel = new Label();
+                titleLabel.AutoSize = true;
+                titleLabel.Font = new Font("Segoe UI", 11.5f, FontStyle.Bold);
+                titleLabel.ForeColor = FgColor;
+                titleLabel.Margin = new Padding(0, 6, 16, 0);
 
                 statusPill = new Label();
                 statusPill.AutoSize = true;
@@ -747,20 +766,10 @@ namespace Pixelpipe
                 statusPill.ForeColor = FgColor;
                 statusPill.Padding = new Padding(10, 4, 10, 4);
                 statusPill.TextAlign = ContentAlignment.MiddleCenter;
-                statusPill.Dock = DockStyle.Right;
+                statusPill.Margin = new Padding(0, 8, 0, 0);
 
-                titleLabel = new Label();
-                titleLabel.AutoSize = true;
-                titleLabel.Font = new Font("Segoe UI", 11.5f, FontStyle.Bold);
-                titleLabel.ForeColor = FgColor;
-                titleLabel.Margin = new Padding(0);
-                titleLabel.Dock = DockStyle.Left;
-                titleLabel.Padding = new Padding(0, 6, 8, 0);
-
-                // Add the right-docked control FIRST so it claims the right edge before
-                // the left-docked title takes the remainder.
-                header.Controls.Add(statusPill);
-                header.Controls.Add(titleLabel);
+                header.Controls.Add(titleLabel, 0, 0);
+                header.Controls.Add(statusPill, 1, 0);
 
                 remoteLabel = MakeLine();
                 driveLabel = MakeLine();
@@ -770,7 +779,7 @@ namespace Pixelpipe
                 storageBar = new ProgressBar();
                 storageBar.Style = ProgressBarStyle.Continuous;
                 storageBar.Height = 6;
-                storageBar.Width = 430;
+                storageBar.Width = 528;
                 storageBar.Margin = new Padding(0, 2, 0, 8);
 
                 trafficLabel = MakeLine();
@@ -778,19 +787,22 @@ namespace Pixelpipe
 
                 errorLabel = MakeLine();
                 errorLabel.ForeColor = ErrorColor;
-                errorLabel.MaximumSize = new Size(430, 0);
+                errorLabel.MaximumSize = new Size(528, 0);
+                errorLabel.AutoSize = true;
 
-                // Primary actions: mount/unmount/open.
+                // Action rows: keep WrapContents off and let the card width drive the
+                // layout. With Root.MinimumSize.Width = 560 the card has ~528 px of
+                // content area, plenty for four AutoSize buttons in one row.
                 FlowLayoutPanel primary = new FlowLayoutPanel();
                 primary.AutoSize = true;
                 primary.AutoSizeMode = AutoSizeMode.GrowAndShrink;
                 primary.FlowDirection = FlowDirection.LeftToRight;
-                primary.WrapContents = true;
+                primary.WrapContents = false;
                 primary.Margin = new Padding(0, 8, 0, 0);
                 primary.BackColor = CardBg;
 
                 mountLow = MainWindow.MakeAction("Mount", delegate { owner.MountProfile(Profile, false); });
-                mountFull = MainWindow.MakeAction("Mount (cache)", delegate { owner.MountProfile(Profile, true); });
+                mountFull = MainWindow.MakeAction("Full cache", delegate { owner.MountProfile(Profile, true); });
                 unmount = MainWindow.MakeAction("Unmount", delegate { owner.UnmountProfile(Profile, false); });
                 openDrive = MainWindow.MakeAction("Open", delegate { owner.OpenDrive(Profile); });
                 primary.Controls.Add(mountLow);
@@ -798,12 +810,11 @@ namespace Pixelpipe
                 primary.Controls.Add(unmount);
                 primary.Controls.Add(openDrive);
 
-                // Secondary actions: edit/set primary/auto-mount/remove.
                 FlowLayoutPanel secondary = new FlowLayoutPanel();
                 secondary.AutoSize = true;
                 secondary.AutoSizeMode = AutoSizeMode.GrowAndShrink;
                 secondary.FlowDirection = FlowDirection.LeftToRight;
-                secondary.WrapContents = true;
+                secondary.WrapContents = false;
                 secondary.Margin = new Padding(0, 4, 0, 0);
                 secondary.BackColor = CardBg;
 
@@ -816,20 +827,30 @@ namespace Pixelpipe
                 secondary.Controls.Add(autoMountBtn);
                 secondary.Controls.Add(removeBtn);
 
-                layout.Controls.Add(header);
-                layout.Controls.Add(remoteLabel);
-                layout.Controls.Add(driveLabel);
-                layout.Controls.Add(statusLabel);
-                layout.Controls.Add(storageLabel);
-                layout.Controls.Add(storageBar);
-                layout.Controls.Add(trafficLabel);
-                layout.Controls.Add(speedLabel);
-                layout.Controls.Add(errorLabel);
-                layout.Controls.Add(primary);
-                layout.Controls.Add(secondary);
+                AddRow(layout, header);
+                AddRow(layout, remoteLabel);
+                AddRow(layout, driveLabel);
+                AddRow(layout, statusLabel);
+                AddRow(layout, storageLabel);
+                AddRow(layout, storageBar);
+                AddRow(layout, trafficLabel);
+                AddRow(layout, speedLabel);
+                AddRow(layout, errorLabel);
+                AddRow(layout, primary);
+                AddRow(layout, secondary);
 
                 Root.Controls.Add(layout);
                 ApplyLiveState();
+            }
+
+            // TableLayoutPanel.Controls.Add(control, col, row) requires you to also bump
+            // RowCount, RowStyles, etc. Doing this inline once per row gets noisy fast.
+            private static void AddRow(TableLayoutPanel grid, Control c)
+            {
+                int row = grid.RowCount;
+                grid.RowCount = row + 1;
+                grid.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                grid.Controls.Add(c, 0, row);
             }
 
             public void ApplyLiveState()
