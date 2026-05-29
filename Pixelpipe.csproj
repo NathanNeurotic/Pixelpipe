@@ -1,0 +1,56 @@
+<!--
+  v0.14.2 (ARCH-2): SDK-style csproj that produces the same Pixelpipe.exe
+  as scripts/build-release.ps1 (csc.exe). The PowerShell script remains the
+  primary build path for CI; this csproj is an alternative entry for
+  developers who want `dotnet build` + analyzers + IDE integration without
+  hand-editing the reference list every time we add a framework dll.
+
+  Build: dotnet build -c Release Pixelpipe.csproj
+  Output: bin/Release/net48/Pixelpipe.exe (copy to dist/ if needed)
+-->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <RootNamespace>Pixelpipe</RootNamespace>
+    <AssemblyName>Pixelpipe</AssemblyName>
+    <PlatformTarget>x64</PlatformTarget>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>assets\pixelpipe.ico</ApplicationIcon>
+    <Optimize>true</Optimize>
+    <DebugType>portable</DebugType>
+    <UseWindowsForms>true</UseWindowsForms>
+    <StartupObject>Pixelpipe.Program</StartupObject>
+    <Nullable>disable</Nullable>
+    <LangVersion>7.3</LangVersion>
+    <!-- scripts/generate-version.ps1 writes src/AssemblyVersion.cs from
+         CHANGELOG.md before every build; let the script own the version
+         attributes so both build paths agree. -->
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <!-- Treat warnings as warnings, not errors — the codebase uses several
+         WinForms patterns Roslyn nags about (empty catch, etc.) that we
+         keep intentionally. -->
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Source files (everything under src/). Exclude the tests tree;
+         it has its own Pixelpipe.Tests.csproj. -->
+    <Compile Remove="**\*.cs" />
+    <Compile Include="src\**\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Framework references the csc.exe build also passes. UseWindowsForms
+         pulls in System.Windows.Forms / System.Drawing already. -->
+    <Reference Include="System.Web.Extensions" />
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.IO.Compression.FileSystem" />
+    <Reference Include="System.Management" />
+    <Reference Include="System.Security" />
+    <Reference Include="Microsoft.CSharp" />
+  </ItemGroup>
+
+</Project>

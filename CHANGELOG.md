@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.14.2
+
+ARCH-2 from the audit. SDK-style csproj alongside the existing `csc.exe` build, so `dotnet build` and `dotnet test` work out of the box without losing the PowerShell pipeline.
+
+Added:
+
+- **`Pixelpipe.csproj`** — SDK-style `Microsoft.NET.Sdk` project targeting `net48`, `WinExe`, `/platform:x64`, manifest + icon embedded. Produces an equivalent exe to `scripts/build-release.ps1` from `dotnet build -c Release Pixelpipe.csproj`. Auto-generated AssemblyInfo is disabled so the existing `scripts/generate-version.ps1` (CHANGELOG → `src/AssemblyVersion.cs`) stays the single source of truth for the version.
+- **`Pixelpipe.Tests.csproj`** — same pattern for the hand-rolled test runner. `dotnet run --project Pixelpipe.Tests.csproj -c Release` runs all 53 tests.
+- The PowerShell scripts (`build-release.ps1`, `run-tests.ps1`) remain the canonical CI path; the csproj is an alternative entry for developers who want IDE integration / analyzers without hand-editing the reference list.
+
 ## 0.14.1
 
 GUI-3 follow-up — explicit DPI-aware widths for the most layout-sensitive controls.
