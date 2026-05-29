@@ -118,7 +118,7 @@ namespace Pixelpipe
                     {
                         ComboBox combo = new ComboBox();
                         combo.DropDownStyle = ComboBoxStyle.DropDownList;
-                        combo.Width = 540;
+                        combo.Width = form.LogicalToDeviceUnits(540);
                         combo.BackColor = WindowTheme.InputBg;
                         combo.ForeColor = WindowTheme.FgColor;
                         combo.Margin = new Padding(0, 0, 0, 2);
@@ -130,7 +130,7 @@ namespace Pixelpipe
                     else
                     {
                         TextBox tb = new TextBox();
-                        tb.Width = 540;
+                        tb.Width = form.LogicalToDeviceUnits(540);
                         tb.BackColor = WindowTheme.InputBg;
                         tb.ForeColor = WindowTheme.FgColor;
                         tb.Margin = new Padding(0, 0, 0, 2);

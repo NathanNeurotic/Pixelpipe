@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.14.1
+
+GUI-3 follow-up — explicit DPI-aware widths for the most layout-sensitive controls.
+
+Fixed:
+
+- **Fixed pixel widths now go through `LogicalToDeviceUnits`** so they scale correctly at 125/150/200% Windows display scaling instead of staying at their 96-DPI design values. Sites touched: profile-card storage gauge (528), main-window combo boxes (`activityFilter`/160, `logSelector`/360, `logFilterBox`/200, `bandwidthCombo`/200), Edit-profile dialog inputs (`driveBox`/90, `bwCombo`/320, `bwScheduleBox`/540, `mountTimeBox`/100, `unmountTimeBox`/100, `watchPathBox`/380, `watchTargetBox`/380, `watchModeCombo`/180, `watchQuietBox`/100), and provider-wizard inputs (combo/540, textbox/540). The form auto-scale would normally handle these, but explicit conversion guarantees correctness regardless of when auto-scale runs.
+
 ## 0.14.0
 
 GUI polish from the v0.12.1 audit. Three visible changes, no functional changes.
