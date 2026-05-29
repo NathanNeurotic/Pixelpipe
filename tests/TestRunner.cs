@@ -62,6 +62,7 @@ namespace Pixelpipe.Tests
             Run("ParseSha256ForFile", TestParseSha256ForFile);
             Run("ProcessResultSucceeded", TestProcessResultSucceeded);
             Run("GenerateRcAuthToken", TestGenerateRcAuthToken);
+            Run("LooksLikeRcloneAlreadyUnmounted", TestLooksLikeRcloneAlreadyUnmounted);
             Run("ClassifyActivity", TestClassifyActivity);
             Run("FormatActivityEvents", TestFormatActivityEvents);
             Run("ParseActivityLog", TestParseActivityLog);
@@ -871,6 +872,24 @@ namespace Pixelpipe.Tests
             AssertFalse(a.Contains("+"));
             AssertFalse(a.Contains("/"));
             AssertFalse(a.Contains("="));
+        }
+
+        private static void TestLooksLikeRcloneAlreadyUnmounted()
+        {
+            // Real-world: user's pixelpipe-ui.log showed this exact response.
+            string real = "{ \"error\": \"mount not found\", \"input\": { \"mountPoint\": \"P:\" }, \"path\": \"mount/unmount\", \"status\": 500 }";
+            AssertTrue(TrayContext.LooksLikeRcloneAlreadyUnmounted(real));
+
+            // Case-insensitive.
+            AssertTrue(TrayContext.LooksLikeRcloneAlreadyUnmounted("MOUNT NOT FOUND"));
+            AssertTrue(TrayContext.LooksLikeRcloneAlreadyUnmounted("Mount Not Found"));
+
+            // A genuine failure shouldn't match — we still want the user to
+            // see the force-kill prompt for unrelated rclone errors.
+            AssertFalse(TrayContext.LooksLikeRcloneAlreadyUnmounted("internal server error"));
+            AssertFalse(TrayContext.LooksLikeRcloneAlreadyUnmounted("connection refused"));
+            AssertFalse(TrayContext.LooksLikeRcloneAlreadyUnmounted(""));
+            AssertFalse(TrayContext.LooksLikeRcloneAlreadyUnmounted(null));
         }
 
         private static void TestProcessResultSucceeded()

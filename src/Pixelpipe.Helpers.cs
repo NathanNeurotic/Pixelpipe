@@ -113,9 +113,15 @@ namespace Pixelpipe
                 {
                     try { p.Kill(); } catch { }
                     result.TimedOut = true;
-                    // After Kill, WaitForExit() (no timeout) lets the async
-                    // readers flush their final buffers before we read them.
-                    try { p.WaitForExit(); } catch { }
+                    // v0.13.3 hotfix: cap the post-Kill wait at 2 seconds.
+                    // The unbounded WaitForExit() introduced in v0.13.0 could
+                    // block forever if Kill didn't fully terminate the
+                    // process (zombie state, OS handle issue, OS handle
+                    // exhaustion). User logs showed the refresh worker
+                    // hanging until the deadman bailed it out every 90-120s
+                    // every 2-3 minutes. 2 s is plenty for the async readers
+                    // to flush their final buffers; beyond that we move on.
+                    try { p.WaitForExit(2000); } catch { }
                 }
                 lock (soLock) lock (seLock)
                 {
