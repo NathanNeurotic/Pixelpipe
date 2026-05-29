@@ -26,6 +26,22 @@ namespace Pixelpipe
     {
         private const int MenuOpenRefreshThrottleSeconds = 30;
         private DateTime lastMenuOpenRefreshUtc = DateTime.MinValue;
+        // v0.13.2: every right-click used to trigger a full RebuildMenu,
+        // which tears down and recreates every ToolStripMenuItem (each of
+        // which owns Windows USER handles). WinForms doesn't release every
+        // handle on Dispose, so after a few thousand right-clicks the
+        // process hits the per-process USER limit (~10000) and
+        // ContextMenuStrip.Show fails with Win32Exception "Error creating
+        // window handle". User report 2026-05-28: menu intermittently
+        // stopped working after ~5 h uptime; log confirms the symptom.
+        //
+        // Fix: structural rebuilds only happen from sites that genuinely
+        // change the menu shape (profile add/remove, balloon, mount/unmount
+        // state, etc.). OnMenuOpening prefers the in-place update path
+        // (UpdateMenuLiveState) so frequent right-clicks no longer churn
+        // handles. menuStructureDirty is set by the rare sites that bypass
+        // a direct RebuildMenu call.
+        private bool menuStructureDirty = true;
 
         // Held references to dynamic top-level menu items so UpdateMenuLiveState
         // can update their Text / Enabled / Checked without rebuilding the menu.
@@ -67,13 +83,20 @@ namespace Pixelpipe
 
         private void OnMenuOpening()
         {
-            // If anything in RebuildMenu throws (a corrupt profile, a missing
-            // dependency, a renamed icon resource), we still need *some* menu
-            // so the user can at least Exit or Open the main window. Without
-            // this fallback a single exception leaves the tray icon with an
-            // empty context menu, which looks like Pixelpipe is dead. See
-            // BuildEmergencyMenu below.
-            try { RebuildMenu(); }
+            // v0.13.2: rebuild only on real structural changes; refresh
+            // in-place otherwise. See menuStructureDirty comment for the
+            // handle-leak story this fixes.
+            try
+            {
+                if (menuStructureDirty || menu == null || menu.Items.Count == 0)
+                {
+                    RebuildMenu();
+                }
+                else
+                {
+                    UpdateMenuLiveState();
+                }
+            }
             catch (Exception ex)
             {
                 LogUiIssue("rebuild menu", ex);
@@ -92,6 +115,10 @@ namespace Pixelpipe
         {
             try
             {
+                // Emergency menu is a stand-in; next right-click should
+                // try a real rebuild again so a transient failure doesn't
+                // leave the user stuck in degraded mode forever.
+                menuStructureDirty = true;
                 if (menu == null) return;
                 menu.Items.Clear();
                 ToolStripMenuItem header = new ToolStripMenuItem("Pixelpipe — menu rebuild failed");
@@ -184,6 +211,10 @@ namespace Pixelpipe
             menu.Items.Add(MenuAction("Exit", delegate { ExitApp(); }));
 
             UpdateTrayTooltip();
+            // Menu now matches the current structure; the in-place live
+            // updater will keep it in sync until something else marks it
+            // dirty again.
+            menuStructureDirty = false;
         }
 
         // Adds "Open Pixelpipe window..." and "Quick controls..." entries plus a
