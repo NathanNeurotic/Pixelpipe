@@ -61,6 +61,7 @@ namespace Pixelpipe.Tests
             Run("MergeRcloneConfigSection", TestMergeRcloneConfigSection);
             Run("ParseSha256ForFile", TestParseSha256ForFile);
             Run("ProcessResultSucceeded", TestProcessResultSucceeded);
+            Run("GenerateRcAuthToken", TestGenerateRcAuthToken);
             Run("ClassifyActivity", TestClassifyActivity);
             Run("FormatActivityEvents", TestFormatActivityEvents);
             Run("ParseActivityLog", TestParseActivityLog);
@@ -855,6 +856,21 @@ namespace Pixelpipe.Tests
             AssertEqual("", TrayContext.ParseSha256ForFile(null, "anything.zip"));
             AssertEqual("", TrayContext.ParseSha256ForFile(sums, ""));
             AssertEqual("", TrayContext.ParseSha256ForFile(sums, null));
+        }
+
+        private static void TestGenerateRcAuthToken()
+        {
+            // Tokens are 24 bytes of crypto-random, base64 URL-safe — should
+            // be substantial (>20 chars) and never repeat between calls.
+            string a = TrayContext.GenerateRcAuthToken();
+            string b = TrayContext.GenerateRcAuthToken();
+            AssertTrue(a.Length >= 20);
+            AssertTrue(b.Length >= 20);
+            AssertFalse(a == b);
+            // URL-safe characters only (no +, /, =).
+            AssertFalse(a.Contains("+"));
+            AssertFalse(a.Contains("/"));
+            AssertFalse(a.Contains("="));
         }
 
         private static void TestProcessResultSucceeded()

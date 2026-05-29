@@ -179,7 +179,7 @@ namespace Pixelpipe
                           " --vfs-cache-max-age 6h" +
                           " --vfs-cache-max-size 5G" +
                           " --volname " + QuoteArg(p.Label) +
-                          " --rc --rc-no-auth --rc-addr 127.0.0.1:" + p.RcPort.ToString() +
+                          " --rc " + RcCommonFlags(p.RcPort) +
                           " --log-level INFO" +
                           " --log-file " + QuoteArg(p.LogFile);
 
@@ -264,9 +264,9 @@ namespace Pixelpipe
             string quitResult = "";
             try
             {
-                unmountResult = RunRcloneCapture("rc mount/unmount " + QuoteArg("mountPoint=" + NormalizeDriveLetter(p.DriveLetter)) + " --rc-addr 127.0.0.1:" + p.RcPort.ToString() + " --rc-no-auth", 2500);
+                unmountResult = RunRcloneCapture("rc mount/unmount " + QuoteArg("mountPoint=" + NormalizeDriveLetter(p.DriveLetter)) + " " + RcCommonFlags(p.RcPort), 2500);
                 Thread.Sleep(800);
-                if (IsMounted(p)) quitResult = RunRcloneCapture("rc core/quit --rc-addr 127.0.0.1:" + p.RcPort.ToString() + " --rc-no-auth", 2500);
+                if (IsMounted(p)) quitResult = RunRcloneCapture("rc core/quit " + RcCommonFlags(p.RcPort), 2500);
                 Thread.Sleep(1200);
             }
             catch (Exception ex) { LogUiIssue("unmount worker", ex); }
@@ -448,7 +448,7 @@ namespace Pixelpipe
                 try
                 {
                     RemoteProfile profile = (RemoteProfile)state;
-                    string result = RunRcloneCapture("rc core/bwlimit rate=" + rate + " --rc-addr 127.0.0.1:" + profile.RcPort.ToString() + " --rc-no-auth", 4000);
+                    string result = RunRcloneCapture("rc core/bwlimit rate=" + rate + " " + RcCommonFlags(profile.RcPort), 4000);
                     if (result.IndexOf("Failed", StringComparison.OrdinalIgnoreCase) >= 0 || result.IndexOf("error", StringComparison.OrdinalIgnoreCase) >= 0) profile.LastError = result;
                 }
                 catch (Exception ex) { LogUiIssue("apply bandwidth", ex); }

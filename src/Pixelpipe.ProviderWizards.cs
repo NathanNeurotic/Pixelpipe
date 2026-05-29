@@ -208,43 +208,59 @@ namespace Pixelpipe
             return "";
         }
 
-        // Common back-end for non-OAuth providers. SEC-1 (v0.13.0): instead
-        // of `rclone config create NAME TYPE k1 v1 secret_access_key VALUE
-        // --non-interactive`, which exposes every secret in the process
-        // command line for the few seconds rclone runs, we write the section
-        // directly to rclone.conf with secret fields piped to `rclone obscure
-        // -` over stdin. Same on-disk result; secrets never sit on argv.
-        private bool CreateRemoteAndProfile(string label, string providerKey, string preferredDrive, string remoteName, string rcloneType, List<KeyValuePair<string, string>> rcloneFields)
+        // Common back-end for non-OAuth providers. PERF-2 (v0.13.1): the
+        // rclone config write + listremotes round-trip now runs on a worker
+        // thread so the wizard's OK click returns immediately. Profile
+        // creation and the success/failure dialog marshal back via BeginUi.
+        // SEC-1 (v0.13.0): secrets pipe through `rclone obscure -` over
+        // stdin in WriteRemoteToRcloneConfig, never on argv.
+        private void CreateRemoteAndProfile(string label, string providerKey, string preferredDrive, string remoteName, string rcloneType, List<KeyValuePair<string, string>> rcloneFields)
         {
             string bare = RemoteNameBare(remoteName);
-            string writeError = WriteRemoteToRcloneConfig(bare, rcloneType, rcloneFields);
-            if (writeError != null)
+            ShowBalloon(label + ": creating remote...");
+            System.Threading.ThreadPool.QueueUserWorkItem(delegate
             {
-                MessageBox.Show(label + " remote could not be written to rclone.conf:\r\n\r\n" + writeError, "Pixelpipe", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                LogUiWarn("provider wizard", label + " config write failed: " + writeError);
-                return false;
-            }
-            if (!RemoteListContains(bare))
-            {
-                MessageBox.Show(label + " remote was written but rclone listremotes does not show it. Check rclone config manually.", "Pixelpipe", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                LogUiWarn("provider wizard", label + " listremotes did not show " + bare + " after config write");
-                return false;
-            }
+                string writeError = null;
+                bool listed = false;
+                try
+                {
+                    writeError = WriteRemoteToRcloneConfig(bare, rcloneType, rcloneFields);
+                    listed = (writeError == null) && RemoteListContains(bare);
+                }
+                catch (Exception ex)
+                {
+                    LogUiIssue("create remote " + bare, ex);
+                    writeError = ex.Message;
+                }
+                BeginUi(delegate
+                {
+                    if (writeError != null)
+                    {
+                        MessageBox.Show(label + " remote could not be written to rclone.conf:\r\n\r\n" + writeError, "Pixelpipe", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        LogUiWarn("provider wizard", label + " config write failed: " + writeError);
+                        return;
+                    }
+                    if (!listed)
+                    {
+                        MessageBox.Show(label + " remote was written but rclone listremotes does not show it. Check rclone config manually.", "Pixelpipe", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        LogUiWarn("provider wizard", label + " listremotes did not show " + bare + " after config write");
+                        return;
+                    }
 
-            string normalizedRemote = NormalizeRemoteName(bare);
-            RemoteProfile p = new RemoteProfile();
-            p.Label = UniqueLabel(label);
-            p.Provider = providerKey;
-            p.Remote = normalizedRemote;
-            p.DriveLetter = FirstFreePreferredDrive(preferredDrive);
-            p.MountMode = "network";
-            lock (profilesLock) profiles.Add(p);
-            AssignRuntimeFields();
-            SaveProfiles();
-            RebuildMenu();
-            RebuildMainWindowProfiles();
-            ShowBalloon("Configured " + label + " remote: " + p.Remote);
-            return true;
+                    RemoteProfile p = new RemoteProfile();
+                    p.Label = UniqueLabel(label);
+                    p.Provider = providerKey;
+                    p.Remote = NormalizeRemoteName(bare);
+                    p.DriveLetter = FirstFreePreferredDrive(preferredDrive);
+                    p.MountMode = "network";
+                    lock (profilesLock) profiles.Add(p);
+                    AssignRuntimeFields();
+                    SaveProfiles();
+                    RebuildMenu();
+                    RebuildMainWindowProfiles();
+                    ShowBalloon("Configured " + label + " remote: " + p.Remote);
+                });
+            });
         }
 
         private bool RemoteListContains(string bareName)

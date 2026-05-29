@@ -43,7 +43,45 @@ namespace Pixelpipe
             }
         }
 
+        // PERF-1 (v0.13.1): both RcloneAvailable and WinFspInstalled used
+        // to be called repeatedly from UI-thread paths (ApplyLiveState,
+        // UpdateMenuLiveState) every refresh tick. RcloneAvailable on a
+        // cold path could spawn `rclone.exe version` with a 3 s wait —
+        // multiple times per ~7 s refresh = visible stutter. We now cache
+        // the booleans with a TTL; RefreshDependencyStatusAsync (which
+        // already runs off-thread) is the one place that does the real
+        // probes and writes the cached fields. UI callers read the cached
+        // values via the public methods below, which never touch disk.
+        private const int DependencyCacheTtlSeconds = 30;
+        private volatile bool cachedRcloneAvailable;
+        private volatile bool cachedWinfspInstalled;
+        private DateTime cachedDependencyStampUtc = DateTime.MinValue;
+
         private bool RcloneAvailable()
+        {
+            EnsureDependencyCacheFresh();
+            return cachedRcloneAvailable;
+        }
+
+        private bool WinFspInstalled()
+        {
+            EnsureDependencyCacheFresh();
+            return cachedWinfspInstalled;
+        }
+
+        // Lazy first-call probe: if the cache is empty / stale and we're on
+        // a UI thread, kick the async refresh and return whatever we have
+        // (false on cold start). UI updates within one refresh cycle.
+        private void EnsureDependencyCacheFresh()
+        {
+            if ((DateTime.UtcNow - cachedDependencyStampUtc).TotalSeconds < DependencyCacheTtlSeconds) return;
+            RefreshDependencyStatusAsync(false);
+        }
+
+        // Synchronous probes — the real File.Exists / spawn-rclone / registry
+        // work — called only from the async refresh worker. Anything UI-bound
+        // must go through RcloneAvailable() / WinFspInstalled() above.
+        private bool ProbeRcloneAvailableSync()
         {
             try
             {
@@ -55,7 +93,7 @@ namespace Pixelpipe
             catch { return false; }
         }
 
-        private bool WinFspInstalled()
+        private bool ProbeWinFspInstalledSync()
         {
             try
             {
@@ -99,7 +137,10 @@ namespace Pixelpipe
             {
                 return cachedRcloneRemotes;
             }
-            if (!RcloneAvailable()) return cachedRcloneRemotes;
+            // Cheap cached lookup — never triggers a fresh disk probe; if
+            // the dependency cache hasn't been seeded yet this returns false
+            // and we keep the existing remotes cache rather than spinning.
+            if (!cachedRcloneAvailable) return cachedRcloneRemotes;
             string output;
             try { output = RunRcloneCapture("listremotes", 6000); }
             catch (Exception ex) { LogUiIssue("listremotes", ex); return cachedRcloneRemotes; }
@@ -130,11 +171,21 @@ namespace Pixelpipe
             }
             ThreadPool.QueueUserWorkItem(delegate
             {
+                // PERF-1 (v0.13.1): probe synchronously on the worker (these
+                // are the slow disk/registry/process calls). UI thread reads
+                // the cached fields via RcloneAvailable() / WinFspInstalled()
+                // after we publish the new values via BeginUi.
+                bool rcloneProbe = false, winfspProbe = false;
+                try { rcloneProbe = ProbeRcloneAvailableSync(); } catch (Exception ex) { LogUiIssue("dep probe rclone", ex); }
+                try { winfspProbe = ProbeWinFspInstalledSync(); } catch (Exception ex) { LogUiIssue("dep probe winfsp", ex); }
                 string text;
-                try { text = GetDependencyStatusLine(); }
+                try { text = BuildDependencyStatusLine(rcloneProbe, winfspProbe, rcloneProbe && AnyRemoteConfigured()); }
                 catch (Exception ex) { LogUiIssue("dependency status", ex); text = setupStatusText; }
                 BeginUi(delegate
                 {
+                    cachedRcloneAvailable = rcloneProbe;
+                    cachedWinfspInstalled = winfspProbe;
+                    cachedDependencyStampUtc = DateTime.UtcNow;
                     setupStatusText = text;
                     lastDependencyRefreshUtc = DateTime.UtcNow;
                     Interlocked.Exchange(ref dependencyRefreshingFlag, 0);
@@ -145,9 +196,11 @@ namespace Pixelpipe
 
         private string GetDependencyStatusLine()
         {
-            bool rclone = RcloneAvailable();
-            bool winfsp = WinFspInstalled();
-            bool remote = rclone && AnyRemoteConfigured();
+            return BuildDependencyStatusLine(RcloneAvailable(), WinFspInstalled(), false);
+        }
+
+        private string BuildDependencyStatusLine(bool rclone, bool winfsp, bool remote)
+        {
             if (rclone && winfsp && remote) return "Setup: ready";
             System.Collections.Generic.List<string> missing = new System.Collections.Generic.List<string>();
             if (!rclone) missing.Add("rclone");

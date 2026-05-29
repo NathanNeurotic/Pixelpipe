@@ -56,7 +56,7 @@ namespace Pixelpipe
             bool mounted = IsMounted(p);
             if (mounted)
             {
-                string stats = RunRcloneCapture("rc core/stats --rc-addr 127.0.0.1:" + p.RcPort.ToString() + " --rc-no-auth", 3500);
+                string stats = RunRcloneCapture("rc core/stats " + RcCommonFlags(p.RcPort), 3500);
                 if (!String.IsNullOrEmpty(stats))
                 {
                     long bytes = ExtractLong(stats, "bytes");

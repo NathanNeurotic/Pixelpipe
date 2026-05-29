@@ -192,19 +192,39 @@ namespace Pixelpipe
         }
 
         // If the existing instance is hung, kill every other Pixelpipe process
-        // before the new launch tries to acquire the mutex. Returns the number
-        // of processes terminated.
+        // whose main module path matches our own install location. SEC-4
+        // (v0.13.1): scope this by image path so an unrelated process that
+        // happens to be named Pixelpipe.exe (a developer's build elsewhere,
+        // a malware sample with a matching name) cannot be killed by us.
+        // Returns the number of processes terminated.
         public static int TerminateOtherInstances()
         {
             int killed = 0;
             try
             {
-                int self = Process.GetCurrentProcess().Id;
+                Process self = Process.GetCurrentProcess();
+                string selfPath = "";
+                try { selfPath = self.MainModule.FileName ?? ""; } catch { }
                 Process[] all = Process.GetProcessesByName("Pixelpipe");
                 for (int i = 0; i < all.Length; i++)
                 {
-                    if (all[i].Id == self) continue;
-                    try { all[i].Kill(); all[i].WaitForExit(3000); killed++; } catch { }
+                    if (all[i].Id == self.Id) continue;
+                    try
+                    {
+                        // Compare image paths case-insensitively. If we can't
+                        // read the candidate's MainModule (e.g. access denied
+                        // because it's a 32-bit process from a 64-bit
+                        // inspector, or vice-versa), skip rather than risk
+                        // killing the wrong process.
+                        string otherPath = "";
+                        try { otherPath = all[i].MainModule.FileName ?? ""; } catch { continue; }
+                        if (String.IsNullOrEmpty(otherPath)) continue;
+                        if (!String.Equals(selfPath, otherPath, StringComparison.OrdinalIgnoreCase)) continue;
+                        all[i].Kill();
+                        all[i].WaitForExit(3000);
+                        killed++;
+                    }
+                    catch { }
                 }
             }
             catch { }

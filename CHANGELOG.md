@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.13.1
+
+Audit follow-up batch two — responsiveness + remaining security hygiene + x64. Six findings closed.
+
+Fixed:
+
+- **PERF-1 (dependency probes on UI thread).** `RcloneAvailable()` and `WinFspInstalled()` used to run their full probes (`File.Exists`, registry lookups, and on a cold path a 3 s blocking `rclone version` subprocess) every single time they were called — and they were called from `ApplyLiveState` / `UpdateMenuLiveState` on every ~7 s refresh tick. Likely root cause of the periodic micro-freezes the changelog has chased. Now both return cached booleans with a 30 s TTL; the existing `RefreshDependencyStatusAsync` worker is the one place that does the real probes (`ProbeRcloneAvailableSync` / `ProbeWinFspInstalledSync`) and publishes the cached values via `BeginUi`. UI callers never touch disk.
+- **PERF-2 (provider wizards on UI thread).** `CreateRemoteAndProfile` did the rclone.conf write + listremotes round-trip synchronously from the dialog OK handler. Moved to a worker thread; profile creation and the success/failure dialog marshal back via `BeginUi`. Mount async path from v0.12.1 is now matched by the wizard path.
+- **PERF-4 (regex churn on hot paths).** Hoisted `ExtractLong`, `ExtractDouble`, `ParseBytes`, `ParseBytesPerSec`, `ParseStoragePercent`, `ScrubSecrets`, and the Activity-tab log-line regex to `static readonly Regex` with `RegexOptions.Compiled`. Each refresh tick was rebuilding these on every profile.
+- **SEC-2 (RC port unauthenticated).** Pixelpipe used `--rc-no-auth` on every mount. Now generates a 24-byte URL-safe base64 token at startup (random via `RandomNumberGenerator`) and passes `--rc-user pixelpipe --rc-pass <token>` to the mount launch and every subsequent rc client call (stats, mount/unmount, core/quit, core/bwlimit). Token is in memory only.
+- **SEC-4 (`TerminateOtherInstances` killed by image name).** Now compares each candidate's `MainModule.FileName` against our own before killing. An unrelated `Pixelpipe.exe` (a dev build elsewhere, a sample named the same) is left alone.
+- **ARCH-4 (`anycpu` build for an x64-only app).** Build now pins `/platform:x64`. App already assumed 64-bit (WinFsp probe checks `winfsp-x64.dll`, rclone download is `windows-amd64`). Removes 32-bit edge cases including potential `long`-tearing on a 32-bit host (groundwork for ARCH-3 in v0.13.2).
+
+Added:
+
+- **One new unit test** (`GenerateRcAuthToken` — length, uniqueness, URL-safe charset). 52 tests total.
+
 ## 0.13.0
 
 External code audit follow-up — correctness, security, and supply-chain. Five findings closed.

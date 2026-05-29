@@ -195,11 +195,30 @@ namespace Pixelpipe
             catch (Exception ex) { return ex.Message; }
         }
 
+        // PERF-4 (v0.13.1): static compiled regexes for hot-path scrapers.
+        // Each capture-helper call would otherwise build a fresh Regex —
+        // each Pixelpipe refresh tick calls ExtractLong/ExtractDouble multiple
+        // times per profile. Compiling once at type-init time eliminates the
+        // construct/finalise churn.
+        private static readonly System.Collections.Generic.Dictionary<string, Regex> ExtractLongRegexes = new System.Collections.Generic.Dictionary<string, Regex>(StringComparer.Ordinal);
+        private static readonly System.Collections.Generic.Dictionary<string, Regex> ExtractDoubleRegexes = new System.Collections.Generic.Dictionary<string, Regex>(StringComparer.Ordinal);
+        private static readonly object ExtractLongLock = new object();
+        private static readonly object ExtractDoubleLock = new object();
+
         private long ExtractLong(string text, string key)
         {
             try
             {
-                Match m = Regex.Match(text, "\\\"" + Regex.Escape(key) + "\\\"\\s*:\\s*(-?[0-9]+)");
+                Regex re;
+                lock (ExtractLongLock)
+                {
+                    if (!ExtractLongRegexes.TryGetValue(key, out re))
+                    {
+                        re = new Regex("\\\"" + Regex.Escape(key) + "\\\"\\s*:\\s*(-?[0-9]+)", RegexOptions.Compiled);
+                        ExtractLongRegexes[key] = re;
+                    }
+                }
+                Match m = re.Match(text ?? "");
                 if (!m.Success) return -1;
                 long value;
                 if (Int64.TryParse(m.Groups[1].Value, out value)) return value;
@@ -212,7 +231,16 @@ namespace Pixelpipe
         {
             try
             {
-                Match m = Regex.Match(text, "\\\"" + Regex.Escape(key) + "\\\"\\s*:\\s*(-?[0-9]+(?:\\.[0-9]+)?)");
+                Regex re;
+                lock (ExtractDoubleLock)
+                {
+                    if (!ExtractDoubleRegexes.TryGetValue(key, out re))
+                    {
+                        re = new Regex("\\\"" + Regex.Escape(key) + "\\\"\\s*:\\s*(-?[0-9]+(?:\\.[0-9]+)?)", RegexOptions.Compiled);
+                        ExtractDoubleRegexes[key] = re;
+                    }
+                }
+                Match m = re.Match(text ?? "");
                 if (!m.Success) return 0.0;
                 double value;
                 if (Double.TryParse(m.Groups[1].Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out value)) return value;
@@ -396,12 +424,18 @@ namespace Pixelpipe
             return value.Substring(0, max) + "...";
         }
 
+        // PERF-4 (v0.13.1): static compiled regexes for the byte / bandwidth
+        // parsers. Profile cards re-render these many times per refresh.
+        private static readonly Regex BytesPerSecRegex = new Regex(@"(-?\d+(?:\.\d+)?)\s*(B|KB|MB|GB|TB|PB)\s*/\s*s", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly Regex BytesRegex = new Regex(@"(-?\d+(?:\.\d+)?)\s*(B|KB|MB|GB|TB|PB)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly Regex StoragePercentRegex = new Regex(@"\((\d+(?:\.\d+)?)\s*%", RegexOptions.Compiled);
+
         // Parses an "N UNIT/s" string (e.g. "12.4 MB/s") into bytes/second. Returns 0
         // for unparseable or negative inputs like "unavailable" or "—".
         internal static double ParseBytesPerSec(string text)
         {
             if (String.IsNullOrEmpty(text)) return 0;
-            Match m = Regex.Match(text, @"(-?\d+(?:\.\d+)?)\s*(B|KB|MB|GB|TB|PB)\s*/\s*s", RegexOptions.IgnoreCase);
+            Match m = BytesPerSecRegex.Match(text);
             if (!m.Success) return 0;
             double v;
             if (!Double.TryParse(m.Groups[1].Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out v)) return 0;
@@ -413,7 +447,7 @@ namespace Pixelpipe
         internal static long ParseBytes(string text)
         {
             if (String.IsNullOrEmpty(text)) return 0;
-            Match m = Regex.Match(text, @"(-?\d+(?:\.\d+)?)\s*(B|KB|MB|GB|TB|PB)", RegexOptions.IgnoreCase);
+            Match m = BytesRegex.Match(text);
             if (!m.Success) return 0;
             double v;
             if (!Double.TryParse(m.Groups[1].Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out v)) return 0;
@@ -460,7 +494,7 @@ namespace Pixelpipe
         internal static int ParseStoragePercent(string text)
         {
             if (String.IsNullOrEmpty(text)) return 0;
-            Match m = Regex.Match(text, @"\((\d+(?:\.\d+)?)\s*%");
+            Match m = StoragePercentRegex.Match(text);
             if (!m.Success) return 0;
             double v;
             if (!Double.TryParse(m.Groups[1].Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out v)) return 0;
