@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.16.0
+
+Milestone release. No code changes from v0.15.4 — this cuts a clean version to mark the end of the external-audit close-out and bundles the new documentation into the release artifacts.
+
+Added:
+
+- **Real screenshots in the README and a captioned `docs/SCREENSHOTS.md` gallery** (Profiles tab, tray menu, per-profile submenu, Add cloud remote, Settings tab), captured from v0.15.4 on Windows 11.
+
+Context — what landed across the v0.13.0 → v0.15.4 line that this release caps:
+
+- **Correctness & security:** exit-code-based process success, concurrent pipe draining, secrets kept off the command line (piped to `rclone obscure` via stdin), verified rclone download (pinned version + SHA-256), per-session RC auth token, image-path-scoped instance termination.
+- **Responsiveness:** cached dependency probes off the UI thread, async provider wizards, in-memory settings cache, compiled hot-path regexes, and the freeze fixes (UI-thread offload, hung-instance recovery, USER-handle leak in the tray menu, infinite-wait refresh hang).
+- **Reliability:** Win32 Job Object so orphan rclone processes die with Pixelpipe, startup orphan scan, 3-button "drive in use" recovery.
+- **Structure:** `RcloneClient`, `SettingsStore`, `DependencyProbe`, `MountManager` extracted from `TrayContext`; SDK-style `.csproj` alongside the `csc.exe` build; `/platform:x64`.
+- **GUI:** status dots, owner-drawn dark storage gauge, colour-coded Activity tab, DPI-aware widths, restructured ProfileCard header with overflow menu, tabbed Edit-profile dialog.
+
 ## 0.15.4
 
 ARCH-1 step 4 (final). Fourth collaborator extracted from `TrayContext`. No user-visible changes. With this the audit's ARCH-1 incremental work is done.
