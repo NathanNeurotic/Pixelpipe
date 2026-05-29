@@ -275,6 +275,22 @@ namespace Pixelpipe
             {
                 if (IsMounted(p))
                 {
+                    // v0.13.3 hotfix: rclone's RC returning "mount not found"
+                    // means it doesn't know about this mount — either because
+                    // it already cleaned itself up or because the rclone
+                    // process Pixelpipe started is no longer the one holding
+                    // the drive letter. Either way the rclone child does NOT
+                    // need to be killed (there's no rclone mount to kill);
+                    // we just need to clean the stale Windows drive mapping,
+                    // which FinalizeUnmounted does. Skip the user-confirm
+                    // dialog and go straight to cleanup.
+                    if (LooksLikeRcloneAlreadyUnmounted(unmountResult))
+                    {
+                        LogUiWarn("unmount", p.Label + ": rclone reports no mount on " + p.DriveLetter + " — treating as already-unmounted, cleaning stale Windows mapping");
+                        FinalizeUnmounted(p, silent);
+                        return;
+                    }
+
                     p.LastError = BuildUnmountFallbackText(p, unmountResult, quitResult);
                     LogUiWarn("unmount fallback", p.LastError);
 
@@ -297,6 +313,15 @@ namespace Pixelpipe
                 }
                 FinalizeUnmounted(p, silent);
             });
+        }
+
+        // Pure helper, tests cover it. Distinguishes "rclone says it never
+        // had a mount here (so there's nothing for rclone to do)" from "rclone
+        // tried and failed".
+        internal static bool LooksLikeRcloneAlreadyUnmounted(string rcResponse)
+        {
+            if (String.IsNullOrEmpty(rcResponse)) return false;
+            return rcResponse.IndexOf("mount not found", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         private void FinalizeUnmounted(RemoteProfile p, bool silent)

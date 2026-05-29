@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.13.3
+
+Two more bugs surfaced by the same user log: the refresh worker hanging until the deadman bailed it out (every 2-3 minutes), and a misleading "Pixeldrain did not exit cleanly" dialog on profiles where rclone already had no mount to release.
+
+Fixed:
+
+- **Refresh worker hang.** v0.13.0's BUG-2 fix added `WaitForExit(timeoutMs)` to drain stdout/stderr properly, but the post-Kill flush used `WaitForExit()` with NO timeout. If the killed rclone child didn't fully terminate (zombie / OS handle issue), the capture helper blocked forever, the refresh worker hung, and the v0.12.1 deadman force-reset the flag at 90-120 s on every cycle. User logs showed `[warn] [refresh deadman] force-reset after 99s/106s/114s/115s/116s/117s` every 2-3 minutes consistently. Now caps the post-Kill wait at 2 seconds — enough for the async readers to flush, then move on.
+- **"Pixeldrain did not exit after Pixelpipe asked rclone to unmount cleanly" false-positive dialog.** When rclone's RC returns `"error": "mount not found"`, that means rclone never had a mount for that drive (orphan / already-cleaned). Pixelpipe used to treat it as an unclean failure and prompt the user to force-kill rclone — but there's no rclone mount to kill. Now skips the dialog and goes straight to the stale-Windows-mapping cleanup (`FinalizeUnmounted` → `CleanStaleDriveMappings`). A new pure helper `LooksLikeRcloneAlreadyUnmounted` makes this testable.
+
+Added:
+
+- **One new unit test** (`LooksLikeRcloneAlreadyUnmounted`). 53 tests total.
+
 ## 0.13.2
 
 Hotfix for a long-standing handle leak that surfaced as "right-click menu stops working after a few hours of uptime". User log showed `Win32Exception: Error creating window handle` from `ContextMenuStrip.Show` — classic Windows USER object exhaustion (per-process limit ~10 000).
