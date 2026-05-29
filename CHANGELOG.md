@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.13.4
+
+Audit cleanup batch. Internal-only refactors — no user-visible behavior changes, no GUI changes — just dead weight removed and one perf win.
+
+Changed:
+
+- **PERF-3: in-memory settings cache.** `ReadSettingsRoot` was re-reading and re-parsing `settings.json` on every `SaveSetting` / `SaveProfiles` (the update check writes two keys in a burst → two full disk read + JSON parse + JSON serialise + atomic write cycles). The parsed dict is now cached in memory under a lock; reads serve from cache; writes still go through `WriteAllTextAtomic` for durability but skip the read+parse half. Cache stays consistent because `WriteSettingsRoot` updates the cached reference.
+- **BUG-3 / DUP-3: rclone JSON parsed properly, regex retired.** `RefreshProfile` was scraping `rc core/stats` and `rclone about --json` with hand-rolled regex (`ExtractLong` / `ExtractDouble`) that matched the first occurrence of a key anywhere in the document — `core/stats` nests structures that also carry "bytes", so correctness depended on serialisation order. Now uses `JavaScriptSerializer` with explicit top-level reads via new `TryParseJsonObject` / `JsonLong` / `JsonDouble` helpers.
+- **DUP-1: consolidated duplicate helpers.** `GetDictValueStatic` removed (`Pixelpipe.Portability.cs` now uses the canonical `internal static GetDictValue` in `Pixelpipe.Helpers.cs`). `SafePid` duplicated body in `RcloneJob` removed; both sites use the canonical `TrayContext.SafePid`.
+- **DUP-2: removed unused `AccentColor` alias** in `MainWindow`. The other theme aliases stay (each window class still uses them).
+- **ARCH-5: silent catches in `CleanStaleDriveMappings` and `DriveLetterInUse` now log via `LogUiDebug`** so a user with verbose-logging on can see whether `net use` / `mountvol` actually ran (free in normal use).
+- **ARCH-3: implicitly addressed by v0.13.1's ARCH-4 (`/platform:x64`).** With the build pinned to x64, `long` reads are guaranteed atomic; no explicit `Interlocked` wrapping needed.
+
 ## 0.13.3
 
 Two more bugs surfaced by the same user log: the refresh worker hanging until the deadman bailed it out (every 2-3 minutes), and a misleading "Pixeldrain did not exit cleanly" dialog on profiles where rclone already had no mount to release.

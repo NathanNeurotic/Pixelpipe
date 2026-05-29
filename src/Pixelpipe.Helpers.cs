@@ -11,7 +11,62 @@ namespace Pixelpipe
 {
     internal sealed partial class TrayContext
     {
-        private object GetDictValue(Dictionary<string, object> dict, string key)
+        // BUG-3 (v0.13.4): typed top-level accessors for rclone JSON.
+        // Eliminates the regex variant which could match a nested "bytes"
+        // key (rclone core/stats nests structures that also contain
+        // "bytes") and depended on serialisation order for correctness.
+        internal static Dictionary<string, object> TryParseJsonObject(string json)
+        {
+            if (String.IsNullOrEmpty(json)) return null;
+            try
+            {
+                System.Web.Script.Serialization.JavaScriptSerializer js = new System.Web.Script.Serialization.JavaScriptSerializer();
+                return js.DeserializeObject(json) as Dictionary<string, object>;
+            }
+            catch { return null; }
+        }
+
+        internal static long JsonLong(Dictionary<string, object> dict, string key, long defaultValue)
+        {
+            if (dict == null) return defaultValue;
+            object value;
+            if (!dict.TryGetValue(key, out value) || value == null) return defaultValue;
+            try
+            {
+                if (value is int) return (int)value;
+                if (value is long) return (long)value;
+                if (value is double) return (long)(double)value;
+                if (value is decimal) return (long)(decimal)value;
+                long parsed;
+                if (Int64.TryParse(Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture), out parsed)) return parsed;
+            }
+            catch { }
+            return defaultValue;
+        }
+
+        internal static double JsonDouble(Dictionary<string, object> dict, string key, double defaultValue)
+        {
+            if (dict == null) return defaultValue;
+            object value;
+            if (!dict.TryGetValue(key, out value) || value == null) return defaultValue;
+            try
+            {
+                if (value is double) return (double)value;
+                if (value is int) return (int)value;
+                if (value is long) return (long)value;
+                if (value is decimal) return (double)(decimal)value;
+                double parsed;
+                if (Double.TryParse(Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out parsed)) return parsed;
+            }
+            catch { }
+            return defaultValue;
+        }
+
+        // DUP-1 (v0.13.4): static so static callers can use the same helper
+        // instead of cloning the body as GetDictValueStatic. Kept as a
+        // top-level utility because it's used from settings I/O,
+        // export/import, and rclone JSON parsing — three different surfaces.
+        internal static object GetDictValue(Dictionary<string, object> dict, string key)
         {
             if (dict == null || key == null) return null;
             object value;

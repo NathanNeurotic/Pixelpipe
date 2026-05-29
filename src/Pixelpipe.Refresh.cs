@@ -59,9 +59,13 @@ namespace Pixelpipe
                 string stats = RunRcloneCapture("rc core/stats " + RcCommonFlags(p.RcPort), 3500);
                 if (!String.IsNullOrEmpty(stats))
                 {
-                    long bytes = ExtractLong(stats, "bytes");
-                    double speed = ExtractDouble(stats, "speed");
-                    long transferringCount = ExtractLong(stats, "transferring");
+                    // BUG-3 (v0.13.4): parse the rc stats JSON properly so
+                    // we always read the top-level keys, not whichever
+                    // nested "bytes" / "transferring" the regex hit first.
+                    Dictionary<string, object> statsDict = TryParseJsonObject(stats);
+                    long bytes = JsonLong(statsDict, "bytes", -1);
+                    double speed = JsonDouble(statsDict, "speed", 0);
+                    long transferringCount = JsonLong(statsDict, "transferring", 0);
                     p.SessionText = FormatBytes(bytes);
                     p.SpeedText = FormatBytes(speed) + "/s";
                     DetectTransferCompletion(p, bytes, transferringCount);
@@ -107,10 +111,13 @@ namespace Pixelpipe
             {
                 about = RunRcloneCapture("about " + QuoteArg(NormalizeRemoteName(p.Remote)) + " --json", 8000);
             }
-            long used = ExtractLong(about, "used");
-            long total = ExtractLong(about, "total");
-            long free = ExtractLong(about, "free");
-            long objects = ExtractLong(about, "objects");
+            // BUG-3 (v0.13.4): structured parse of `rclone about --json`
+            // rather than regex scraping (which had no nesting guard).
+            Dictionary<string, object> aboutDict = TryParseJsonObject(about);
+            long used = JsonLong(aboutDict, "used", -1);
+            long total = JsonLong(aboutDict, "total", -1);
+            long free = JsonLong(aboutDict, "free", -1);
+            long objects = JsonLong(aboutDict, "objects", -1);
             p.StorageUsedBytes = used;
             p.StorageTotalBytes = total;
             p.StorageFreeBytes = free;

@@ -251,24 +251,24 @@ namespace Pixelpipe
                     Dictionary<string, object> d = arr[i] as Dictionary<string, object>;
                     if (d == null) continue;
                     RemoteProfile p = new RemoteProfile();
-                    p.Id = ToStringValue(GetDictValueStatic(d, "Id"), Guid.NewGuid().ToString("N"));
-                    p.Label = ToStringValue(GetDictValueStatic(d, "Label"), "Imported remote");
-                    p.Provider = NormalizeProvider(ToStringValue(GetDictValueStatic(d, "Provider"), "custom"), ToStringValue(GetDictValueStatic(d, "Remote"), ""));
-                    p.Remote = NormalizeRemoteName(ToStringValue(GetDictValueStatic(d, "Remote"), DefaultRemoteName));
-                    p.DriveLetter = NormalizeDriveLetter(ToStringValue(GetDictValueStatic(d, "DriveLetter"), DefaultDriveLetter));
-                    p.MountMode = NormalizeMountMode(ToStringValue(GetDictValueStatic(d, "MountMode"), "network"));
-                    p.AutoMount = ToBool(GetDictValueStatic(d, "AutoMount"));
-                    p.FullCache = ToBool(GetDictValueStatic(d, "FullCache"));
-                    p.BandwidthLimit = ToStringValue(GetDictValueStatic(d, "BandwidthLimit"), "");
-                    p.ScheduleEnabled = ToBool(GetDictValueStatic(d, "ScheduleEnabled"));
-                    p.ScheduleMountTime = ToStringValue(GetDictValueStatic(d, "ScheduleMountTime"), "");
-                    p.ScheduleUnmountTime = ToStringValue(GetDictValueStatic(d, "ScheduleUnmountTime"), "");
-                    p.ScheduleDays = ToStringValue(GetDictValueStatic(d, "ScheduleDays"), "Mon,Tue,Wed,Thu,Fri,Sat,Sun");
-                    p.WatchFolderEnabled = ToBool(GetDictValueStatic(d, "WatchFolderEnabled"));
-                    p.WatchFolderPath = ToStringValue(GetDictValueStatic(d, "WatchFolderPath"), "");
-                    p.WatchFolderTargetDir = ToStringValue(GetDictValueStatic(d, "WatchFolderTargetDir"), "");
-                    p.WatchFolderMode = NormalizeWatchMode(ToStringValue(GetDictValueStatic(d, "WatchFolderMode"), "move"));
-                    object quietObj = GetDictValueStatic(d, "WatchFolderQuietMs");
+                    p.Id = ToStringValue(GetDictValue(d, "Id"), Guid.NewGuid().ToString("N"));
+                    p.Label = ToStringValue(GetDictValue(d, "Label"), "Imported remote");
+                    p.Provider = NormalizeProvider(ToStringValue(GetDictValue(d, "Provider"), "custom"), ToStringValue(GetDictValue(d, "Remote"), ""));
+                    p.Remote = NormalizeRemoteName(ToStringValue(GetDictValue(d, "Remote"), DefaultRemoteName));
+                    p.DriveLetter = NormalizeDriveLetter(ToStringValue(GetDictValue(d, "DriveLetter"), DefaultDriveLetter));
+                    p.MountMode = NormalizeMountMode(ToStringValue(GetDictValue(d, "MountMode"), "network"));
+                    p.AutoMount = ToBool(GetDictValue(d, "AutoMount"));
+                    p.FullCache = ToBool(GetDictValue(d, "FullCache"));
+                    p.BandwidthLimit = ToStringValue(GetDictValue(d, "BandwidthLimit"), "");
+                    p.ScheduleEnabled = ToBool(GetDictValue(d, "ScheduleEnabled"));
+                    p.ScheduleMountTime = ToStringValue(GetDictValue(d, "ScheduleMountTime"), "");
+                    p.ScheduleUnmountTime = ToStringValue(GetDictValue(d, "ScheduleUnmountTime"), "");
+                    p.ScheduleDays = ToStringValue(GetDictValue(d, "ScheduleDays"), "Mon,Tue,Wed,Thu,Fri,Sat,Sun");
+                    p.WatchFolderEnabled = ToBool(GetDictValue(d, "WatchFolderEnabled"));
+                    p.WatchFolderPath = ToStringValue(GetDictValue(d, "WatchFolderPath"), "");
+                    p.WatchFolderTargetDir = ToStringValue(GetDictValue(d, "WatchFolderTargetDir"), "");
+                    p.WatchFolderMode = NormalizeWatchMode(ToStringValue(GetDictValue(d, "WatchFolderMode"), "move"));
+                    object quietObj = GetDictValue(d, "WatchFolderQuietMs");
                     long quiet = 0;
                     if (quietObj != null)
                     {
@@ -276,7 +276,7 @@ namespace Pixelpipe
                         if (Int64.TryParse(Convert.ToString(quietObj, System.Globalization.CultureInfo.InvariantCulture), out parsed)) quiet = parsed;
                     }
                     p.WatchFolderQuietMs = quiet > 0 ? (int)Math.Min(quiet, 600000) : 5000;
-                    p.BandwidthScheduleEntries = ToStringValue(GetDictValueStatic(d, "BandwidthScheduleEntries"), "");
+                    p.BandwidthScheduleEntries = ToStringValue(GetDictValue(d, "BandwidthScheduleEntries"), "");
                     profiles.Add(p);
                 }
                 return true;
@@ -288,11 +288,5 @@ namespace Pixelpipe
             }
         }
 
-        private static object GetDictValueStatic(Dictionary<string, object> dict, string key)
-        {
-            if (dict == null || key == null) return null;
-            object value;
-            return dict.TryGetValue(key, out value) ? value : null;
-        }
     }
 }

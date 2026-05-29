@@ -138,11 +138,10 @@ namespace Pixelpipe
             }
             catch (Exception ex)
             {
-                if (logWarn != null) logWarn("AssignProcessToJobObject threw for pid " + (p == null ? -1 : SafePid(p)) + ": " + ex.Message);
+                if (logWarn != null) logWarn("AssignProcessToJobObject threw for pid " + TrayContext.SafePid(p) + ": " + ex.Message);
             }
         }
 
-        private static int SafePid(Process p) { try { return p.Id; } catch { return -1; } }
     }
 
     internal sealed partial class TrayContext
@@ -335,7 +334,10 @@ namespace Pixelpipe
             });
         }
 
-        private static int SafePid(Process p) { try { return p == null ? -1 : p.Id; } catch { return -1; } }
+        // DUP-1 (v0.13.4): single canonical SafePid. Was duplicated in both
+        // RcloneJob (no-null variant) and the TrayContext partial; this
+        // version handles null and is the only one used.
+        internal static int SafePid(Process p) { try { return p == null ? -1 : p.Id; } catch { return -1; } }
 
         internal sealed class OrphanRclone
         {
