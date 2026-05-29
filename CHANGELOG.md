@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.15.0
+
+GUI restructure from the audit — ProfileCard (GUI-1) and Edit-profile dialog (GUI-5). Layout-only changes; every field and action is preserved.
+
+Changed:
+
+- **GUI-1 ProfileCard.** Header rebuilt as `[status dot] [title] [drive chip] [pill] [⋯]`. The chip surfaces the assigned drive letter, the dot lights up green when mounted / gray when not. The five less-frequent actions (Test, Edit, Set primary, Auto-mount toggle, Remove) move from a second row of always-visible buttons into a `ContextMenuStrip` triggered by the `⋯` header button — trimming the action bar from 9 visible buttons to 4 (Mount / Full cache / Unmount / Open). Auto-mount state is now a checked menu item.
+- **GUI-5 Edit-profile dialog.** Same fields, but now organised into four tabs (General · Bandwidth · Schedule · Watch) instead of one tall scrolling form. Each concern is self-contained on its own tab so you don't have to scroll past everything to reach the Watch group at the bottom. The Save path reads the same field locals; no logic change.
+
 ## 0.14.2
 
 ARCH-2 from the audit. SDK-style csproj alongside the existing `csc.exe` build, so `dotnet build` and `dotnet test` work out of the box without losing the PowerShell pipeline.
