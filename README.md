@@ -125,6 +125,21 @@ Pixelpipe ships in two equivalent formats; pick the one that fits how you want t
 
 Both produce the same tray app and read the same settings file. You can install with the setup, uninstall it, and switch to the portable exe (or vice versa) without losing your profile config.
 
+### First run: Windows SmartScreen warning
+
+Pixelpipe's downloads are **not code-signed** (a signing certificate is a recurring paid cost this project doesn't carry yet). The first time you run `Pixelpipe.exe` or `Pixelpipe-Setup.exe`, Windows SmartScreen will show a blue **"Windows protected your PC"** dialog calling it an *unrecognized app*. This is expected for any unsigned open-source app — it is **not** a sign of malware.
+
+To run it:
+
+1. Click **More info** (the small link in the dialog).
+2. Click the **Run anyway** button that appears.
+
+You only have to do this once per downloaded file. If you want to verify the download is genuine first, the release ships a `SHA256SUMS.txt` — compare it against:
+
+```powershell
+Get-FileHash .\Pixelpipe.exe -Algorithm SHA256
+```
+
 Do **not** run Pixelpipe as Administrator unless you specifically need an elevated mount. Admin-mounted drives can be hidden from normal File Explorer.
 
 On first launch, Pixelpipe checks:
@@ -275,4 +290,4 @@ Do not replace that icon unless you intentionally want to change the app icon.
 - The PixelDrain API key is encrypted with Windows DPAPI for the current Windows user.
 - Other provider credentials remain in rclone's own config system.
 - Pixelpipe does not need Administrator by default.
-- The EXE may trigger SmartScreen until the project has enough reputation or signed releases.
+- **Downloads are unsigned, so Windows SmartScreen flags them as an "unrecognized app" on first run.** This is expected for an unsigned open-source build — click **More info → Run anyway**. See [First run: Windows SmartScreen warning](#first-run-windows-smartscreen-warning) above, or verify the download against `SHA256SUMS.txt` if you want certainty. A signed release would remove the prompt but requires a paid code-signing certificate the project doesn't have yet.

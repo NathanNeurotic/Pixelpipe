@@ -168,6 +168,10 @@ jobs:
             "- ``Pixelpipe-Setup.exe`` — optional Inno Setup installer, when the installer build succeeds",
             "- ``SHA256SUMS.txt`` — SHA-256 checksums for the downloads above",
             "",
+            "### First run: SmartScreen",
+            "",
+            "These builds are **not code-signed**, so Windows SmartScreen shows ""Windows protected your PC"" / ""unrecognized app"" the first time you run ``Pixelpipe.exe`` or ``Pixelpipe-Setup.exe``. That is expected for an unsigned open-source app, not a malware detection — click **More info → Run anyway**. To verify the download first, check it against ``SHA256SUMS.txt`` (``Get-FileHash .\Pixelpipe.exe -Algorithm SHA256``).",
+            "",
             "Run Pixelpipe normally, not as Administrator. First launch will prompt for rclone + WinFsp setup."
           )
           Set-Content -Path $NotesFile -Value $Lines -Encoding utf8
@@ -229,6 +233,10 @@ jobs:
             "- ``Pixelpipe-Windows-x64.zip`` — portable bundle (exe + README + LICENSE + docs)",
             "- ``Pixelpipe-Setup.exe`` — optional Inno Setup installer, when the installer build succeeds",
             "- ``SHA256SUMS.txt`` — SHA-256 checksums for the downloads above",
+            "",
+            "### First run: SmartScreen",
+            "",
+            "These builds are **not code-signed**, so Windows SmartScreen shows ""Windows protected your PC"" / ""unrecognized app"" the first time you run ``Pixelpipe.exe`` or ``Pixelpipe-Setup.exe``. That is expected for an unsigned open-source app, not a malware detection — click **More info → Run anyway**. To verify the download first, check it against ``SHA256SUMS.txt`` (``Get-FileHash .\Pixelpipe.exe -Algorithm SHA256``).",
             "",
             "Run Pixelpipe normally, not as Administrator. This build is intended for testers and early users; expect it to change as fixes land on main."
           )

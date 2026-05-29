@@ -8,6 +8,22 @@ Right-click Pixelpipe tray icon -> Diagnostics / repair...
 
 Copy the diagnostics output when reporting a bug.
 
+## "Windows protected your PC" appears when I launch the download
+
+Expected — Pixelpipe's builds are **not code-signed**, so Windows SmartScreen flags `Pixelpipe.exe` and `Pixelpipe-Setup.exe` as an *unrecognized app* on first run. It is not a malware detection; every unsigned open-source app does this.
+
+```text
+Click "More info"  ->  Click "Run anyway"
+```
+
+You only do this once per downloaded file. To confirm the download is genuine before running, compare it against the release's `SHA256SUMS.txt`:
+
+```powershell
+Get-FileHash .\Pixelpipe.exe -Algorithm SHA256
+```
+
+Removing the prompt for good requires a paid code-signing certificate the project doesn't have yet.
+
 ## rclone is missing
 
 Use one of these from the tray menu:
