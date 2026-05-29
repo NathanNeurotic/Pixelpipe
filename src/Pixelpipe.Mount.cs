@@ -168,39 +168,16 @@ namespace Pixelpipe
             p.FullCache = fullCache;
             p.DesiredMounted = true;
             p.LastError = "";
-            string cacheMode = fullCache ? "full" : "writes";
-            string args = "mount " + QuoteArg(NormalizeRemoteName(p.Remote)) + " " + QuoteArg(NormalizeDriveLetter(p.DriveLetter)) +
-                          " --links" +
-                          (String.Equals(p.MountMode, "network", StringComparison.OrdinalIgnoreCase) ? " --network-mode" : "") +
-                          " --vfs-cache-mode " + cacheMode +
-                          " --dir-cache-time 10m" +
-                          " --poll-interval 1m" +
-                          " --vfs-write-back 10s" +
-                          " --vfs-cache-max-age 6h" +
-                          " --vfs-cache-max-size 5G" +
-                          " --volname " + QuoteArg(p.Label) +
-                          " --rc " + RcCommonFlags(p.RcPort) +
-                          " --log-level INFO" +
-                          " --log-file " + QuoteArg(p.LogFile);
-
+            // ARCH-1 step 4 (v0.15.4): argv assembly and process spawn
+            // delegated to MountManager. The post-launch monitor stays here
+            // because it does UI work (BeginUi, MessageBox, ShowBalloon).
             string effectiveBandwidth = EffectiveBandwidthFor(p);
-            if (!String.Equals(effectiveBandwidth, "off", StringComparison.OrdinalIgnoreCase)) args += " --bwlimit " + effectiveBandwidth;
+            string args = MountManager.BuildMountArgs(p, fullCache, RcCommonFlags(p.RcPort), effectiveBandwidth);
 
             try
             {
-                ProcessStartInfo psi = new ProcessStartInfo();
-                psi.FileName = rclonePath;
-                psi.Arguments = args;
-                psi.UseShellExecute = false;
-                psi.CreateNoWindow = true;
-                psi.WindowStyle = ProcessWindowStyle.Hidden;
-                psi.WorkingDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-                p.MountProcess = Process.Start(psi);
-                // Bind the new rclone to our kill-on-job-close Job Object so
-                // it dies with Pixelpipe even if Pixelpipe is killed via Task
-                // Manager / crashes / etc. Best-effort; the orphan-scan path
-                // catches anything that slips through.
-                RcloneJob.TryAssign(p.MountProcess, delegate(string warn) { LogUiWarn("rclone job assign " + p.Label, warn); });
+                p.MountProcess = MountManager.StartMountProcess(rclonePath, args,
+                    delegate(string warn) { LogUiWarn("rclone job assign " + p.Label, warn); });
                 p.StatusText = "mounting " + GetDriveRoot(p);
                 SaveProfiles();
                 RebuildMenu();

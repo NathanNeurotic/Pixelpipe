@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.15.4
+
+ARCH-1 step 4 (final). Fourth collaborator extracted from `TrayContext`. No user-visible changes. With this the audit's ARCH-1 incremental work is done.
+
+Changed:
+
+- **New `MountManager` class** (`src/MountManager.cs`) owns the rclone mount process lifecycle bits:
+  - `BuildMountArgs(profile, fullCache, rcCommonFlags, effectiveBandwidth)` — pure helper that assembles the full rclone `mount` argv with all the cache-mode, VFS, network-mode, RC, log, and bandwidth flags Pixelpipe has used since v0.5.x. Unit-testable without touching disk.
+  - `StartMountProcess(rclonePath, args, logJobWarn)` — `Process.Start` plus the v0.11.4 Job Object binding so the rclone child still dies with Pixelpipe.
+- **`TrayContext.Mount.cs` delegates** argv assembly and the spawn. The dialog flow (rclone-missing, WinFsp-missing, remote-not-configured, drive-in-use, post-launch result) stays in `TrayContext` because it's UI-coupled.
+
 ## 0.15.3
 
 ARCH-1 step 3. Third collaborator extracted from `TrayContext`. No user-visible changes.
