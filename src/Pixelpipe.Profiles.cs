@@ -280,12 +280,17 @@ namespace Pixelpipe
                 title.ForeColor = WindowTheme.FgColor;
                 title.Margin = new Padding(0, 0, 0, 14);
 
-                FlowLayoutPanel body = new FlowLayoutPanel();
-                body.Dock = DockStyle.Fill;
-                body.FlowDirection = FlowDirection.TopDown;
-                body.WrapContents = false;
-                body.AutoScroll = true;
-                body.BackColor = form.BackColor;
+                // GUI-5 (v0.15.0): four-tab layout — General / Bandwidth /
+                // Schedule / Watch — instead of one tall scrolling form.
+                // The field controls below are built unchanged; only the
+                // wrapping container moves from a flowing column to a
+                // TabControl, and each existing GroupBox lands in its own
+                // TabPage at the bottom of this method. The dialog's Save
+                // path still references the same field locals so the read-
+                // back / round-trip logic is identical.
+                TabControl tabs = new TabControl();
+                tabs.Dock = DockStyle.Fill;
+                tabs.Padding = new Point(form.LogicalToDeviceUnits(12), form.LogicalToDeviceUnits(6));
 
                 // Core fields ------------------------------------------------
                 TableLayoutPanel grid = new TableLayoutPanel();
@@ -547,10 +552,17 @@ namespace Pixelpipe
                 watchStack.Controls.Add(watchHelp);
                 watchGroup.Controls.Add(watchStack);
 
-                body.Controls.Add(grid);
-                body.Controls.Add(bwGroup);
-                body.Controls.Add(schedGroup);
-                body.Controls.Add(watchGroup);
+                // Each tab gets one of the existing group panels. Inner
+                // GroupBox titles stay so the visual border still reads,
+                // but the tab title is what the user uses to navigate.
+                TabPage generalPage = new TabPage("General"); generalPage.BackColor = form.BackColor; generalPage.ForeColor = WindowTheme.FgColor; generalPage.Padding = new Padding(12); generalPage.Controls.Add(grid);
+                TabPage bwPage = new TabPage("Bandwidth"); bwPage.BackColor = form.BackColor; bwPage.ForeColor = WindowTheme.FgColor; bwPage.Padding = new Padding(12); bwPage.Controls.Add(bwGroup);
+                TabPage schedPage = new TabPage("Schedule"); schedPage.BackColor = form.BackColor; schedPage.ForeColor = WindowTheme.FgColor; schedPage.Padding = new Padding(12); schedPage.Controls.Add(schedGroup);
+                TabPage watchPage = new TabPage("Watch"); watchPage.BackColor = form.BackColor; watchPage.ForeColor = WindowTheme.FgColor; watchPage.Padding = new Padding(12); watchPage.Controls.Add(watchGroup);
+                tabs.TabPages.Add(generalPage);
+                tabs.TabPages.Add(bwPage);
+                tabs.TabPages.Add(schedPage);
+                tabs.TabPages.Add(watchPage);
 
                 FlowLayoutPanel footer = new FlowLayoutPanel();
                 footer.Dock = DockStyle.Fill;
@@ -565,7 +577,7 @@ namespace Pixelpipe
                 footer.Controls.Add(save);
 
                 root.Controls.Add(title, 0, 0);
-                root.Controls.Add(body, 0, 1);
+                root.Controls.Add(tabs, 0, 1);
                 root.Controls.Add(footer, 0, 2);
                 form.Controls.Add(root);
                 form.AcceptButton = save; form.CancelButton = cancel;

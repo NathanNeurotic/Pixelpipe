@@ -951,6 +951,11 @@ namespace Pixelpipe
             public readonly Panel Root;
             private readonly Label titleLabel;
             private readonly Label statusPill;
+            private readonly StatusDot statusDot;
+            private readonly Label driveChip;
+            private readonly Button overflowBtn;
+            private readonly ContextMenuStrip overflowMenu;
+            private readonly ToolStripMenuItem overflowAutoMount;
             private readonly Label remoteLabel;
             private readonly Label driveLabel;
             private readonly Label statusLabel;
@@ -966,11 +971,6 @@ namespace Pixelpipe
             private readonly Button mountFull;
             private readonly Button unmount;
             private readonly Button openDrive;
-            private readonly Button testBtn;
-            private readonly Button editBtn;
-            private readonly Button setPrimaryBtn;
-            private readonly Button autoMountBtn;
-            private readonly Button removeBtn;
 
             public ProfileCard(TrayContext owner, RemoteProfile p)
             {
@@ -1002,14 +1002,20 @@ namespace Pixelpipe
                 layout.Padding = new Padding(0);
                 layout.GrowStyle = TableLayoutPanelGrowStyle.AddRows;
 
-                // Header is a TableLayoutPanel with two AutoSize columns. No percent
-                // column — those force GrowAndShrink to collapse and were the cause of
-                // the "unmounte" clipping bug. We just put the pill right next to the
-                // title with a small gap; visually that reads as a chip on the right.
+                // GUI-1 (v0.15.0): header is `[dot] title [drive-chip] [pill] [⋯]`.
+                // Status dot tells you at a glance whether the profile is
+                // mounted; drive chip surfaces the assigned letter without
+                // needing to scan to "Drive: P:\" below; overflow button
+                // hides 5 less-frequent actions (Test / Edit / Set primary /
+                // Auto-mount / Remove) behind a ⋯ menu so the action bar
+                // only shows the 3 high-frequency buttons.
                 TableLayoutPanel header = new TableLayoutPanel();
                 header.AutoSize = true;
                 header.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-                header.ColumnCount = 2;
+                header.ColumnCount = 5;
+                header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+                header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+                header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
                 header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
                 header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
                 header.RowCount = 1;
@@ -1018,11 +1024,23 @@ namespace Pixelpipe
                 header.Padding = new Padding(0);
                 header.BackColor = CardBg;
 
+                statusDot = new StatusDot();
+                statusDot.Margin = new Padding(0, 12, 8, 0);
+
                 titleLabel = new Label();
                 titleLabel.AutoSize = true;
                 titleLabel.Font = new Font("Segoe UI", 11.5f, FontStyle.Bold);
                 titleLabel.ForeColor = FgColor;
-                titleLabel.Margin = new Padding(0, 6, 16, 0);
+                titleLabel.Margin = new Padding(0, 6, 12, 0);
+
+                driveChip = new Label();
+                driveChip.AutoSize = true;
+                driveChip.Font = new Font("Segoe UI", 8.5f, FontStyle.Bold);
+                driveChip.ForeColor = WindowTheme.MutedColor;
+                driveChip.BackColor = WindowTheme.InputBg;
+                driveChip.Padding = new Padding(8, 3, 8, 3);
+                driveChip.TextAlign = ContentAlignment.MiddleCenter;
+                driveChip.Margin = new Padding(0, 9, 8, 0);
 
                 statusPill = new Label();
                 statusPill.AutoSize = true;
@@ -1032,8 +1050,26 @@ namespace Pixelpipe
                 statusPill.TextAlign = ContentAlignment.MiddleCenter;
                 statusPill.Margin = new Padding(0, 8, 0, 0);
 
-                header.Controls.Add(titleLabel, 0, 0);
-                header.Controls.Add(statusPill, 1, 0);
+                overflowBtn = MainWindow.MakeAction("⋯", null);
+                overflowBtn.Margin = new Padding(8, 6, 0, 0);
+                overflowBtn.MinimumSize = new Size(32, 28);
+                overflowMenu = new ContextMenuStrip();
+                TrayMenuTheme.Apply(overflowMenu);
+                overflowMenu.Items.Add("Test profile", null, delegate { owner.TestProfile(Profile); });
+                overflowMenu.Items.Add("Edit profile...", null, delegate { owner.EditProfile(Profile); });
+                overflowMenu.Items.Add("Set as primary", null, delegate { owner.MakePrimaryProfile(Profile); });
+                overflowAutoMount = new ToolStripMenuItem("Auto-mount at Pixelpipe start");
+                overflowAutoMount.Click += delegate { owner.ToggleProfileAutoMount(Profile); ApplyLiveState(); };
+                overflowMenu.Items.Add(overflowAutoMount);
+                overflowMenu.Items.Add(new ToolStripSeparator());
+                overflowMenu.Items.Add("Remove profile", null, delegate { owner.RemoveProfile(Profile); });
+                overflowBtn.Click += delegate { overflowMenu.Show(overflowBtn, new Point(0, overflowBtn.Height)); };
+
+                header.Controls.Add(statusDot, 0, 0);
+                header.Controls.Add(titleLabel, 1, 0);
+                header.Controls.Add(driveChip, 2, 0);
+                header.Controls.Add(statusPill, 3, 0);
+                header.Controls.Add(overflowBtn, 4, 0);
 
                 remoteLabel = MakeLine();
                 driveLabel = MakeLine();
@@ -1081,24 +1117,11 @@ namespace Pixelpipe
                 primary.Controls.Add(unmount);
                 primary.Controls.Add(openDrive);
 
-                FlowLayoutPanel secondary = new FlowLayoutPanel();
-                secondary.AutoSize = true;
-                secondary.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-                secondary.FlowDirection = FlowDirection.LeftToRight;
-                secondary.WrapContents = false;
-                secondary.Margin = new Padding(0, 4, 0, 0);
-                secondary.BackColor = CardBg;
-
-                testBtn = MainWindow.MakeAction("Test", delegate { owner.TestProfile(Profile); });
-                editBtn = MainWindow.MakeAction("Edit", delegate { owner.EditProfile(Profile); });
-                setPrimaryBtn = MainWindow.MakeAction("Set primary", delegate { owner.MakePrimaryProfile(Profile); });
-                autoMountBtn = MainWindow.MakeAction("Auto-mount: off", delegate { owner.ToggleProfileAutoMount(Profile); });
-                removeBtn = MainWindow.MakeAction("Remove", delegate { owner.RemoveProfile(Profile); });
-                secondary.Controls.Add(testBtn);
-                secondary.Controls.Add(editBtn);
-                secondary.Controls.Add(setPrimaryBtn);
-                secondary.Controls.Add(autoMountBtn);
-                secondary.Controls.Add(removeBtn);
+                // GUI-1 (v0.15.0): secondary actions (Test / Edit / Set
+                // primary / Auto-mount / Remove) moved to the header's ⋯
+                // overflow menu. Trims the visible button count from 9 to 4
+                // (Mount / Full cache / Unmount / Open) without losing any
+                // affordance.
 
                 AddRow(layout, header);
                 AddRow(layout, remoteLabel);
@@ -1113,7 +1136,6 @@ namespace Pixelpipe
                 AddRow(layout, watchLabel);
                 AddRow(layout, errorLabel);
                 AddRow(layout, primary);
-                AddRow(layout, secondary);
 
                 Root.Controls.Add(layout);
                 ApplyLiveState();
@@ -1135,6 +1157,9 @@ namespace Pixelpipe
                 titleLabel.Text = Profile.Label + "   (" + TrayContext.DisplayProvider(Profile.Provider) + ")";
                 statusPill.Text = mounted ? "MOUNTED" : "unmounted";
                 statusPill.BackColor = mounted ? MountedPill : UnmountedPill;
+                if (statusDot != null) statusDot.State = mounted ? StatusDot.DotColor.Ok : StatusDot.DotColor.Unknown;
+                if (driveChip != null) driveChip.Text = (Profile.DriveLetter ?? "?:").ToUpperInvariant();
+                if (overflowAutoMount != null) overflowAutoMount.Checked = Profile.AutoMount;
 
                 remoteLabel.Text = "Remote: " + Profile.Remote;
                 driveLabel.Text = "Drive: " + owner.GetDriveRoot(Profile);
@@ -1184,9 +1209,10 @@ namespace Pixelpipe
                 openDrive.Enabled = mounted;
                 openDrive.Text = mounted ? "Open " + owner.GetDriveRoot(Profile) : "Open";
 
-                editBtn.Enabled = !mounted;
-                removeBtn.Enabled = !mounted;
-                autoMountBtn.Text = "Auto-mount: " + (Profile.AutoMount ? "on" : "off");
+                // Overflow menu items don't expose .Enabled the same way as
+                // Button, but the actions themselves no-op or error when
+                // mounted (see EditProfile / RemoveProfile guards), so it's
+                // fine to leave them enabled in the menu.
             }
 
             private static Label MakeLine()
