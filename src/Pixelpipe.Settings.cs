@@ -110,74 +110,26 @@ namespace Pixelpipe
             catch (Exception ex) { LogUiIssue("save profiles", ex); }
         }
 
-        // PERF-3 (v0.13.4): cache the parsed settings root in memory so
-        // each SaveSetting / SaveProfiles doesn't re-read + re-parse the
-        // file. Atomic-write durability is preserved (WriteSettingsRoot
-        // still goes through WriteAllTextAtomic), we just skip the read +
-        // JavaScriptSerializer round-trip per write. Lock-protected so
-        // concurrent writes from worker threads don't tear the dict.
-        private Dictionary<string, object> settingsRootCache;
-        private readonly object settingsRootCacheLock = new object();
-
-        private Dictionary<string, object> ReadSettingsRoot()
+        // ARCH-1 step 2 (v0.15.2): the cache / read / write / lock mechanics
+        // moved into SettingsStore. TrayContext holds a lazily-initialised
+        // reference and delegates. PERF-3 cache behavior unchanged.
+        private SettingsStore _settingsStore;
+        private SettingsStore SettingsBackend
         {
-            lock (settingsRootCacheLock)
+            get
             {
-                if (settingsRootCache != null) return settingsRootCache;
-                Dictionary<string, object> root;
-                if (TryReadSettingsRoot(settingsFile, out root))
+                if (_settingsStore == null)
                 {
-                    settingsRootCache = root;
-                    return settingsRootCache;
+                    _settingsStore = new SettingsStore(settingsFile, LogUiIssue,
+                        delegate(string area, string msg) { LogUiWarn(area, msg); });
                 }
-                string backupFile = settingsFile + ".bak";
-                if (TryReadSettingsRoot(backupFile, out root))
-                {
-                    LogUiWarn("read settings", "loaded backup settings file after primary file could not be read");
-                    settingsRootCache = root;
-                    return settingsRootCache;
-                }
-                settingsRootCache = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
-                return settingsRootCache;
+                return _settingsStore;
             }
         }
 
-        private bool TryReadSettingsRoot(string path, out Dictionary<string, object> root)
-        {
-            root = null;
-            try
-            {
-                if (!File.Exists(path)) return false;
-                string json = File.ReadAllText(path, Encoding.UTF8);
-                JavaScriptSerializer js = new JavaScriptSerializer();
-                Dictionary<string, object> parsed = js.DeserializeObject(json) as Dictionary<string, object>;
-                if (parsed == null) return false;
-                root = new Dictionary<string, object>(parsed, StringComparer.OrdinalIgnoreCase);
-                return true;
-            }
-            catch (Exception ex) { LogUiIssue("read settings " + Path.GetFileName(path), ex); }
-            return false;
-        }
+        private Dictionary<string, object> ReadSettingsRoot() { return SettingsBackend.ReadRoot(); }
 
-        private void WriteSettingsRoot(Dictionary<string, object> root)
-        {
-            try
-            {
-                Directory.CreateDirectory(settingsDir);
-                string json;
-                lock (settingsRootCacheLock)
-                {
-                    // Caller may have built `root` from scratch (vs mutating
-                    // the existing cache); replace the cache reference so
-                    // the next ReadSettingsRoot returns the latest values.
-                    settingsRootCache = root;
-                    JavaScriptSerializer js = new JavaScriptSerializer();
-                    json = js.Serialize(root);
-                }
-                WriteAllTextAtomic(settingsFile, json, Encoding.UTF8);
-            }
-            catch (Exception ex) { LogUiIssue("write settings", ex); }
-        }
+        private void WriteSettingsRoot(Dictionary<string, object> root) { SettingsBackend.WriteRoot(root); }
 
         // Pixelpipe already keeps the most recent settings.json as .bak via
         // WriteAllTextAtomic (it's overwritten on every save). Before any
@@ -187,42 +139,9 @@ namespace Pixelpipe
         // recover a known-good state hours or days later. The directory is
         // pruned to the last `BackupRetentionCount` files so it doesn't
         // grow unbounded.
-        private const int BackupRetentionCount = 20;
-
-        internal string BackupsDir { get { return Path.Combine(settingsDir, "backups"); } }
-
-        private string BackupSettingsFile(string reason)
-        {
-            try
-            {
-                if (!File.Exists(settingsFile)) return null;
-                Directory.CreateDirectory(BackupsDir);
-                string stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
-                string safeReason = SafeFileName(String.IsNullOrEmpty(reason) ? "manual" : reason);
-                string target = Path.Combine(BackupsDir, "settings-" + stamp + "-" + safeReason + ".json");
-                File.Copy(settingsFile, target, false);
-                PruneOldBackups();
-                LogUiWarn("settings backup", "wrote " + target);
-                return target;
-            }
-            catch (Exception ex) { LogUiIssue("settings backup " + reason, ex); return null; }
-        }
-
-        private void PruneOldBackups()
-        {
-            try
-            {
-                if (!Directory.Exists(BackupsDir)) return;
-                string[] files = Directory.GetFiles(BackupsDir, "settings-*.json");
-                if (files.Length <= BackupRetentionCount) return;
-                Array.Sort(files, delegate(string a, string b) { return File.GetCreationTimeUtc(b).CompareTo(File.GetCreationTimeUtc(a)); });
-                for (int i = BackupRetentionCount; i < files.Length; i++)
-                {
-                    try { File.Delete(files[i]); } catch { }
-                }
-            }
-            catch (Exception ex) { LogUiIssue("prune backups", ex); }
-        }
+        // ARCH-1 step 2 (v0.15.2): backups + prune live in SettingsStore.
+        internal string BackupsDir { get { return SettingsBackend.BackupsDir; } }
+        private string BackupSettingsFile(string reason) { return SettingsBackend.Backup(reason); }
 
         // Tools / diagnostics menu hook.
         private void OpenSettingsBackupsFolder()
