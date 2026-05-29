@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.15.2
+
+ARCH-1 step 2. Second collaborator extracted from `TrayContext`. No user-visible changes.
+
+Changed:
+
+- **New `SettingsStore` class** (`src/SettingsStore.cs`) owns the `settings.json` read / write / in-memory cache / atomic-write / timestamped backups / prune. Profile-specific shape logic (which keys land in each profile dict) stays in `TrayContext.Settings.cs`; `SettingsStore` is the layer below — give it the root dict, it handles disk.
+- **`TrayContext.ReadSettingsRoot` / `WriteSettingsRoot` / `BackupSettingsFile` delegate** to a lazily-initialised `SettingsStore` field. Lock-protected cache (PERF-3 behavior) preserved.
+
 ## 0.15.1
 
 ARCH-1 step 1 from the audit — first collaborator extracted from the `TrayContext` partial. No user-visible changes; internal refactor only.
