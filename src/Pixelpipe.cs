@@ -131,7 +131,22 @@ namespace Pixelpipe
                     // fire, menu.Visible is still false and we open it
                     // ourselves at the cursor.
                     if (menu.Visible) return;
-                    menu.Show(Cursor.Position);
+                    try
+                    {
+                        menu.Show(Cursor.Position);
+                    }
+                    catch (System.ComponentModel.Win32Exception w32ex)
+                    {
+                        // v0.13.2: handle the "Error creating window handle"
+                        // failure (USER object exhaustion) without leaving
+                        // the user stuck. Force a GC to release any
+                        // disposed-but-not-yet-collected ToolStrip controls,
+                        // mark the menu structure dirty so the next try
+                        // walks the full rebuild path, log loudly.
+                        LogUiIssue("tray right-click win32", w32ex);
+                        try { menuStructureDirty = true; } catch { }
+                        try { GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect(); } catch { }
+                    }
                 }
                 catch (Exception ex) { LogUiIssue("tray right-click", ex); }
             };

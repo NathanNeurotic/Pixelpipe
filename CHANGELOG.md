@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.13.2
+
+Hotfix for a long-standing handle leak that surfaced as "right-click menu stops working after a few hours of uptime". User log showed `Win32Exception: Error creating window handle` from `ContextMenuStrip.Show` — classic Windows USER object exhaustion (per-process limit ~10 000).
+
+Fixed:
+
+- **`OnMenuOpening` was calling `RebuildMenu` on every right-click.** Each rebuild creates and disposes every `ToolStripMenuItem` / `Label` / `ToolStripDropDown` instance in the menu tree, and WinForms doesn't release every USER handle on `Dispose`. After several hours of typical use the handle count climbs into the thousands and the menu literally can't be drawn. Now `OnMenuOpening` only calls `RebuildMenu` when `menuStructureDirty` is true (which the rare structural-change paths set) or when the menu has somehow ended up empty. Otherwise it falls through to `UpdateMenuLiveState` which mutates existing items in place — no new handles.
+- **`MouseUp` right-click handler catches `Win32Exception`** specifically so the rare residual exhaustion sets the dirty flag, forces a `GC.Collect` to release any pending finalisers, and lets the next click try again with a clean slate.
+
 ## 0.13.1
 
 Audit follow-up batch two — responsiveness + remaining security hygiene + x64. Six findings closed.
