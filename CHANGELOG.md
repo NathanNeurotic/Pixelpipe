@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.15.3
+
+ARCH-1 step 3. Third collaborator extracted from `TrayContext`. No user-visible changes.
+
+Changed:
+
+- **New `DependencyProbe` class** (`src/DependencyProbe.cs`) owns the cached `RcloneAvailable` / `WinFspInstalled` booleans plus their TTL stamp and the synchronous probes themselves (the slow `File.Exists` + `spawn rclone version` + registry lookups). Constructor takes a `Func<string>` rclone path provider and a log callback.
+- **`TrayContext.Setup.cs` delegates** the cached-state and probe methods. The async refresh worker (`RefreshDependencyStatusAsync`) stays in `TrayContext` because it composes results into the setup-status line and marshals back via `BeginUi`; it just hands the actual probing off to `DependencyProbe.PublishProbeResults`.
+
 ## 0.15.2
 
 ARCH-1 step 2. Second collaborator extracted from `TrayContext`. No user-visible changes.
