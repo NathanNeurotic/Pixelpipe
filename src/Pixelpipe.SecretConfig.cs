@@ -151,10 +151,10 @@ namespace Pixelpipe
             obscured = "";
             try
             {
-                ProcessStartInfo psi = new ProcessStartInfo();
-                psi.FileName = rclonePath;
-                psi.Arguments = "obscure -";
-                ProcessResult res = RunCaptureCore(psi, 5000, plaintext);
+                // ARCH-1 (v0.15.1): SEC-1's stdin path now goes through
+                // RcloneClient so this method has no direct dependency on
+                // TrayContext's process-management internals.
+                ProcessResult res = RcloneInvoker.RunWithStdin("obscure -", 5000, plaintext);
                 if (!res.Succeeded)
                 {
                     return res.TimedOut ? "obscure timed out"

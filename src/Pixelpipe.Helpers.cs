@@ -224,32 +224,35 @@ namespace Pixelpipe
         // pass secrets through environment variables instead of argv, where
         // any other user-level process can read them via Win32_Process.
         // CommandLine (SEC-1 fix).
+        // ARCH-1 step 1 (v0.15.1): a lazily-initialised RcloneClient owns
+        // the "invoke rclone, return ProcessResult" surface. The wrappers
+        // below stay so no caller has to change — new code should take
+        // RcloneClient directly to avoid the TrayContext dependency.
+        private RcloneClient _rcloneClient;
+        private RcloneClient RcloneInvoker
+        {
+            get
+            {
+                if (_rcloneClient == null) _rcloneClient = new RcloneClient(() => rclonePath);
+                return _rcloneClient;
+            }
+        }
+
         private ProcessResult RunRcloneCaptureResult(string arguments, int timeoutMs, Dictionary<string, string> envOverrides)
         {
-            ProcessStartInfo psi = new ProcessStartInfo();
-            psi.FileName = rclonePath;
-            psi.Arguments = arguments;
-            if (envOverrides != null)
-            {
-                foreach (KeyValuePair<string, string> kv in envOverrides)
-                {
-                    if (String.IsNullOrEmpty(kv.Key)) continue;
-                    psi.EnvironmentVariables[kv.Key] = kv.Value ?? "";
-                }
-            }
-            return RunCaptureCore(psi, timeoutMs);
+            return RcloneInvoker.Run(arguments, timeoutMs, envOverrides);
         }
 
         private ProcessResult RunRcloneCaptureResult(string arguments, int timeoutMs)
         {
-            return RunRcloneCaptureResult(arguments, timeoutMs, null);
+            return RcloneInvoker.Run(arguments, timeoutMs);
         }
 
         private string RunRcloneCapture(string arguments, int timeoutMs)
         {
             try
             {
-                ProcessResult r = RunRcloneCaptureResult(arguments, timeoutMs);
+                ProcessResult r = RcloneInvoker.Run(arguments, timeoutMs);
                 if (!String.IsNullOrEmpty(r.LaunchError)) return r.LaunchError;
                 return r.CombinedOutput;
             }
