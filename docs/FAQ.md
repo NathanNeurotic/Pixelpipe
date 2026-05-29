@@ -1,5 +1,19 @@
 # Pixelpipe FAQ
 
+## Windows says "Windows protected your PC" / "unrecognized app" — is Pixelpipe safe?
+
+Yes. Pixelpipe's downloads are **not code-signed** (a code-signing certificate is a recurring paid cost the project doesn't carry yet), so Windows SmartScreen shows a blue *"Windows protected your PC"* warning the first time you run `Pixelpipe.exe` or `Pixelpipe-Setup.exe`. Every unsigned open-source app trips this; it is not a malware detection.
+
+To run it: click **More info**, then **Run anyway**. You only do this once per downloaded file.
+
+Want to verify the file is genuine first? Each release includes `SHA256SUMS.txt`; compare it with:
+
+```powershell
+Get-FileHash .\Pixelpipe.exe -Algorithm SHA256
+```
+
+A signed build would remove the prompt entirely, but that needs a paid certificate the project doesn't have yet.
+
 ## Does Pixelpipe mount normal public PixelDrain file links?
 
 No. Pixelpipe mounts a PixelDrain filesystem remote through rclone. Normal one-off public file links are not a writable drive.
