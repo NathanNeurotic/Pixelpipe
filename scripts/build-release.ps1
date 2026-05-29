@@ -24,7 +24,7 @@ $Csc = "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
 if (!(Test-Path $Csc)) { $Csc = "$env:WINDIR\Microsoft.NET\Framework\v4.0.30319\csc.exe" }
 if (!(Test-Path $Csc)) { throw 'csc.exe not found. Install .NET Framework Developer Pack or Visual Studio Build Tools.' }
 $CommonArgs = @(
-  '/nologo','/target:winexe','/platform:anycpu','/optimize+',
+  '/nologo','/target:winexe','/platform:x64','/optimize+',
   "/out:$Out","/win32icon:$Ico","/win32manifest:$Manifest",
   '/reference:System.dll','/reference:System.Core.dll',
   '/reference:System.Drawing.dll','/reference:System.Windows.Forms.dll',

@@ -21,6 +21,12 @@ namespace Pixelpipe
 
     internal sealed partial class TrayContext
     {
+        // PERF-4 (v0.13.1): static compiled regex for the log-line parser
+        // so a several-hundred-line Activity refresh doesn't recompile it.
+        private static readonly Regex ActivityLineRegex = new Regex(
+            @"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+\[(?<level>[^\]]+)\]\s*(\[(?<area>[^\]]+)\])?\s*(?<msg>.*)$",
+            RegexOptions.Compiled);
+
         // Pure helper, tests cover it. Walks the log content line-by-line
         // and returns the most-recent `maxEvents` events first. Lines that
         // don't parse are skipped silently — the log occasionally has
@@ -31,7 +37,7 @@ namespace Pixelpipe
             if (String.IsNullOrEmpty(logContent)) return all;
             string[] lines = logContent.Replace("\r", "").Split('\n');
             // Format: "YYYY-MM-DD HH:MM:SS [level] [area] message"
-            Regex re = new Regex(@"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+\[(?<level>[^\]]+)\]\s*(\[(?<area>[^\]]+)\])?\s*(?<msg>.*)$");
+            Regex re = ActivityLineRegex;
             for (int i = 0; i < lines.Length; i++)
             {
                 string line = lines[i];

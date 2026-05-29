@@ -42,6 +42,13 @@ namespace Pixelpipe
         private string uiLogFile;
         private string setupStatusText;
         private string transferQuotaText;
+        // SEC-2 (v0.13.1): random per-session RC auth token. Loopback-only
+        // before this change still meant any other user-level process could
+        // hit our RC ports and unmount/quit/bwlimit our mounts. The token is
+        // generated at startup, never persisted, and replaces --rc-no-auth
+        // on both the mount launch and every subsequent rc client call.
+        private readonly string rcAuthToken;
+        private const string RcAuthUser = "pixelpipe";
         private int refreshingFlag;
         private int dependencyRefreshingFlag;
         private DateTime lastDependencyRefreshUtc = DateTime.MinValue;
@@ -60,6 +67,10 @@ namespace Pixelpipe
             uiLogFile = Path.Combine(logDir, "pixelpipe-ui.log");
             Directory.CreateDirectory(settingsDir);
             Directory.CreateDirectory(logDir);
+
+            // Generate the random RC auth token immediately so any code path
+            // that touches a mount sees the same value.
+            rcAuthToken = GenerateRcAuthToken();
 
             // Set up the kill-on-job-close safety net before ANY rclone is
             // spawned. After this call every Process we hand to
@@ -359,11 +370,36 @@ namespace Pixelpipe
         // Best-effort scrubbing of secrets before showing rclone output to the user.
         // Hides api_key/password/token assignments and long alphanumeric runs that
         // look like credentials.
+        // PERF-4 (v0.13.1): static compiled regexes for ScrubSecrets so the
+        // log-write path doesn't re-build them on every line.
+        private static readonly Regex ScrubKeyValueRegex = new Regex(@"(api_key|password|token|secret|access_key|secret_key)\s*[=:]\s*\S+", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly Regex ScrubLongTokenRegex = new Regex(@"\b[A-Za-z0-9_\-]{32,}\b", RegexOptions.Compiled);
+
+        // SEC-2 (v0.13.1): 32 bytes of crypto-random base64, URL-safe so we
+        // can drop it into rclone CLI without quoting headaches.
+        internal static string GenerateRcAuthToken()
+        {
+            using (System.Security.Cryptography.RandomNumberGenerator rng = System.Security.Cryptography.RandomNumberGenerator.Create())
+            {
+                byte[] buf = new byte[24];
+                rng.GetBytes(buf);
+                return Convert.ToBase64String(buf).Replace("+", "-").Replace("/", "_").Replace("=", "");
+            }
+        }
+
+        // Common flag block: address + auth. Used by every rc client call so
+        // they all use the same protocol — switching back to --rc-no-auth in
+        // even one place would re-open the unauth window.
+        private string RcCommonFlags(int port)
+        {
+            return "--rc-addr 127.0.0.1:" + port.ToString() + " --rc-user " + RcAuthUser + " --rc-pass " + rcAuthToken;
+        }
+
         internal static string ScrubSecrets(string text)
         {
             if (String.IsNullOrEmpty(text)) return text;
-            string s = Regex.Replace(text, @"(?i)(api_key|password|token|secret|access_key|secret_key)\s*[=:]\s*\S+", "$1=***");
-            s = Regex.Replace(s, @"\b[A-Za-z0-9_\-]{32,}\b", "***");
+            string s = ScrubKeyValueRegex.Replace(text, "$1=***");
+            s = ScrubLongTokenRegex.Replace(s, "***");
             return s;
         }
 
