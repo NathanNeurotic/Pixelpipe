@@ -235,8 +235,14 @@ namespace Pixelpipe
         private void UploadWatchEntry(RemoteProfile p, WatchEntry entry)
         {
             string args = BuildWatchUploadArgs(p, entry.LocalPath);
-            string output = RunRcloneCapture(args, 1800000); // 30 min ceiling per file
-            bool success = !LooksLikeRcloneError(output);
+            ProcessResult res = RunRcloneCaptureResult(args, 1800000); // 30 min ceiling per file
+            // BUG-1 (v0.13.0): success is determined by the rclone exit code,
+            // not by scanning stdout/stderr for "Error/Failed". rclone moveto
+            // and copyto print nothing on success, so the old text scan was
+            // correctly reporting silent success even when the process had
+            // been killed by our timeout (TimedOut=true) — a file in "move"
+            // mode would then be deleted locally without ever uploading.
+            bool success = res.Succeeded;
             if (success)
             {
                 BeginUi(delegate
@@ -246,17 +252,21 @@ namespace Pixelpipe
                     p.WatchLastResultUtc = DateTime.UtcNow;
                     ShowBalloon(p.Label + ": watch-folder uploaded " + Path.GetFileName(entry.LocalPath));
                 });
-                LogUiWarn("watch upload", p.Label + ": uploaded " + entry.LocalPath);
+                LogUiWarn("watch upload", p.Label + ": uploaded " + entry.LocalPath + " (exit 0)");
             }
             else
             {
+                string reason = res.TimedOut ? "timed out after 30 min"
+                              : (!String.IsNullOrEmpty(res.LaunchError) ? "launch error: " + res.LaunchError
+                              : "rclone exit code " + res.ExitCode);
+                string scrubbedTail = FirstNonEmptyLine(ScrubSecrets(res.CombinedOutput ?? ""));
                 BeginUi(delegate
                 {
                     p.WatchFailedTotal++;
-                    p.WatchLastResult = "failed: " + FirstNonEmptyLine(ScrubSecrets(output ?? ""));
+                    p.WatchLastResult = "failed: " + reason + (String.IsNullOrEmpty(scrubbedTail) ? "" : " — " + scrubbedTail);
                     p.WatchLastResultUtc = DateTime.UtcNow;
                 });
-                LogUiWarn("watch upload", p.Label + ": failed to upload " + entry.LocalPath + " -- " + ScrubSecrets(output ?? ""));
+                LogUiWarn("watch upload", p.Label + ": failed to upload " + entry.LocalPath + " — " + reason + " — " + ScrubSecrets(res.CombinedOutput ?? ""));
                 entry.Attempts++;
                 if (entry.Attempts < WatchMaxAttempts)
                 {

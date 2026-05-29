@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.13.0
+
+External code audit follow-up — correctness, security, and supply-chain. Five findings closed.
+
+Fixed:
+
+- **BUG-1 (success judged by text-scan).** `RunRcloneCapture` / `RunProcessCapture` used to return only concatenated stdout+stderr text; `Process.ExitCode` was never read, and `LooksLikeRcloneError` declared empty output to be "success". `rclone moveto` and `copyto` print nothing on success, so a watch-folder upload whose rclone got killed (timeout, OS, anything) was silently marked uploaded and — in `move` mode — the local file was deleted without ever actually uploading. Capture helpers now return a `ProcessResult { ExitCode, StdOut, StdErr, TimedOut, LaunchError }`. Watch-folder upload treats `ExitCode != 0 || TimedOut` as failure and routes the entry through the existing retry / drop machinery.
+- **BUG-2 (pipe-buffer dead-stall).** The same capture helpers called `ReadToEnd()` after `WaitForExit`. A child that wrote more than the ~64 KB pipe buffer to either stream would block on the write, never exit, and trigger a spurious timeout with empty output (feeding straight into BUG-1). Drain stdout and stderr asynchronously via `BeginOutputReadLine` / `BeginErrorReadLine` before waiting.
+- **SEC-1 (secrets on argv).** Provider wizards used to run `rclone config create NAME TYPE access_key_id AKIA... secret_access_key VALUE ... --non-interactive`, putting the secret in the process command line for the few seconds rclone ran — any other user-level process could read it via `Win32_Process.CommandLine` (Pixelpipe itself does this for its orphan scan). Now Pixelpipe writes the section directly to rclone.conf and obscures each secret field by piping the plaintext to `rclone obscure -` over **stdin**. Same on-disk result; nothing sensitive on argv.
+- **SEC-3 (unverified rclone download).** The portable installer hit `rclone-current-windows-amd64.zip` and ran the result with no integrity check — a compromised mirror or TLS-intercepting proxy could deliver a tampered binary. Pinned to `v1.71.1` (bumped together with future upgrades), download the matching `SHA256SUMS` file, parse the expected hash for our zip, compute SHA-256 of the downloaded zip, and refuse to extract on mismatch.
+- **BUG-4 (Run-key null deref).** `StartupEnabled` used `Registry.CurrentUser.OpenSubKey(...)` then `.GetValue` without a null check. On a profile without the Run key the NRE was swallowed and reported as "startup disabled" — technically correct but masking the real cause. Null-check the key and log inside the catch.
+
+Added:
+
+- **Four new unit tests** for the new pure helpers: `IsSecretField`, `MergeRcloneConfigSection`, `ParseSha256ForFile`, `ProcessResultSucceeded`. 51 tests total.
+
 ## 0.12.1
 
 Direct fixes for the freeze / linger symptoms — no more whack-a-mole. Five proactive changes that close known classes of UI-thread block:

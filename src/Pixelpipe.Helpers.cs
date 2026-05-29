@@ -34,40 +34,163 @@ namespace Pixelpipe
             return -1;
         }
 
-        private string RunProcessCapture(string fileName, string arguments, int timeoutMs)
+        // Structured result for every external process call. v0.13.0 audit
+        // BUG-1 (success was inferred by scanning stdout+stderr text for
+        // "Error/Failed", missing zero-exit-with-no-output success and
+        // non-conventional error wording) and BUG-2 (single-threaded reads
+        // dead-stall when a child writes more than the OS pipe buffer ~64 KB).
+        // Callers should treat `ExitCode != 0 || TimedOut` as failure and use
+        // CombinedOutput only for surfacing the failure reason to the user.
+        internal sealed class ProcessResult
         {
+            public int ExitCode;
+            public string StdOut = "";
+            public string StdErr = "";
+            public bool TimedOut;
+            public string LaunchError = "";
+            public string CombinedOutput { get { return (StdOut ?? "") + (StdErr ?? ""); } }
+            public bool Succeeded { get { return !TimedOut && String.IsNullOrEmpty(LaunchError) && ExitCode == 0; } }
+        }
+
+        // BUG-2 fix: drain stdout and stderr asynchronously while the child
+        // writes, then WaitForExit. Without this a child that emits >~64 KB
+        // to either stream blocks on its write until the pipe is drained,
+        // which never happens because we're waiting for it to exit — classic
+        // .NET deadlock.
+        internal static ProcessResult RunCaptureCore(ProcessStartInfo psi, int timeoutMs)
+        {
+            return RunCaptureCore(psi, timeoutMs, null);
+        }
+
+        // Stdin-capable overload. `stdinInput` is written to the child's
+        // standard input then the stream is closed. Used by SEC-1 fix so
+        // secrets can be piped to rclone (e.g. `rclone obscure -`) instead
+        // of placed on argv where any other process running as the same user
+        // can read them via Win32_Process.CommandLine.
+        internal static ProcessResult RunCaptureCore(ProcessStartInfo psi, int timeoutMs, string stdinInput)
+        {
+            ProcessResult result = new ProcessResult();
+            psi.UseShellExecute = false;
+            psi.CreateNoWindow = true;
+            psi.RedirectStandardOutput = true;
+            psi.RedirectStandardError = true;
+            if (stdinInput != null) psi.RedirectStandardInput = true;
+            Process p = null;
             try
             {
-                ProcessStartInfo psi = new ProcessStartInfo();
-                psi.FileName = fileName;
-                psi.Arguments = arguments;
-                psi.UseShellExecute = false;
-                psi.CreateNoWindow = true;
-                psi.RedirectStandardOutput = true;
-                psi.RedirectStandardError = true;
-                Process p = Process.Start(psi);
-                if (p == null) return "";
-                if (!p.WaitForExit(timeoutMs)) { try { p.Kill(); } catch { } return ""; }
-                return p.StandardOutput.ReadToEnd() + p.StandardError.ReadToEnd();
+                p = Process.Start(psi);
+                if (p == null)
+                {
+                    result.LaunchError = "Process.Start returned null";
+                    return result;
+                }
+                StringBuilder so = new StringBuilder();
+                StringBuilder se = new StringBuilder();
+                object soLock = new object();
+                object seLock = new object();
+                p.OutputDataReceived += delegate(object s, DataReceivedEventArgs e)
+                {
+                    if (e.Data == null) return;
+                    lock (soLock) { so.AppendLine(e.Data); }
+                };
+                p.ErrorDataReceived += delegate(object s, DataReceivedEventArgs e)
+                {
+                    if (e.Data == null) return;
+                    lock (seLock) { se.AppendLine(e.Data); }
+                };
+                p.BeginOutputReadLine();
+                p.BeginErrorReadLine();
+                if (stdinInput != null)
+                {
+                    try
+                    {
+                        p.StandardInput.Write(stdinInput);
+                        p.StandardInput.Close();
+                    }
+                    catch (Exception ex) { result.LaunchError = "stdin write failed: " + ex.Message; }
+                }
+                if (!p.WaitForExit(timeoutMs))
+                {
+                    try { p.Kill(); } catch { }
+                    result.TimedOut = true;
+                    // After Kill, WaitForExit() (no timeout) lets the async
+                    // readers flush their final buffers before we read them.
+                    try { p.WaitForExit(); } catch { }
+                }
+                lock (soLock) lock (seLock)
+                {
+                    result.StdOut = so.ToString();
+                    result.StdErr = se.ToString();
+                }
+                if (!result.TimedOut)
+                {
+                    try { result.ExitCode = p.ExitCode; } catch { result.ExitCode = -1; }
+                }
+                else
+                {
+                    result.ExitCode = -1;
+                }
             }
+            catch (Exception ex)
+            {
+                result.LaunchError = ex.Message;
+            }
+            finally
+            {
+                try { if (p != null) p.Dispose(); } catch { }
+            }
+            return result;
+        }
+
+        private ProcessResult RunProcessCaptureResult(string fileName, string arguments, int timeoutMs)
+        {
+            ProcessStartInfo psi = new ProcessStartInfo();
+            psi.FileName = fileName;
+            psi.Arguments = arguments;
+            return RunCaptureCore(psi, timeoutMs);
+        }
+
+        // Legacy text-returning wrappers retained so the rest of the codebase
+        // compiles unchanged; callers that need the exit code use the *Result
+        // variants below. New code MUST prefer the structured form.
+        private string RunProcessCapture(string fileName, string arguments, int timeoutMs)
+        {
+            try { return RunProcessCaptureResult(fileName, arguments, timeoutMs).CombinedOutput; }
             catch { return ""; }
+        }
+
+        // Structured rclone invocation. Optional envOverrides lets callers
+        // pass secrets through environment variables instead of argv, where
+        // any other user-level process can read them via Win32_Process.
+        // CommandLine (SEC-1 fix).
+        private ProcessResult RunRcloneCaptureResult(string arguments, int timeoutMs, Dictionary<string, string> envOverrides)
+        {
+            ProcessStartInfo psi = new ProcessStartInfo();
+            psi.FileName = rclonePath;
+            psi.Arguments = arguments;
+            if (envOverrides != null)
+            {
+                foreach (KeyValuePair<string, string> kv in envOverrides)
+                {
+                    if (String.IsNullOrEmpty(kv.Key)) continue;
+                    psi.EnvironmentVariables[kv.Key] = kv.Value ?? "";
+                }
+            }
+            return RunCaptureCore(psi, timeoutMs);
+        }
+
+        private ProcessResult RunRcloneCaptureResult(string arguments, int timeoutMs)
+        {
+            return RunRcloneCaptureResult(arguments, timeoutMs, null);
         }
 
         private string RunRcloneCapture(string arguments, int timeoutMs)
         {
             try
             {
-                ProcessStartInfo psi = new ProcessStartInfo();
-                psi.FileName = rclonePath;
-                psi.Arguments = arguments;
-                psi.UseShellExecute = false;
-                psi.CreateNoWindow = true;
-                psi.RedirectStandardOutput = true;
-                psi.RedirectStandardError = true;
-                Process p = Process.Start(psi);
-                if (p == null) return "";
-                if (!p.WaitForExit(timeoutMs)) { try { p.Kill(); } catch { } return ""; }
-                return p.StandardOutput.ReadToEnd() + p.StandardError.ReadToEnd();
+                ProcessResult r = RunRcloneCaptureResult(arguments, timeoutMs);
+                if (!String.IsNullOrEmpty(r.LaunchError)) return r.LaunchError;
+                return r.CombinedOutput;
             }
             catch (Exception ex) { return ex.Message; }
         }

@@ -164,12 +164,18 @@ namespace Pixelpipe
             {
                 using (RegistryKey key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", false))
                 {
+                    // BUG-4 (v0.13.0): OpenSubKey returns null when the Run
+                    // key doesn't exist (rare but possible on a freshly
+                    // provisioned profile). Dereferencing key.GetValue would
+                    // NRE and get swallowed as "startup disabled" — which is
+                    // technically correct but masks the real condition.
+                    if (key == null) return false;
                     object value = key.GetValue(AppName);
                     if (value == null) return false;
                     return value.ToString().IndexOf(Application.ExecutablePath, StringComparison.OrdinalIgnoreCase) >= 0;
                 }
             }
-            catch { return false; }
+            catch (Exception ex) { LogUiIssue("startup enabled probe", ex); return false; }
         }
 
         private void ToggleStartup()
