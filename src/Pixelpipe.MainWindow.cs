@@ -332,7 +332,7 @@ namespace Pixelpipe
 
                 activityFilter = new ComboBox();
                 activityFilter.DropDownStyle = ComboBoxStyle.DropDownList;
-                activityFilter.Width = 160;
+                activityFilter.Width = LogicalToDeviceUnits(160);
                 activityFilter.BackColor = WindowTheme.InputBg;
                 activityFilter.ForeColor = FgColor;
                 activityFilter.Margin = new Padding(0, 4, 6, 0);
@@ -444,7 +444,7 @@ namespace Pixelpipe
 
                 logSelector = new ComboBox();
                 logSelector.DropDownStyle = ComboBoxStyle.DropDownList;
-                logSelector.Width = 360;
+                logSelector.Width = LogicalToDeviceUnits(360);
                 logSelector.BackColor = WindowTheme.InputBg;
                 logSelector.ForeColor = FgColor;
                 logSelector.Margin = new Padding(0, 4, 6, 0);
@@ -461,7 +461,7 @@ namespace Pixelpipe
                 filterLabel.Margin = new Padding(8, 8, 6, 0);
 
                 logFilterBox = new TextBox();
-                logFilterBox.Width = 200;
+                logFilterBox.Width = LogicalToDeviceUnits(200);
                 logFilterBox.BackColor = WindowTheme.InputBg;
                 logFilterBox.ForeColor = FgColor;
                 logFilterBox.Margin = new Padding(0, 4, 6, 0);
@@ -581,7 +581,7 @@ namespace Pixelpipe
                 string[] choices = new string[] { "off", "512K", "1M", "5M", "10M", "25M", "50M", "100M", "250M" };
                 bandwidthCombo = new ComboBox();
                 bandwidthCombo.DropDownStyle = ComboBoxStyle.DropDownList;
-                bandwidthCombo.Width = 200;
+                bandwidthCombo.Width = LogicalToDeviceUnits(200);
                 bandwidthCombo.BackColor = WindowTheme.InputBg;
                 bandwidthCombo.ForeColor = FgColor;
                 bandwidthCombo.Margin = new Padding(0, 4, 12, 4);
@@ -1043,9 +1043,11 @@ namespace Pixelpipe
                 // GUI-2 (v0.14.0): owner-drawn dark-theme bar replacing the
                 // OS-styled ProgressBar (which painted green chunk over a
                 // light trough — clashed with the rest of the dark UI).
+                // GUI-3 (v0.14.1): width scaled via LogicalToDeviceUnits so
+                // it doesn't clip at 150-200% Windows scaling.
                 storageBar = new ThemedBar();
-                storageBar.Height = 6;
-                storageBar.Width = 528;
+                storageBar.Height = Root.LogicalToDeviceUnits(6);
+                storageBar.Width = Root.LogicalToDeviceUnits(528);
                 storageBar.Margin = new Padding(0, 2, 0, 8);
 
                 transferQuotaLabel = MakeLine();

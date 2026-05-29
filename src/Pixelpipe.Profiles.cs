@@ -302,7 +302,7 @@ namespace Pixelpipe
                 TextBox labelBox = new TextBox(); labelBox.Dock = DockStyle.Fill; labelBox.Text = p.Label;
                 TextBox providerBox = new TextBox(); providerBox.Dock = DockStyle.Fill; providerBox.Text = p.Provider;
                 TextBox remoteBox = new TextBox(); remoteBox.Dock = DockStyle.Fill; remoteBox.Text = p.Remote;
-                TextBox driveBox = new TextBox(); driveBox.Width = 90; driveBox.Text = p.DriveLetter;
+                TextBox driveBox = new TextBox(); driveBox.Width = form.LogicalToDeviceUnits(90); driveBox.Text = p.DriveLetter;
 
                 CheckBox networkBox = new CheckBox();
                 networkBox.AutoSize = true;
@@ -340,7 +340,7 @@ namespace Pixelpipe
                 string[] bwChoices = new string[] { "", "off", "512K", "1M", "5M", "10M", "25M", "50M", "100M", "250M" };
                 ComboBox bwCombo = new ComboBox();
                 bwCombo.DropDownStyle = ComboBoxStyle.DropDownList;
-                bwCombo.Width = 320;
+                bwCombo.Width = form.LogicalToDeviceUnits(320);
                 bwCombo.BackColor = WindowTheme.InputBg;
                 bwCombo.ForeColor = WindowTheme.FgColor;
                 bwCombo.Margin = new Padding(0, 8, 0, 0);
@@ -360,7 +360,7 @@ namespace Pixelpipe
                 bwScheduleLabel.Margin = new Padding(0, 14, 0, 4);
 
                 TextBox bwScheduleBox = new TextBox();
-                bwScheduleBox.Width = 540;
+                bwScheduleBox.Width = form.LogicalToDeviceUnits(540);
                 bwScheduleBox.Text = p.BandwidthScheduleEntries ?? "";
                 bwScheduleBox.Margin = new Padding(0, 0, 0, 4);
 
@@ -409,11 +409,11 @@ namespace Pixelpipe
                 schedEnabled.Margin = new Padding(0, 8, 0, 8);
 
                 TextBox mountTimeBox = new TextBox();
-                mountTimeBox.Width = 100;
+                mountTimeBox.Width = form.LogicalToDeviceUnits(100);
                 mountTimeBox.Text = p.ScheduleMountTime ?? "";
 
                 TextBox unmountTimeBox = new TextBox();
-                unmountTimeBox.Width = 100;
+                unmountTimeBox.Width = form.LogicalToDeviceUnits(100);
                 unmountTimeBox.Text = p.ScheduleUnmountTime ?? "";
 
                 FlowLayoutPanel daysRow = new FlowLayoutPanel();
@@ -483,7 +483,7 @@ namespace Pixelpipe
                 watchEnabled.Margin = new Padding(0, 6, 0, 6);
 
                 TextBox watchPathBox = new TextBox();
-                watchPathBox.Width = 380;
+                watchPathBox.Width = form.LogicalToDeviceUnits(380);
                 watchPathBox.Text = p.WatchFolderPath ?? "";
 
                 Button watchPathBrowse = MakeDialogButton("Browse...", DialogResult.None);
@@ -507,12 +507,12 @@ namespace Pixelpipe
                 watchPathRow.Controls.Add(watchPathBrowse);
 
                 TextBox watchTargetBox = new TextBox();
-                watchTargetBox.Width = 380;
+                watchTargetBox.Width = form.LogicalToDeviceUnits(380);
                 watchTargetBox.Text = p.WatchFolderTargetDir ?? "";
 
                 ComboBox watchModeCombo = new ComboBox();
                 watchModeCombo.DropDownStyle = ComboBoxStyle.DropDownList;
-                watchModeCombo.Width = 180;
+                watchModeCombo.Width = form.LogicalToDeviceUnits(180);
                 watchModeCombo.BackColor = WindowTheme.InputBg;
                 watchModeCombo.ForeColor = WindowTheme.FgColor;
                 watchModeCombo.Items.Add("move (delete local after upload)");
@@ -520,7 +520,7 @@ namespace Pixelpipe
                 watchModeCombo.SelectedIndex = NormalizeWatchMode(p.WatchFolderMode) == "copy" ? 1 : 0;
 
                 TextBox watchQuietBox = new TextBox();
-                watchQuietBox.Width = 100;
+                watchQuietBox.Width = form.LogicalToDeviceUnits(100);
                 watchQuietBox.Text = (p.WatchFolderQuietMs > 0 ? p.WatchFolderQuietMs : 5000).ToString();
 
                 AddEditRow(watchGrid, 0, "Watch folder path", watchPathRow);
