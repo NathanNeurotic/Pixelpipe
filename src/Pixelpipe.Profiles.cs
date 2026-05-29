@@ -191,10 +191,20 @@ namespace Pixelpipe
             }
 
             string bare = RemoteNameBare(p.Remote);
-            string result = RunRcloneCapture("config create " + QuoteArg(bare) + " pixeldrain api_key " + QuoteArg(apiKey) + " root_folder_id me --non-interactive", 15000);
-            if (result.IndexOf("Error", StringComparison.OrdinalIgnoreCase) >= 0 || result.IndexOf("unknown", StringComparison.OrdinalIgnoreCase) >= 0)
+            // SEC-1 (v0.13.0): write directly to rclone.conf so the API key
+            // never sits on the rclone process command line. Try the newer
+            // root_folder_id schema first, then fall back to the legacy
+            // directory_id naming that earlier rclone versions used.
+            List<KeyValuePair<string, string>> fields = new List<KeyValuePair<string, string>>();
+            fields.Add(new KeyValuePair<string, string>("api_key", apiKey));
+            fields.Add(new KeyValuePair<string, string>("root_folder_id", "me"));
+            string writeError = WriteRemoteToRcloneConfig(bare, "pixeldrain", fields);
+            if (writeError != null || !RemoteConfigured(p))
             {
-                result = RunRcloneCapture("config create " + QuoteArg(bare) + " pixeldrain api_key " + QuoteArg(apiKey) + " directory_id me --non-interactive", 15000);
+                List<KeyValuePair<string, string>> fallback = new List<KeyValuePair<string, string>>();
+                fallback.Add(new KeyValuePair<string, string>("api_key", apiKey));
+                fallback.Add(new KeyValuePair<string, string>("directory_id", "me"));
+                writeError = WriteRemoteToRcloneConfig(bare, "pixeldrain", fallback);
             }
 
             if (RemoteConfigured(p))
@@ -208,7 +218,7 @@ namespace Pixelpipe
             }
             else
             {
-                LogUiWarn("configure remote", "rclone did not report " + p.Remote + " after config create; raw output: " + result);
+                LogUiWarn("configure remote", "rclone did not report " + p.Remote + " after config write; last error: " + (writeError ?? "(none)"));
                 MessageBox.Show("rclone did not report " + p.Remote + " after configuration. See pixelpipe-ui.log for details.", "Pixelpipe setup", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }

@@ -15,7 +15,15 @@ namespace Pixelpipe
         private const string LegacyAppName = "PixeldrainAioMountTray";
         private const string DefaultRemoteName = "Pixeldrain:";
         private const string DefaultDriveLetter = "P:";
-        private const string RcloneDownloadUrl = "https://downloads.rclone.org/rclone-current-windows-amd64.zip";
+        // Pinned rclone version. SEC-3 (v0.13.0): switched from
+        // "rclone-current" to a specific release so the matching SHA256SUMS
+        // file is deterministic — we fetch SHA256SUMS for this exact version
+        // and refuse to install the zip if the published hash doesn't match
+        // what we just downloaded. Bump the version when upgrading rclone.
+        private const string RcloneVersion = "v1.71.1";
+        private const string RcloneZipName = "rclone-" + RcloneVersion + "-windows-amd64.zip";
+        private const string RcloneDownloadUrl = "https://downloads.rclone.org/" + RcloneVersion + "/" + RcloneZipName;
+        private const string RcloneSha256SumsUrl = "https://downloads.rclone.org/" + RcloneVersion + "/SHA256SUMS";
         private const string WingetRcloneId = "Rclone.Rclone";
         private const string WingetWinFspId = "WinFsp.WinFsp";
         private const int RcBasePort = 55729;

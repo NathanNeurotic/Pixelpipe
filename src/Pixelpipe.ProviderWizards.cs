@@ -208,21 +208,26 @@ namespace Pixelpipe
             return "";
         }
 
-        // Common back-end for non-OAuth providers: takes the user's field values
-        // plus the rclone backend type, runs `rclone config create`, verifies the
-        // remote shows up in `rclone listremotes`, then creates a profile.
-        // Returns true on success.
+        // Common back-end for non-OAuth providers. SEC-1 (v0.13.0): instead
+        // of `rclone config create NAME TYPE k1 v1 secret_access_key VALUE
+        // --non-interactive`, which exposes every secret in the process
+        // command line for the few seconds rclone runs, we write the section
+        // directly to rclone.conf with secret fields piped to `rclone obscure
+        // -` over stdin. Same on-disk result; secrets never sit on argv.
         private bool CreateRemoteAndProfile(string label, string providerKey, string preferredDrive, string remoteName, string rcloneType, List<KeyValuePair<string, string>> rcloneFields)
         {
             string bare = RemoteNameBare(remoteName);
-            string args = BuildRcloneConfigCreateArgs(bare, rcloneType, rcloneFields);
-            string output = RunRcloneCapture(args, 20000);
-            string scrubbed = ScrubSecrets(output ?? "");
-
+            string writeError = WriteRemoteToRcloneConfig(bare, rcloneType, rcloneFields);
+            if (writeError != null)
+            {
+                MessageBox.Show(label + " remote could not be written to rclone.conf:\r\n\r\n" + writeError, "Pixelpipe", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                LogUiWarn("provider wizard", label + " config write failed: " + writeError);
+                return false;
+            }
             if (!RemoteListContains(bare))
             {
-                MessageBox.Show(label + " remote could not be created.\r\n\r\nrclone output:\r\n" + (scrubbed.Length == 0 ? "(no output)" : scrubbed), "Pixelpipe", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                LogUiWarn("provider wizard", label + " config create did not register remote " + bare + ": " + scrubbed);
+                MessageBox.Show(label + " remote was written but rclone listremotes does not show it. Check rclone config manually.", "Pixelpipe", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                LogUiWarn("provider wizard", label + " listremotes did not show " + bare + " after config write");
                 return false;
             }
 

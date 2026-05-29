@@ -183,11 +183,31 @@ namespace Pixelpipe
             string tempRoot = Path.Combine(Path.GetTempPath(), "Pixelpipe-rclone-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(tempRoot);
             string zip = Path.Combine(tempRoot, "rclone.zip");
+            string sumsPath = Path.Combine(tempRoot, "SHA256SUMS");
             using (WebClient wc = new WebClient())
             {
                 wc.Headers[HttpRequestHeader.UserAgent] = "Pixelpipe/1.0";
                 wc.DownloadFile(RcloneDownloadUrl, zip);
+                wc.DownloadFile(RcloneSha256SumsUrl, sumsPath);
             }
+            // SEC-3 (v0.13.0): refuse to extract/run a tampered or
+            // truncated download. Compute SHA-256 of the zip, parse the
+            // published SHA256SUMS for the entry whose filename matches
+            // our pinned zip, compare. Any mismatch deletes everything
+            // we just downloaded and throws.
+            string actual = ComputeSha256Hex(zip);
+            string expected = ParseSha256ForFile(File.ReadAllText(sumsPath, Encoding.UTF8), RcloneZipName);
+            if (String.IsNullOrEmpty(expected))
+            {
+                try { Directory.Delete(tempRoot, true); } catch { }
+                throw new InvalidOperationException("Pixelpipe could not find a SHA256 entry for " + RcloneZipName + " in the published SHA256SUMS file. Refusing to install an unverified rclone.");
+            }
+            if (!String.Equals(actual, expected, StringComparison.OrdinalIgnoreCase))
+            {
+                try { Directory.Delete(tempRoot, true); } catch { }
+                throw new InvalidOperationException("rclone download checksum mismatch.\r\nExpected: " + expected + "\r\nGot:      " + actual + "\r\n\r\nPixelpipe refused to extract this download. Network is compromised or the rclone CDN was tampered with.");
+            }
+            LogUiInfo("rclone download", "verified SHA-256 " + actual + " for " + RcloneZipName);
             string extract = Path.Combine(tempRoot, "extract");
             Directory.CreateDirectory(extract);
             ZipFile.ExtractToDirectory(zip, extract);
@@ -197,6 +217,38 @@ namespace Pixelpipe
             File.Copy(matches[0], dest, true);
             try { Directory.Delete(tempRoot, true); } catch { }
             return dest;
+        }
+
+        internal static string ComputeSha256Hex(string filePath)
+        {
+            using (System.Security.Cryptography.SHA256 sha = System.Security.Cryptography.SHA256.Create())
+            using (FileStream fs = File.OpenRead(filePath))
+            {
+                byte[] hash = sha.ComputeHash(fs);
+                StringBuilder hex = new StringBuilder(hash.Length * 2);
+                for (int i = 0; i < hash.Length; i++) hex.Append(hash[i].ToString("x2"));
+                return hex.ToString();
+            }
+        }
+
+        // Pure helper: rclone's SHA256SUMS is one entry per line, formatted
+        // as "<hex>  <filename>". Returns the hex hash whose filename matches
+        // `wanted` (case-insensitive), or empty string if not found.
+        internal static string ParseSha256ForFile(string sumsContent, string wanted)
+        {
+            if (String.IsNullOrEmpty(sumsContent) || String.IsNullOrEmpty(wanted)) return "";
+            string[] lines = sumsContent.Replace("\r", "").Split('\n');
+            for (int i = 0; i < lines.Length; i++)
+            {
+                string line = lines[i].Trim();
+                if (line.Length == 0) continue;
+                int sp = line.IndexOf(' ');
+                if (sp <= 0) continue;
+                string hash = line.Substring(0, sp).Trim();
+                string rest = line.Substring(sp).Trim().TrimStart('*');
+                if (String.Equals(rest, wanted, StringComparison.OrdinalIgnoreCase)) return hash;
+            }
+            return "";
         }
 
         private void InstallRcloneWithWinget()

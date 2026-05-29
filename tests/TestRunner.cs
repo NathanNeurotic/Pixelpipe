@@ -57,6 +57,10 @@ namespace Pixelpipe.Tests
             Run("ComputeWatchNextRetryUtc", TestComputeWatchNextRetryUtc);
             Run("CommandLineMentionsDrive", TestCommandLineMentionsDrive);
             Run("ParseBandwidthSchedule", TestParseBandwidthSchedule);
+            Run("IsSecretField", TestIsSecretField);
+            Run("MergeRcloneConfigSection", TestMergeRcloneConfigSection);
+            Run("ParseSha256ForFile", TestParseSha256ForFile);
+            Run("ProcessResultSucceeded", TestProcessResultSucceeded);
             Run("ClassifyActivity", TestClassifyActivity);
             Run("FormatActivityEvents", TestFormatActivityEvents);
             Run("ParseActivityLog", TestParseActivityLog);
@@ -780,6 +784,109 @@ namespace Pixelpipe.Tests
             string e = TrayContext.BuildWatchUploadArgs(null, "C:\\Watch\\a.bin");
             AssertContains(e, "moveto");
             AssertContains(e, "a.bin");
+        }
+
+        private static void TestIsSecretField()
+        {
+            // Known secret field keys — secrets must never be argv-exposed.
+            AssertTrue(TrayContext.IsSecretField("pass"));
+            AssertTrue(TrayContext.IsSecretField("password"));
+            AssertTrue(TrayContext.IsSecretField("api_key"));
+            AssertTrue(TrayContext.IsSecretField("secret_access_key"));
+            AssertTrue(TrayContext.IsSecretField("client_secret"));
+
+            // Case-insensitive.
+            AssertTrue(TrayContext.IsSecretField("PASS"));
+            AssertTrue(TrayContext.IsSecretField("Api_Key"));
+
+            // Non-secret fields should pass through on argv.
+            AssertFalse(TrayContext.IsSecretField("host"));
+            AssertFalse(TrayContext.IsSecretField("user"));
+            AssertFalse(TrayContext.IsSecretField("provider"));
+            AssertFalse(TrayContext.IsSecretField("endpoint"));
+            AssertFalse(TrayContext.IsSecretField(""));
+            AssertFalse(TrayContext.IsSecretField(null));
+        }
+
+        private static void TestMergeRcloneConfigSection()
+        {
+            // New file: just our section appears.
+            List<KeyValuePair<string, string>> fields = new List<KeyValuePair<string, string>>();
+            fields.Add(new KeyValuePair<string, string>("api_key", "OBSCURED-XYZ"));
+            string fresh = TrayContext.MergeRcloneConfigSection("", "Pixeldrain", "pixeldrain", fields);
+            AssertContains(fresh, "[Pixeldrain]");
+            AssertContains(fresh, "type = pixeldrain");
+            AssertContains(fresh, "api_key = OBSCURED-XYZ");
+
+            // Existing other section preserved.
+            string existing = "[OtherRemote]\r\ntype = s3\r\nprovider = AWS\r\n\r\n";
+            string merged = TrayContext.MergeRcloneConfigSection(existing, "NewOne", "drive", null);
+            AssertContains(merged, "[OtherRemote]");
+            AssertContains(merged, "provider = AWS");
+            AssertContains(merged, "[NewOne]");
+            AssertContains(merged, "type = drive");
+
+            // Replacing an existing section: only one [Pixeldrain] in output.
+            string before = "[Pixeldrain]\r\ntype = pixeldrain\r\napi_key = OLD\r\n\r\n[Other]\r\ntype = drive\r\n";
+            List<KeyValuePair<string, string>> replace = new List<KeyValuePair<string, string>>();
+            replace.Add(new KeyValuePair<string, string>("api_key", "NEW"));
+            string replaced = TrayContext.MergeRcloneConfigSection(before, "Pixeldrain", "pixeldrain", replace);
+            int firstIdx = replaced.IndexOf("[Pixeldrain]", StringComparison.Ordinal);
+            int lastIdx = replaced.LastIndexOf("[Pixeldrain]", StringComparison.Ordinal);
+            AssertEqual(firstIdx, lastIdx); // only one occurrence
+            AssertContains(replaced, "api_key = NEW");
+            AssertFalse(replaced.Contains("api_key = OLD"));
+            AssertContains(replaced, "[Other]");
+        }
+
+        private static void TestParseSha256ForFile()
+        {
+            string sums = "abc123def456  rclone-v1.71.1-windows-amd64.zip\n" +
+                          "0011223344  rclone-v1.71.1-linux-amd64.zip\n" +
+                          "ffff*rclone-v1.71.1-windows-arm64.zip\n";
+            AssertEqual("abc123def456", TrayContext.ParseSha256ForFile(sums, "rclone-v1.71.1-windows-amd64.zip"));
+            AssertEqual("0011223344", TrayContext.ParseSha256ForFile(sums, "rclone-v1.71.1-linux-amd64.zip"));
+            // Case-insensitive filename match.
+            AssertEqual("abc123def456", TrayContext.ParseSha256ForFile(sums, "RCLONE-V1.71.1-WINDOWS-AMD64.ZIP"));
+            // No match returns empty.
+            AssertEqual("", TrayContext.ParseSha256ForFile(sums, "missing.zip"));
+            // Empty / null input is empty, not exception.
+            AssertEqual("", TrayContext.ParseSha256ForFile("", "anything.zip"));
+            AssertEqual("", TrayContext.ParseSha256ForFile(null, "anything.zip"));
+            AssertEqual("", TrayContext.ParseSha256ForFile(sums, ""));
+            AssertEqual("", TrayContext.ParseSha256ForFile(sums, null));
+        }
+
+        private static void TestProcessResultSucceeded()
+        {
+            // ExitCode 0 + no timeout + no launch error → success.
+            TrayContext.ProcessResult ok = new TrayContext.ProcessResult();
+            ok.ExitCode = 0;
+            AssertTrue(ok.Succeeded);
+
+            // Non-zero exit code → failure even with empty stderr (the BUG-1
+            // case: rclone moveto prints nothing on success but its failure
+            // exit code used to be ignored).
+            TrayContext.ProcessResult exitNonZero = new TrayContext.ProcessResult();
+            exitNonZero.ExitCode = 1;
+            AssertFalse(exitNonZero.Succeeded);
+
+            // Timed out → failure regardless of exit.
+            TrayContext.ProcessResult timed = new TrayContext.ProcessResult();
+            timed.ExitCode = 0;
+            timed.TimedOut = true;
+            AssertFalse(timed.Succeeded);
+
+            // Launch error → failure.
+            TrayContext.ProcessResult launch = new TrayContext.ProcessResult();
+            launch.LaunchError = "rclone not found";
+            AssertFalse(launch.Succeeded);
+
+            // Combined output sums both streams.
+            TrayContext.ProcessResult combined = new TrayContext.ProcessResult();
+            combined.StdOut = "out";
+            combined.StdErr = "err";
+            AssertEqual("outerr", combined.CombinedOutput);
         }
 
         private static void TestParseBandwidthSchedule()
