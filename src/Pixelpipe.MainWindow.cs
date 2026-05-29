@@ -54,7 +54,9 @@ namespace Pixelpipe
             internal static Color MutedColor { get { return WindowTheme.MutedColor; } }
             internal static Color ButtonBg { get { return WindowTheme.ButtonBg; } }
             internal static Color ButtonBorder { get { return WindowTheme.ButtonBorder; } }
-            internal static Color AccentColor { get { return WindowTheme.AccentColor; } }
+            // DUP-2 (v0.13.4): AccentColor was declared here but never read.
+            // QuickControl still has its own forwarder (it's actually used
+            // there); the rest of the theme aliases stay for the same reason.
             internal static Color WarnColor { get { return WindowTheme.WarnColor; } }
 
             private readonly TrayContext owner;

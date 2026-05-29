@@ -110,19 +110,36 @@ namespace Pixelpipe
             catch (Exception ex) { LogUiIssue("save profiles", ex); }
         }
 
+        // PERF-3 (v0.13.4): cache the parsed settings root in memory so
+        // each SaveSetting / SaveProfiles doesn't re-read + re-parse the
+        // file. Atomic-write durability is preserved (WriteSettingsRoot
+        // still goes through WriteAllTextAtomic), we just skip the read +
+        // JavaScriptSerializer round-trip per write. Lock-protected so
+        // concurrent writes from worker threads don't tear the dict.
+        private Dictionary<string, object> settingsRootCache;
+        private readonly object settingsRootCacheLock = new object();
+
         private Dictionary<string, object> ReadSettingsRoot()
         {
-            Dictionary<string, object> root;
-            if (TryReadSettingsRoot(settingsFile, out root)) return root;
-
-            string backupFile = settingsFile + ".bak";
-            if (TryReadSettingsRoot(backupFile, out root))
+            lock (settingsRootCacheLock)
             {
-                LogUiWarn("read settings", "loaded backup settings file after primary file could not be read");
-                return root;
+                if (settingsRootCache != null) return settingsRootCache;
+                Dictionary<string, object> root;
+                if (TryReadSettingsRoot(settingsFile, out root))
+                {
+                    settingsRootCache = root;
+                    return settingsRootCache;
+                }
+                string backupFile = settingsFile + ".bak";
+                if (TryReadSettingsRoot(backupFile, out root))
+                {
+                    LogUiWarn("read settings", "loaded backup settings file after primary file could not be read");
+                    settingsRootCache = root;
+                    return settingsRootCache;
+                }
+                settingsRootCache = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+                return settingsRootCache;
             }
-
-            return new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
         }
 
         private bool TryReadSettingsRoot(string path, out Dictionary<string, object> root)
@@ -147,8 +164,17 @@ namespace Pixelpipe
             try
             {
                 Directory.CreateDirectory(settingsDir);
-                JavaScriptSerializer js = new JavaScriptSerializer();
-                WriteAllTextAtomic(settingsFile, js.Serialize(root), Encoding.UTF8);
+                string json;
+                lock (settingsRootCacheLock)
+                {
+                    // Caller may have built `root` from scratch (vs mutating
+                    // the existing cache); replace the cache reference so
+                    // the next ReadSettingsRoot returns the latest values.
+                    settingsRootCache = root;
+                    JavaScriptSerializer js = new JavaScriptSerializer();
+                    json = js.Serialize(root);
+                }
+                WriteAllTextAtomic(settingsFile, json, Encoding.UTF8);
             }
             catch (Exception ex) { LogUiIssue("write settings", ex); }
         }

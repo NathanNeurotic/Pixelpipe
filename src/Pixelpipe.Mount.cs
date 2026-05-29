@@ -535,8 +535,13 @@ namespace Pixelpipe
 
         private void CleanStaleDriveMappings(RemoteProfile p, bool show)
         {
-            try { RunProcessCapture("cmd.exe", "/c net use " + p.DriveLetter + " /delete /y", 2500); } catch { }
-            try { RunProcessCapture("mountvol.exe", p.DriveLetter + " /D", 2500); } catch { }
+            // ARCH-5 (v0.13.4): log via LogUiDebug (gated on verbose) so a
+            // diagnosing user can see whether net use / mountvol actually
+            // ran. Free in normal use.
+            try { RunProcessCapture("cmd.exe", "/c net use " + p.DriveLetter + " /delete /y", 2500); }
+            catch (Exception ex) { LogUiDebug("clean stale drive mapping net use " + p.DriveLetter + ": " + ex.Message); }
+            try { RunProcessCapture("mountvol.exe", p.DriveLetter + " /D", 2500); }
+            catch (Exception ex) { LogUiDebug("clean stale drive mapping mountvol " + p.DriveLetter + ": " + ex.Message); }
             if (show) ShowBalloon("Stale mapping cleanup attempted for " + p.DriveLetter);
         }
 
@@ -549,7 +554,7 @@ namespace Pixelpipe
                 DriveInfo[] drives = DriveInfo.GetDrives();
                 for (int i = 0; i < drives.Length; i++) if (String.Equals(drives[i].Name.TrimEnd('\\'), NormalizeDriveLetter(letter), StringComparison.OrdinalIgnoreCase)) return true;
             }
-            catch { }
+            catch (Exception ex) { LogUiDebug("drive letter probe " + letter + ": " + ex.Message); }
             return false;
         }
     }
