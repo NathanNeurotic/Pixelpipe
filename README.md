@@ -49,16 +49,33 @@ Pixelpipe ships both interfaces side by side; pick whichever you prefer.
 
 **Tray menu** (right-click the tray icon). Everything is here: per-profile mount controls, bandwidth, setup, diagnostics, tools. Status text updates live every few seconds while the menu is open.
 
-**Main window** (`Open Pixelpipe window...` in the tray, or the new Setup wizard exits to it). Four tabs:
+**Main window** (`Open Pixelpipe window...` in the tray, or the new Setup wizard exits to it). Five tabs:
 
-- *Profiles*: dashboard cards with live status pills, storage gauges, session/speed numbers, and Mount/Unmount buttons.
+- *Profiles*: dashboard cards with live status dots, drive-letter chips, mounted pills, dark storage gauges, session/speed numbers, and Mount/Unmount buttons.
+- *Activity*: a colour-coded timeline parsed from the UI log (mount / unmount / schedule / transfer / watch / error), filterable by category.
 - *Diagnostics*: the same data you get from "Copy diagnostics", plus repair buttons.
-- *Logs*: per-profile rclone log and the Pixelpipe UI log in a tail viewer.
+- *Logs*: per-profile rclone log and the Pixelpipe UI log in a tail viewer with a substring filter.
 - *Settings*: bandwidth, startup, verbose logging, re-run setup wizard, check for updates.
 
 **Quick controls popup** (`Quick controls...` in the tray). Small always-on-top window with aggregate live speed, session traffic, bandwidth dropdown, and per-profile status. Designed to sit in a corner during active transfers.
 
 **Setup wizard** runs on first launch and walks through rclone / WinFsp / your first rclone remote / optional API key. Re-runnable any time from the Settings tab or the Setup tray submenu.
+
+## Screenshots
+
+The main-window Profiles tab — live status dots, drive-letter chips, a dark storage gauge, and the four primary mount actions per card:
+
+![Profiles tab](docs/screenshots/profiles-tab.png)
+
+The tray menu, with a live status header and each profile as an expandable submenu:
+
+![Tray menu](docs/screenshots/tray-menu.png)
+
+Adding a cloud remote — nine first-class providers plus custom rclone remotes:
+
+![Add cloud remote](docs/screenshots/add-cloud-remote.png)
+
+More in [docs/SCREENSHOTS.md](docs/SCREENSHOTS.md) (per-profile submenu, Settings tab).
 
 ## Features
 
