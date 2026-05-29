@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.15.1
+
+ARCH-1 step 1 from the audit — first collaborator extracted from the `TrayContext` partial. No user-visible changes; internal refactor only.
+
+Changed:
+
+- **New `RcloneClient` class** (`src/RcloneClient.cs`) owns the "invoke rclone, return `ProcessResult`" surface — `Run(args, timeoutMs)`, `Run(args, timeoutMs, envOverrides)`, and `RunWithStdin(args, timeoutMs, stdin)`. Constructor takes a `Func<string>` path provider so it always sees the latest `rclonePath` (which mutates over the app's lifetime as the user downloads/installs rclone).
+- **`TrayContext.RunRcloneCapture*` wrappers now delegate to `RcloneClient`.** Public API unchanged so no caller had to change; the legacy string-returning shim still works. New code should take `RcloneClient` as a dependency directly — that's testable without a TrayContext.
+- **SEC-1 stdin path uses `RcloneInvoker.RunWithStdin`** instead of reaching into `RunCaptureCore`. The `obscure -` invocation no longer touches `ProcessStartInfo` directly.
+
+The remaining ARCH-1 sub-extractions (`SettingsStore`, `DependencyProbe`, `MountManager`) are intentionally **not** done here — the audit calls this work "incremental," and the rest can land in later releases as the natural shape of each collaborator emerges.
+
 ## 0.15.0
 
 GUI restructure from the audit — ProfileCard (GUI-1) and Edit-profile dialog (GUI-5). Layout-only changes; every field and action is preserved.
