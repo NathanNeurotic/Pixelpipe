@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.14.0
+
+GUI polish from the v0.12.1 audit. Three visible changes, no functional changes.
+
+Added:
+
+- **Status dots in the main window status strip.** Small colored circle beside each chip — global status, rclone, WinFsp, transfer quota — so a scan of the strip tells you which dependency needs attention before reading any text. Implemented as a tiny owner-drawn `StatusDot` control (10 px filled circle, `Ok` / `Warn` / `Error` / `Unknown` from a centralised palette).
+- **Colored Activity tab.** Switched the read-only `TextBox` for a `RichTextBox` so each parsed log line is rendered in its category color: Error red, Warning amber, Mount/Unmount/Schedule accent-blue, Transfer/Watch green, Backup/Update/Startup/Other muted. Per-line coloring done in `RenderActivityToRichTextBox` (replaces the plain-string path in the live refresh).
+- **Owner-drawn dark storage gauge.** The native `ProgressBar` on profile cards painted an OS-green chunk over a light trough, fighting the dark theme. Replaced with a new `ThemedBar` control that paints itself in `WindowTheme.AccentColor` over `WindowTheme.InputBg`. Same `Value` API (0-100) so the existing `ApplyLiveState` code is unchanged.
+
 ## 0.13.4
 
 Audit cleanup batch. Internal-only refactors — no user-visible behavior changes, no GUI changes — just dead weight removed and one perf win.

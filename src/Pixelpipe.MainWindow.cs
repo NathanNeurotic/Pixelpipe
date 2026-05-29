@@ -66,6 +66,13 @@ namespace Pixelpipe
             private Label quotaLabel;
             private Label adminWarningLabel;
             private Label globalStatusLabel;
+            // GUI-6 (v0.14.0): colored dots beside each status chip so a
+            // scan of the strip tells you at a glance which dependency
+            // needs attention before reading the text.
+            private StatusDot globalStatusDot;
+            private StatusDot rcloneStatusDot;
+            private StatusDot winfspStatusDot;
+            private StatusDot quotaStatusDot;
             private FlowLayoutPanel profilesPanel;
             private TextBox diagBox;
             private ComboBox logSelector;
@@ -199,9 +206,18 @@ namespace Pixelpipe
                 adminWarningLabel.ForeColor = WarnColor;
                 adminWarningLabel.Visible = false;
 
+                globalStatusDot = new StatusDot();
+                rcloneStatusDot = new StatusDot();
+                winfspStatusDot = new StatusDot();
+                quotaStatusDot  = new StatusDot();
+
+                strip.Controls.Add(globalStatusDot);
                 strip.Controls.Add(globalStatusLabel);
+                strip.Controls.Add(rcloneStatusDot);
                 strip.Controls.Add(rcloneStatusLabel);
+                strip.Controls.Add(winfspStatusDot);
                 strip.Controls.Add(winfspStatusLabel);
+                strip.Controls.Add(quotaStatusDot);
                 strip.Controls.Add(quotaLabel);
                 strip.Controls.Add(adminWarningLabel);
                 return strip;
@@ -288,7 +304,7 @@ namespace Pixelpipe
             // ----- Activity tab -----
 
             private ComboBox activityFilter;
-            private TextBox activityBox;
+            private RichTextBox activityBox;
             private static readonly string[] ActivityCategories = new string[]
             {
                 "All", "Mount", "Unmount", "Schedule", "Transfer", "Watch", "Orphan", "Backup", "Update", "Startup", "Warning", "Error", "Other"
@@ -329,14 +345,17 @@ namespace Pixelpipe
                 topBar.Controls.Add(MakeAction("Refresh", delegate { RefreshActivityBox(); }));
                 topBar.Controls.Add(MakeAction("Open UI log", delegate { owner.OpenLogFolder(); }));
 
-                activityBox = new TextBox();
-                activityBox.Multiline = true;
+                // GUI-4 (v0.14.0): RichTextBox so each event line can be
+                // colored by category (Error red, Warn amber, routine muted).
+                activityBox = new RichTextBox();
                 activityBox.ReadOnly = true;
-                activityBox.ScrollBars = ScrollBars.Vertical;
+                activityBox.ScrollBars = RichTextBoxScrollBars.Vertical;
                 activityBox.Font = new Font("Consolas", 9.25f);
                 activityBox.Dock = DockStyle.Fill;
                 activityBox.BackColor = WindowTheme.InputBg;
                 activityBox.ForeColor = FgColor;
+                activityBox.BorderStyle = BorderStyle.None;
+                activityBox.DetectUrls = false;
 
                 page.Controls.Add(activityBox);
                 page.Controls.Add(topBar);
@@ -351,13 +370,55 @@ namespace Pixelpipe
                     ? "All"
                     : activityFilter.SelectedItem.ToString();
                 List<ActivityEvent> events = owner.ReadActivityEvents(300);
-                string formatted = TrayContext.FormatActivityEvents(events, filter);
-                if (activityBox.Text != formatted)
+                RenderActivityToRichTextBox(activityBox, events, filter);
+            }
+
+            // GUI-4 (v0.14.0): per-line colored rendering of activity events.
+            // Build the whole document offscreen with Suspend/ResumeLayout so
+            // a 300-event refresh doesn't paint each line individually.
+            internal static void RenderActivityToRichTextBox(RichTextBox box, List<ActivityEvent> events, string filter)
+            {
+                if (box == null) return;
+                box.SuspendLayout();
+                try
                 {
-                    activityBox.Text = formatted;
-                    activityBox.SelectionStart = 0;
-                    activityBox.ScrollToCaret();
+                    box.Clear();
+                    if (events == null || events.Count == 0)
+                    {
+                        box.SelectionColor = WindowTheme.MutedColor;
+                        box.AppendText("(no activity yet — try mounting a profile or letting the schedule fire)");
+                        return;
+                    }
+                    bool allCats = String.IsNullOrEmpty(filter) || String.Equals(filter, "All", StringComparison.OrdinalIgnoreCase);
+                    int kept = 0;
+                    for (int i = 0; i < events.Count; i++)
+                    {
+                        ActivityEvent ev = events[i];
+                        if (!allCats && !String.Equals(ev.Category, filter, StringComparison.OrdinalIgnoreCase)) continue;
+                        Color color = ActivityCategoryColor(ev.Category);
+                        box.SelectionColor = color;
+                        box.AppendText(ev.Time.ToString("yyyy-MM-dd HH:mm:ss") + "  " + ev.Category.PadRight(9) + "  " + ev.Message + "\n");
+                        kept++;
+                    }
+                    if (kept == 0)
+                    {
+                        box.SelectionColor = WindowTheme.MutedColor;
+                        box.AppendText("(no events match filter '" + filter + "')");
+                    }
+                    box.SelectionStart = 0;
+                    box.ScrollToCaret();
                 }
+                finally { box.ResumeLayout(); }
+            }
+
+            private static Color ActivityCategoryColor(string category)
+            {
+                if (String.Equals(category, "Error", StringComparison.OrdinalIgnoreCase)) return StatusDotColors.Error;
+                if (String.Equals(category, "Warning", StringComparison.OrdinalIgnoreCase)) return StatusDotColors.Warn;
+                if (String.Equals(category, "Mount", StringComparison.OrdinalIgnoreCase) || String.Equals(category, "Unmount", StringComparison.OrdinalIgnoreCase) || String.Equals(category, "Schedule", StringComparison.OrdinalIgnoreCase)) return WindowTheme.AccentColor;
+                if (String.Equals(category, "Transfer", StringComparison.OrdinalIgnoreCase) || String.Equals(category, "Watch", StringComparison.OrdinalIgnoreCase)) return StatusDotColors.Ok;
+                if (String.Equals(category, "Orphan", StringComparison.OrdinalIgnoreCase)) return StatusDotColors.Warn;
+                return WindowTheme.MutedColor;
             }
 
             // ----- Logs tab -----
@@ -731,11 +792,38 @@ namespace Pixelpipe
                     string globalText = snapshot.Length == 0
                         ? "Status: no profiles"
                         : (mounted == 0 ? "Status: no remotes mounted" : "Status: " + mounted + "/" + snapshot.Length + " mounted");
+                    bool rcloneOk = owner.RcloneAvailable();
+                    bool winfspOk = owner.WinFspInstalled();
                     SafeSet(globalStatusLabel, globalText);
-                    SafeSet(rcloneStatusLabel, "rclone: " + (owner.RcloneAvailable() ? "found" : "missing"));
-                    SafeSet(winfspStatusLabel, "WinFsp: " + (owner.WinFspInstalled() ? "found" : "missing"));
+                    SafeSet(rcloneStatusLabel, "rclone: " + (rcloneOk ? "found" : "missing"));
+                    SafeSet(winfspStatusLabel, "WinFsp: " + (winfspOk ? "found" : "missing"));
                     SafeSet(quotaLabel, owner.transferQuotaText);
                     if (adminWarningLabel != null) adminWarningLabel.Visible = owner.IsAdministrator();
+                    // GUI-6 (v0.14.0): light up the status dots from the
+                    // booleans we just computed. Global dot is ok when all
+                    // dependencies are present AND at least one profile is
+                    // mounted (warn otherwise — Pixelpipe is set up but
+                    // nothing is live). Quota dot is warn when the
+                    // transfer-quota text is anything other than a numeric
+                    // figure ("not set", "unavailable", "not applicable").
+                    if (globalStatusDot != null)
+                    {
+                        bool anyMounted = false;
+                        RemoteProfile[] live = owner.SnapshotProfiles();
+                        for (int i = 0; i < live.Length; i++) if (owner.IsMounted(live[i])) { anyMounted = true; break; }
+                        if (rcloneOk && winfspOk && anyMounted) globalStatusDot.State = StatusDot.DotColor.Ok;
+                        else if (rcloneOk && winfspOk) globalStatusDot.State = StatusDot.DotColor.Warn;
+                        else globalStatusDot.State = StatusDot.DotColor.Error;
+                    }
+                    if (rcloneStatusDot != null) rcloneStatusDot.State = rcloneOk ? StatusDot.DotColor.Ok : StatusDot.DotColor.Error;
+                    if (winfspStatusDot != null) winfspStatusDot.State = winfspOk ? StatusDot.DotColor.Ok : StatusDot.DotColor.Error;
+                    if (quotaStatusDot != null)
+                    {
+                        string q = owner.transferQuotaText ?? "";
+                        if (q.IndexOf("used", System.StringComparison.OrdinalIgnoreCase) >= 0) quotaStatusDot.State = StatusDot.DotColor.Ok;
+                        else if (q.IndexOf("rejected", System.StringComparison.OrdinalIgnoreCase) >= 0) quotaStatusDot.State = StatusDot.DotColor.Error;
+                        else quotaStatusDot.State = StatusDot.DotColor.Warn;
+                    }
 
                     // Settings tab status mirrors
                     SafeSet(settingsRcloneStatus, owner.RcloneAvailable() ? "found at " + owner.rclonePath : "missing");
@@ -867,7 +955,7 @@ namespace Pixelpipe
             private readonly Label driveLabel;
             private readonly Label statusLabel;
             private readonly Label storageLabel;
-            private readonly ProgressBar storageBar;
+            private readonly ThemedBar storageBar;
             private readonly Label transferQuotaLabel;
             private readonly Label trafficLabel;
             private readonly Label speedLabel;
@@ -952,8 +1040,10 @@ namespace Pixelpipe
                 statusLabel = MakeLine();
                 storageLabel = MakeLine();
 
-                storageBar = new ProgressBar();
-                storageBar.Style = ProgressBarStyle.Continuous;
+                // GUI-2 (v0.14.0): owner-drawn dark-theme bar replacing the
+                // OS-styled ProgressBar (which painted green chunk over a
+                // light trough — clashed with the rest of the dark UI).
+                storageBar = new ThemedBar();
                 storageBar.Height = 6;
                 storageBar.Width = 528;
                 storageBar.Margin = new Padding(0, 2, 0, 8);
