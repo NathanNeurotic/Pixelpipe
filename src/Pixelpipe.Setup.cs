@@ -43,70 +43,45 @@ namespace Pixelpipe
             }
         }
 
-        // PERF-1 (v0.13.1): both RcloneAvailable and WinFspInstalled used
-        // to be called repeatedly from UI-thread paths (ApplyLiveState,
-        // UpdateMenuLiveState) every refresh tick. RcloneAvailable on a
-        // cold path could spawn `rclone.exe version` with a 3 s wait —
-        // multiple times per ~7 s refresh = visible stutter. We now cache
-        // the booleans with a TTL; RefreshDependencyStatusAsync (which
-        // already runs off-thread) is the one place that does the real
-        // probes and writes the cached fields. UI callers read the cached
-        // values via the public methods below, which never touch disk.
-        private const int DependencyCacheTtlSeconds = 30;
-        private volatile bool cachedRcloneAvailable;
-        private volatile bool cachedWinfspInstalled;
-        private DateTime cachedDependencyStampUtc = DateTime.MinValue;
+        // ARCH-1 step 3 (v0.15.3): cached dependency state + sync probes
+        // moved into DependencyProbe. The async refresh worker stays here
+        // because it composes results into the setup-status line and posts
+        // back via BeginUi.
+        private DependencyProbe _depProbe;
+        private DependencyProbe Deps
+        {
+            get
+            {
+                if (_depProbe == null)
+                {
+                    _depProbe = new DependencyProbe(
+                        delegate { rclonePath = FindRclonePath(); return rclonePath; },
+                        LogUiIssue);
+                }
+                return _depProbe;
+            }
+        }
 
         private bool RcloneAvailable()
         {
-            EnsureDependencyCacheFresh();
-            return cachedRcloneAvailable;
+            if (Deps.IsStale) RefreshDependencyStatusAsync(false);
+            return Deps.RcloneAvailable;
         }
 
         private bool WinFspInstalled()
         {
-            EnsureDependencyCacheFresh();
-            return cachedWinfspInstalled;
+            if (Deps.IsStale) RefreshDependencyStatusAsync(false);
+            return Deps.WinFspInstalled;
         }
 
-        // Lazy first-call probe: if the cache is empty / stale and we're on
-        // a UI thread, kick the async refresh and return whatever we have
-        // (false on cold start). UI updates within one refresh cycle.
-        private void EnsureDependencyCacheFresh()
-        {
-            if ((DateTime.UtcNow - cachedDependencyStampUtc).TotalSeconds < DependencyCacheTtlSeconds) return;
-            RefreshDependencyStatusAsync(false);
-        }
-
-        // Synchronous probes — the real File.Exists / spawn-rclone / registry
-        // work — called only from the async refresh worker. Anything UI-bound
-        // must go through RcloneAvailable() / WinFspInstalled() above.
+        // Compatibility shims used by the refresh worker; both just forward
+        // to DependencyProbe.
         private bool ProbeRcloneAvailableSync()
         {
-            try
-            {
-                rclonePath = FindRclonePath();
-                if (File.Exists(rclonePath)) return true;
-                string version = RunProcessCapture("rclone.exe", "version", 3000);
-                return version.IndexOf("rclone", StringComparison.OrdinalIgnoreCase) >= 0;
-            }
-            catch { return false; }
+            return Deps.ProbeRcloneSync(delegate(string exe, int timeoutMs) { return RunProcessCapture(exe, "version", timeoutMs); });
         }
 
-        private bool ProbeWinFspInstalledSync()
-        {
-            try
-            {
-                string pf86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
-                string pf = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
-                if (File.Exists(Path.Combine(pf86, "WinFsp", "bin", "winfsp-x64.dll"))) return true;
-                if (File.Exists(Path.Combine(pf, "WinFsp", "bin", "winfsp-x64.dll"))) return true;
-                using (RegistryKey k1 = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\WinFsp")) { if (k1 != null) return true; }
-                using (RegistryKey k2 = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\WOW6432Node\WinFsp")) { if (k2 != null) return true; }
-            }
-            catch { }
-            return false;
-        }
+        private bool ProbeWinFspInstalledSync() { return Deps.ProbeWinFspSync(); }
 
         private bool AnyRemoteConfigured()
         {
@@ -140,7 +115,7 @@ namespace Pixelpipe
             // Cheap cached lookup — never triggers a fresh disk probe; if
             // the dependency cache hasn't been seeded yet this returns false
             // and we keep the existing remotes cache rather than spinning.
-            if (!cachedRcloneAvailable) return cachedRcloneRemotes;
+            if (!Deps.RcloneAvailable) return cachedRcloneRemotes;
             string output;
             try { output = RunRcloneCapture("listremotes", 6000); }
             catch (Exception ex) { LogUiIssue("listremotes", ex); return cachedRcloneRemotes; }
@@ -183,9 +158,7 @@ namespace Pixelpipe
                 catch (Exception ex) { LogUiIssue("dependency status", ex); text = setupStatusText; }
                 BeginUi(delegate
                 {
-                    cachedRcloneAvailable = rcloneProbe;
-                    cachedWinfspInstalled = winfspProbe;
-                    cachedDependencyStampUtc = DateTime.UtcNow;
+                    Deps.PublishProbeResults(rcloneProbe, winfspProbe);
                     setupStatusText = text;
                     lastDependencyRefreshUtc = DateTime.UtcNow;
                     Interlocked.Exchange(ref dependencyRefreshingFlag, 0);
