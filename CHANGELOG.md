@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.16.1
+
+Documentation and housekeeping release. No code or behavior changes from v0.16.0 — same binaries, but the docs now make the first-run experience clear and the repo is tidied.
+
+Added:
+
+- **Unsigned-binary / SmartScreen guidance on every download and first-run surface.** Pixelpipe's builds are not code-signed (a signing certificate is a recurring paid cost the project doesn't carry yet), so Windows SmartScreen shows "Windows protected your PC" / "unrecognized app" the first time you run `Pixelpipe.exe` or `Pixelpipe-Setup.exe`. That is expected for an unsigned open-source app, not a malware detection. Every relevant doc now spells out the fix (**More info → Run anyway**) and points at `SHA256SUMS.txt` + `Get-FileHash` for verification:
+  - README — a dedicated "First run: Windows SmartScreen warning" section plus a clear Security-notes bullet.
+  - `docs/FAQ.md` and `docs/TROUBLESHOOTING.md` — top entries.
+  - The GitHub release-note templates (versioned + rolling) — so this and every future release page carries the explainer.
+
+Removed:
+
+- `docs/NEXT_TASKS.md` (obsolete planning doc), `docs/assets/tray-menu-mockup.svg` (placeholder superseded by real screenshots), and an unused duplicate screenshot. Stale `backup/*` branches and tags were pruned from the remote; all `vX.Y.Z` release tags retained.
+
 ## 0.16.0
 
 Milestone release. No code changes from v0.15.4 — this cuts a clean version to mark the end of the external-audit close-out and bundles the new documentation into the release artifacts.
