@@ -152,7 +152,7 @@ jobs:
           fetch-depth: 0
 
       - name: Download release files
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: Pixelpipe-${{ github.sha }}
           path: dist
