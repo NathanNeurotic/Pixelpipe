@@ -12,6 +12,14 @@ Use this after changes to the tray menu, mount workflow, setup helpers, or diagn
 
 It should exit with code `0`. This verifies tray submenu placement math and dark-theme application without launching the tray app.
 
+- Run the optional rclone local-backend watch smoke when rclone is installed:
+
+```powershell
+.\scripts\watch-folder-smoke.ps1
+```
+
+It should copy one file, move one file, observe a non-zero failure for a missing source, and kill a deliberately long-running rclone `rcd` timeout probe.
+
 - Run Pixelpipe normally, not as Administrator.
 - Confirm the tray icon appears and the tooltip updates between mounted and unmounted states.
 - Open `Diagnostics / repair...` and confirm it shows rclone, WinFsp, profile count, settings file, log directory, UI log, and per-profile log tails.

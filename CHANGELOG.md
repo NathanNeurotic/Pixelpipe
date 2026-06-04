@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.16.2
+
+Security, CI, and QA follow-through after the full code audit.
+
+Fixed:
+
+- **Removed remaining secret-bearing command-line exposure.** rclone RC credentials now travel through environment variables instead of `--rc-pass`, and the Pixeldrain quota check no longer falls back to a `curl` command with an `Authorization: Basic ...` header in argv.
+- **Hardened diagnostics redaction and config writes.** Copied diagnostics scrub common token/password/auth-header patterns, and direct `rclone.conf` writes now reject CR/LF and malformed section/field names before touching disk.
+- **Tightened startup and settings edge cases.** Startup registry toggling creates the Run key when missing, single-instance wakeup retries before treating the existing process as hung, and `SettingsStore` no longer returns the mutable cached root dictionary to callers.
+- **Scoped local process cleanup.** Release/test scripts now stop only the exact output executable they are about to overwrite, not every process named Pixelpipe.
+
+Changed:
+
+- **Updated bundled rclone target to `v1.74.2`.**
+- **Removed unused/test-only code paths** left behind by earlier refactors.
+- **Split CI permissions.** The build/test job runs with read-only repository permissions; only the publish job receives `contents: write` for tags and GitHub releases.
+
+Added:
+
+- **CodeQL code scanning workflow** for C#.
+- **Dependabot NuGet monitoring** alongside the existing GitHub Actions updater.
+- **Watch-folder smoke script** (`scripts/watch-folder-smoke.ps1`) that uses rclone's local backend to verify copy, move, failure, and timeout behavior.
+
 ## 0.16.1
 
 Documentation and housekeeping release. No code or behavior changes from v0.16.0 — same binaries, but the docs now make the first-run experience clear and the repo is tidied.

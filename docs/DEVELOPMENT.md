@@ -25,9 +25,11 @@ app.manifest                  asInvoker Windows manifest with PerMonitorV2 DPI
 Build-Pixelpipe.bat           Double-click local build to Desktop (delegates to .ps1)
 scripts/build-release.ps1     Release build to dist/
 scripts/run-tests.ps1         Compile and run unit tests
+scripts/watch-folder-smoke.ps1 Optional rclone local-backend watch smoke
 scripts/build-installer.ps1   Optional Inno Setup build
 installer/Pixelpipe.iss       Inno Setup installer script
 .github/workflows/build.yml   Build + tests + smoke + rolling release CI
+.github/workflows/codeql.yml  C# CodeQL code scanning
 ```
 
 ## Local build
@@ -64,6 +66,8 @@ The runner compiles `src\*.cs` + `tests\*.cs` together into `dist\Pixelpipe.Test
 
 `dist\Pixelpipe.exe /smoketest-menu` also runs the placement and theme smoke test without spawning the tray; CI gates on this too.
 
+`scripts\watch-folder-smoke.ps1` uses rclone's local backend to verify the commands Pixelpipe issues for watch-folder copy/move uploads, non-zero failures, and timeout detection. CI runs it with `-SkipIfMissing`; developer machines with rclone installed run the real smoke.
+
 ## Installer build
 
 Install Inno Setup 6, then:
@@ -75,7 +79,7 @@ Install Inno Setup 6, then:
 
 ## Release workflow
 
-Pushes to `main` or `master` update the `rolling` prerelease.
+Pushes to `main` or `master` run the read-only build job, then a separate publish job with `contents: write` creates a versioned release when the top `CHANGELOG.md` version is new and updates the `rolling` prerelease.
 
 Pull requests only build artifacts.
 

@@ -13,3 +13,16 @@ updates:
     labels:
       - "ci"
       - "dependencies"
+
+  # The projects do not currently use external NuGet packages, but this keeps
+  # future PackageReference additions on the same update cadence as Actions.
+  - package-ecosystem: "nuget"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "deps"
+    labels:
+      - "dependencies"

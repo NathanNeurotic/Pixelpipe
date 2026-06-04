@@ -1,5 +1,5 @@
 #define MyAppName "Pixelpipe"
-#define MyAppVersion "0.1.0"
+#define MyAppVersion "0.16.2"
 #define MyAppPublisher "NathanNeurotic"
 #define MyAppURL "https://github.com/NathanNeurotic/Pixelpipe"
 #define MyAppExeName "Pixelpipe.exe"
