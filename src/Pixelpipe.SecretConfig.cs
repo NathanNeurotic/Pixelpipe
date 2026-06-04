@@ -41,6 +41,9 @@ namespace Pixelpipe
         {
             try
             {
+                string validation = ValidateRcloneConfigInput(remoteName, rcloneType, fields);
+                if (validation != null) return validation;
+
                 string configPath = FindRcloneConfigPath();
                 if (String.IsNullOrEmpty(configPath))
                 {
@@ -85,6 +88,51 @@ namespace Pixelpipe
             {
                 return ex.Message;
             }
+        }
+
+        internal static string ValidateRcloneConfigInput(string remoteName, string rcloneType, List<KeyValuePair<string, string>> fields)
+        {
+            string err = ValidateSectionName(remoteName);
+            if (err != null) return "remote name " + err;
+            err = ValidateIdentifier(rcloneType, "type");
+            if (err != null) return err;
+            if (fields == null) return null;
+            for (int i = 0; i < fields.Count; i++)
+            {
+                KeyValuePair<string, string> kv = fields[i];
+                if (String.IsNullOrEmpty(kv.Key)) continue;
+                err = ValidateIdentifier(kv.Key, "field '" + kv.Key + "'");
+                if (err != null) return err;
+                if (HasNewline(kv.Value)) return "field '" + kv.Key + "' contains a newline, which cannot be written safely to rclone.conf";
+            }
+            return null;
+        }
+
+        private static string ValidateSectionName(string value)
+        {
+            if (String.IsNullOrWhiteSpace(value)) return "is empty";
+            if (HasNewline(value)) return "contains a newline";
+            if (value.IndexOf('[') >= 0 || value.IndexOf(']') >= 0) return "contains a section bracket";
+            if (value.IndexOf(':') >= 0) return "must not include the trailing colon";
+            return null;
+        }
+
+        private static string ValidateIdentifier(string value, string label)
+        {
+            if (String.IsNullOrWhiteSpace(value)) return label + " is empty";
+            if (HasNewline(value)) return label + " contains a newline";
+            for (int i = 0; i < value.Length; i++)
+            {
+                char c = value[i];
+                if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '-' || c == '.') continue;
+                return label + " contains an unsupported character";
+            }
+            return null;
+        }
+
+        private static bool HasNewline(string value)
+        {
+            return value != null && (value.IndexOf('\r') >= 0 || value.IndexOf('\n') >= 0);
         }
 
         // Pure helper: inserts or replaces the [name] section in an existing

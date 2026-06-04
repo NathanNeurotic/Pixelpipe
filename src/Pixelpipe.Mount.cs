@@ -176,7 +176,7 @@ namespace Pixelpipe
 
             try
             {
-                p.MountProcess = MountManager.StartMountProcess(rclonePath, args,
+                p.MountProcess = MountManager.StartMountProcess(rclonePath, args, RcEnvironmentVariables(),
                     delegate(string warn) { LogUiWarn("rclone job assign " + p.Label, warn); });
                 p.StatusText = "mounting " + GetDriveRoot(p);
                 SaveProfiles();
@@ -241,9 +241,9 @@ namespace Pixelpipe
             string quitResult = "";
             try
             {
-                unmountResult = RunRcloneCapture("rc mount/unmount " + QuoteArg("mountPoint=" + NormalizeDriveLetter(p.DriveLetter)) + " " + RcCommonFlags(p.RcPort), 2500);
+                unmountResult = RunRcloneCaptureRc("rc mount/unmount " + QuoteArg("mountPoint=" + NormalizeDriveLetter(p.DriveLetter)) + " " + RcCommonFlags(p.RcPort), 2500);
                 Thread.Sleep(800);
-                if (IsMounted(p)) quitResult = RunRcloneCapture("rc core/quit " + RcCommonFlags(p.RcPort), 2500);
+                if (IsMounted(p)) quitResult = RunRcloneCaptureRc("rc core/quit " + RcCommonFlags(p.RcPort), 2500);
                 Thread.Sleep(1200);
             }
             catch (Exception ex) { LogUiIssue("unmount worker", ex); }
@@ -450,7 +450,7 @@ namespace Pixelpipe
                 try
                 {
                     RemoteProfile profile = (RemoteProfile)state;
-                    string result = RunRcloneCapture("rc core/bwlimit rate=" + rate + " " + RcCommonFlags(profile.RcPort), 4000);
+                    string result = RunRcloneCaptureRc("rc core/bwlimit rate=" + rate + " " + RcCommonFlags(profile.RcPort), 4000);
                     if (result.IndexOf("Failed", StringComparison.OrdinalIgnoreCase) >= 0 || result.IndexOf("error", StringComparison.OrdinalIgnoreCase) >= 0) profile.LastError = result;
                 }
                 catch (Exception ex) { LogUiIssue("apply bandwidth", ex); }

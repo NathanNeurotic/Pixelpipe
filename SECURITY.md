@@ -24,7 +24,9 @@ Logs are stored here:
 %LOCALAPPDATA%\Pixelpipe\logs\
 ```
 
-Pixelpipe avoids intentionally writing raw API keys to logs. When reporting bugs, review logs before posting them publicly.
+Pixelpipe avoids intentionally writing raw API keys to logs, and the Diagnostics copy action scrubs common token, password, and authorization-header patterns before placing text on the clipboard.
+
+Raw log files are still local troubleshooting artifacts and may include paths, remote names, or third-party tool output. When reporting bugs, review diagnostics and logs before posting them publicly.
 
 ## Running as Administrator
 

@@ -20,7 +20,7 @@ namespace Pixelpipe
         // file is deterministic — we fetch SHA256SUMS for this exact version
         // and refuse to install the zip if the published hash doesn't match
         // what we just downloaded. Bump the version when upgrading rclone.
-        private const string RcloneVersion = "v1.71.1";
+        private const string RcloneVersion = "v1.74.2";
         private const string RcloneZipName = "rclone-" + RcloneVersion + "-windows-amd64.zip";
         private const string RcloneDownloadUrl = "https://downloads.rclone.org/" + RcloneVersion + "/" + RcloneZipName;
         private const string RcloneSha256SumsUrl = "https://downloads.rclone.org/" + RcloneVersion + "/SHA256SUMS";
@@ -388,6 +388,8 @@ namespace Pixelpipe
         // PERF-4 (v0.13.1): static compiled regexes for ScrubSecrets so the
         // log-write path doesn't re-build them on every line.
         private static readonly Regex ScrubKeyValueRegex = new Regex(@"(api_key|password|token|secret|access_key|secret_key)\s*[=:]\s*\S+", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly Regex ScrubAuthHeaderRegex = new Regex(@"(Authorization\s*:\s*Basic\s+)\S+", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly Regex ScrubCliSecretRegex = new Regex(@"(--(?:rc-pass|password|token|secret|api-key)\s+)\S+", RegexOptions.IgnoreCase | RegexOptions.Compiled);
         private static readonly Regex ScrubLongTokenRegex = new Regex(@"\b[A-Za-z0-9_\-]{32,}\b", RegexOptions.Compiled);
 
         // SEC-2 (v0.13.1): 32 bytes of crypto-random base64, URL-safe so we
@@ -402,18 +404,28 @@ namespace Pixelpipe
             }
         }
 
-        // Common flag block: address + auth. Used by every rc client call so
-        // they all use the same protocol — switching back to --rc-no-auth in
-        // even one place would re-open the unauth window.
+        private Dictionary<string, string> RcEnvironmentVariables()
+        {
+            Dictionary<string, string> env = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            env["RCLONE_RC_USER"] = RcAuthUser;
+            env["RCLONE_RC_PASS"] = rcAuthToken;
+            return env;
+        }
+
+        // Common flag block: address only. RC credentials are supplied through
+        // RCLONE_RC_USER / RCLONE_RC_PASS so the password never appears in a
+        // long-lived rclone command line.
         private string RcCommonFlags(int port)
         {
-            return "--rc-addr 127.0.0.1:" + port.ToString() + " --rc-user " + RcAuthUser + " --rc-pass " + rcAuthToken;
+            return "--rc-addr 127.0.0.1:" + port.ToString();
         }
 
         internal static string ScrubSecrets(string text)
         {
             if (String.IsNullOrEmpty(text)) return text;
             string s = ScrubKeyValueRegex.Replace(text, "$1=***");
+            s = ScrubAuthHeaderRegex.Replace(s, "$1***");
+            s = ScrubCliSecretRegex.Replace(s, "$1***");
             s = ScrubLongTokenRegex.Replace(s, "***");
             return s;
         }

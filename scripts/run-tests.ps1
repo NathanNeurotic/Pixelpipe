@@ -3,9 +3,14 @@ $Root = Split-Path -Parent $PSScriptRoot
 $OutDir = Join-Path $Root 'dist'
 New-Item -ItemType Directory -Force $OutDir | Out-Null
 $Out = Join-Path $OutDir 'Pixelpipe.Tests.exe'
+$Out = [System.IO.Path]::GetFullPath($Out)
 
-# Avoid "file in use" if a previous test run is still alive.
-try { Get-Process Pixelpipe.Tests -ErrorAction Stop | Stop-Process -Force } catch {}
+# Avoid "file in use" if this exact test output is still running.
+try {
+  Get-Process Pixelpipe.Tests -ErrorAction Stop | Where-Object {
+    try { [string]::Equals($_.MainModule.FileName, $Out, [StringComparison]::OrdinalIgnoreCase) } catch { $false }
+  } | Stop-Process -Force
+} catch {}
 
 # Tests compile against the src tree, which includes the generated
 # AssemblyVersion.cs. Run the generator first so a fresh checkout doesn't fail.

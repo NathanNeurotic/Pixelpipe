@@ -26,50 +26,6 @@ namespace Pixelpipe
             RebuildMenu();
         }
 
-        private void AddGuidedRcloneRemote(string label, string provider, string preferredDrive)
-        {
-            if (!RcloneAvailable())
-            {
-                MessageBox.Show("rclone is not available yet. Install rclone first, then add this remote.", "Pixelpipe", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
-            string remoteName = PromptForValue("Add " + label, "Remote name to create/use in rclone:", UniqueRemoteName(label));
-            if (remoteName == null) return;
-            remoteName = RemoteNameBare(remoteName.Trim());
-            if (remoteName.Length == 0) return;
-
-            string drive = PromptForValue("Drive letter", "Drive letter for this remote:", FirstFreePreferredDrive(preferredDrive));
-            if (drive == null) return;
-
-            RemoteProfile p = new RemoteProfile();
-            p.Label = label;
-            p.Provider = provider;
-            p.Remote = NormalizeRemoteName(remoteName);
-            p.DriveLetter = NormalizeDriveLetter(drive);
-            p.MountMode = "network";
-            lock (profilesLock) profiles.Add(p);
-            AssignRuntimeFields();
-            SaveProfiles();
-            RebuildMenu();
-
-            if (!RemoteConfigured(p))
-            {
-                StringBuilder msg = new StringBuilder();
-                msg.AppendLine(label + " has been added to Pixelpipe, but the rclone remote does not exist yet.");
-                msg.AppendLine();
-                msg.AppendLine("Pixelpipe will open rclone config. Create a remote named:");
-                msg.AppendLine(p.Remote);
-                msg.AppendLine();
-                msg.AppendLine("Choose backend/provider:");
-                msg.AppendLine(provider);
-                msg.AppendLine();
-                msg.AppendLine("After rclone config is complete, return to Pixelpipe and mount it from the tray.");
-                MessageBox.Show(msg.ToString(), "Pixelpipe guided remote setup", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                OpenRcloneConfigTerminal();
-            }
-        }
-
         private void AddExistingRemoteProfile()
         {
             if (!RcloneAvailable())

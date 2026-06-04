@@ -9,9 +9,14 @@ if (-not $OutDir) { $OutDir = Join-Path $Root 'dist' }
 New-Item -ItemType Directory -Force $OutDir | Out-Null
 if (-not $OutFile) { $OutFile = 'Pixelpipe.exe' }
 $Out = Join-Path $OutDir $OutFile
+$Out = [System.IO.Path]::GetFullPath($Out)
 
-# Avoid "file in use" if a previous Pixelpipe is still running.
-try { Get-Process Pixelpipe -ErrorAction Stop | Stop-Process -Force } catch {}
+# Avoid "file in use" if this exact build output is still running.
+try {
+  Get-Process Pixelpipe -ErrorAction Stop | Where-Object {
+    try { [string]::Equals($_.MainModule.FileName, $Out, [StringComparison]::OrdinalIgnoreCase) } catch { $false }
+  } | Stop-Process -Force
+} catch {}
 
 # Stamp the CHANGELOG version into a generated AssemblyVersion.cs so
 # Application.ProductVersion at runtime matches the released version.

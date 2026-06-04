@@ -51,9 +51,22 @@ namespace Pixelpipe
 
         public TrayContext.ProcessResult RunWithStdin(string arguments, int timeoutMs, string stdinInput)
         {
+            return RunWithStdin(arguments, timeoutMs, stdinInput, null);
+        }
+
+        public TrayContext.ProcessResult RunWithStdin(string arguments, int timeoutMs, string stdinInput, Dictionary<string, string> envOverrides)
+        {
             ProcessStartInfo psi = new ProcessStartInfo();
             psi.FileName = ResolvedPath;
             psi.Arguments = arguments ?? "";
+            if (envOverrides != null)
+            {
+                foreach (KeyValuePair<string, string> kv in envOverrides)
+                {
+                    if (string.IsNullOrEmpty(kv.Key)) continue;
+                    psi.EnvironmentVariables[kv.Key] = kv.Value ?? "";
+                }
+            }
             return TrayContext.RunCaptureCore(psi, timeoutMs, stdinInput);
         }
     }

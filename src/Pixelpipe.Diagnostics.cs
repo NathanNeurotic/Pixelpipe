@@ -24,6 +24,7 @@ namespace Pixelpipe
             StringBuilder sb = new StringBuilder();
             sb.AppendLine("Pixelpipe diagnostics");
             sb.AppendLine("Generated: " + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+            sb.AppendLine("Redaction: secret-looking values are scrubbed before display/copy");
             sb.AppendLine("Running elevated: " + IsAdministrator());
             sb.AppendLine("rclone available: " + RcloneAvailable());
             sb.AppendLine("rclone path: " + rclonePath);
@@ -78,7 +79,7 @@ namespace Pixelpipe
             }
             sb.AppendLine("Pixelpipe UI log tail:");
             sb.AppendLine(TailUiLog(2000));
-            return sb.ToString();
+            return ScrubSecrets(sb.ToString());
         }
 
         // Prefix every non-empty line with `indent`. Used to align a multi-line
@@ -182,8 +183,9 @@ namespace Pixelpipe
         {
             try
             {
-                using (RegistryKey key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", true))
+                using (RegistryKey key = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run"))
                 {
+                    if (key == null) throw new InvalidOperationException("Could not open the current-user Run registry key.");
                     if (StartupEnabled())
                     {
                         key.DeleteValue(AppName, false);

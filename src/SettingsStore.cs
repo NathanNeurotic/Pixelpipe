@@ -47,22 +47,22 @@ namespace Pixelpipe
         {
             lock (_cacheLock)
             {
-                if (_cache != null) return _cache;
+                if (_cache != null) return CloneRoot(_cache);
                 Dictionary<string, object> root;
                 if (TryReadFile(_settingsFile, out root))
                 {
                     _cache = root;
-                    return _cache;
+                    return CloneRoot(_cache);
                 }
                 string backupFile = _settingsFile + ".bak";
                 if (TryReadFile(backupFile, out root))
                 {
                     if (_logWarn != null) _logWarn("read settings", "loaded backup settings file after primary file could not be read");
                     _cache = root;
-                    return _cache;
+                    return CloneRoot(_cache);
                 }
                 _cache = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
-                return _cache;
+                return CloneRoot(_cache);
             }
         }
 
@@ -74,9 +74,9 @@ namespace Pixelpipe
                 string json;
                 lock (_cacheLock)
                 {
-                    _cache = root;
+                    _cache = CloneRoot(root);
                     JavaScriptSerializer js = new JavaScriptSerializer();
-                    json = js.Serialize(root);
+                    json = js.Serialize(_cache);
                 }
                 TrayContext.WriteAllTextAtomic(_settingsFile, json, Encoding.UTF8);
             }
@@ -139,6 +139,33 @@ namespace Pixelpipe
             }
             catch (Exception ex) { if (_logIssue != null) _logIssue("read settings " + Path.GetFileName(path), ex); }
             return false;
+        }
+
+        private static Dictionary<string, object> CloneRoot(Dictionary<string, object> source)
+        {
+            Dictionary<string, object> clone = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+            if (source == null) return clone;
+            foreach (KeyValuePair<string, object> kv in source)
+            {
+                clone[kv.Key] = CloneValue(kv.Value);
+            }
+            return clone;
+        }
+
+        private static object CloneValue(object value)
+        {
+            Dictionary<string, object> dict = value as Dictionary<string, object>;
+            if (dict != null) return CloneRoot(dict);
+
+            object[] arr = value as object[];
+            if (arr != null)
+            {
+                object[] copy = new object[arr.Length];
+                for (int i = 0; i < arr.Length; i++) copy[i] = CloneValue(arr[i]);
+                return copy;
+            }
+
+            return value;
         }
     }
 }
