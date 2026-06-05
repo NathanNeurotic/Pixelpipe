@@ -15,7 +15,13 @@ src/Pixelpipe.Diagnostics.cs  Diagnostics window, logs, startup toggle, updates
 src/Pixelpipe.MainWindow.cs   Tabbed main window + per-profile dashboard cards
 src/Pixelpipe.SetupWizard.cs  Multi-step first-launch wizard
 src/Pixelpipe.QuickControl.cs Always-on-top quick controls popup
+src/Pixelpipe.Schedule.cs     Schedule timer for mount/unmount + bandwidth changes
+src/Pixelpipe.WatchFolder.cs  Watch-folder queueing and rclone upload commands
 src/Pixelpipe.Settings.cs     JSON + legacy registry settings persistence
+src/SettingsStore.cs          Settings read/write cache, backups, atomic disk I/O
+src/RcloneClient.cs           rclone process wrapper
+src/DependencyProbe.cs        Cached rclone / WinFsp probes
+src/MountManager.cs           rclone mount argument builder + process start
 src/Pixelpipe.Helpers.cs      Pure helpers, process capture, dialog primitives
 src/TrayMenu.cs               Tray menu construction, theming, placement, smoke test
 src/RemoteProfile.cs          Profile model
@@ -42,6 +48,14 @@ Output:
 dist\Pixelpipe.exe
 ```
 
+SDK-style alternative:
+
+```powershell
+dotnet build -c Release Pixelpipe.csproj
+```
+
+The PowerShell script remains the canonical CI build. The `.csproj` path exists for IDEs, analyzers, and developer convenience.
+
 ## Double-click build
 
 ```text
@@ -61,6 +75,12 @@ Output:
 ```
 
 The runner compiles `src\*.cs` + `tests\*.cs` together into `dist\Pixelpipe.Tests.exe`, runs every test, prints a per-test pass/fail line, and exits non-zero if anything failed. CI runs this on every push.
+
+SDK-style alternative:
+
+```powershell
+dotnet run --project Pixelpipe.Tests.csproj -c Release
+```
 
 `dist\Pixelpipe.exe /smoketest-menu` also runs the placement and theme smoke test without spawning the tray; CI gates on this too.
 
@@ -86,4 +106,6 @@ Pull requests only build artifacts.
 - Do not force-kill rclone unless clean unmount failed and the user accepts the fallback.
 - Do not poll the mounted drive path repeatedly.
 - Keep API keys encrypted.
+- Keep provider secrets out of command-line arguments.
 - Keep diagnostics copyable.
+- Keep beginner docs current when adding user-visible controls. `README.md` should stay approachable; deeper workflows belong in `docs/USER_GUIDE.md` and exact field shapes in `docs/CONFIGURATION.md`.

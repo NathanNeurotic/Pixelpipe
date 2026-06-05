@@ -2,163 +2,131 @@
 
 # Pixelpipe
 
-Pixelpipe is a small Windows tray app for mounting Pixeldrain and other rclone-compatible cloud remotes as Windows drives.
+Pixelpipe is a small Windows tray app that mounts rclone-compatible cloud remotes as Windows drives.
 
-It started as a focused Pixeldrain filesystem tray tool and now acts as a polished rclone mount manager: mount, unmount, inspect usage, control bandwidth, auto-mount on startup, and recover when Windows/rclone gets weird.
+It is Pixeldrain-first, but not Pixeldrain-only. The app can manage Pixeldrain, Google Drive, MEGA, OneDrive, Dropbox, Box, S3-compatible storage, WebDAV / Nextcloud / SharePoint, SFTP, FTP / FTPS, and existing custom rclone remotes.
 
-## Current scope
+Use it when you want a tray-controlled cloud drive with mount/unmount buttons, logs, diagnostics, bandwidth controls, scheduled mounts, watch-folder uploads, and recovery tools for the times Windows or rclone gets stuck.
 
-Pixelpipe is **Pixeldrain-first**, but no longer Pixeldrain-only.
+## Start here
 
-### Tier 1: Pixeldrain
+Most users only need this path:
 
-Pixeldrain remains the fully integrated provider:
+1. Download `Pixelpipe.exe`, `Pixelpipe-Windows-x64.zip`, or `Pixelpipe-Setup.exe` from the latest release.
+2. Run Pixelpipe normally, not as Administrator.
+3. If Windows SmartScreen appears, click **More info**, then **Run anyway**.
+4. Let the first-run wizard check rclone, WinFsp, and your first remote.
+5. Right-click the tray icon to mount, unmount, add remotes, open logs, or run diagnostics.
 
-- First-run setup helper.
-- Pixeldrain rclone remote configuration helper.
-- Optional Pixeldrain API key prompt.
-- DPAPI-encrypted PixelDrain API key storage.
-- Storage usage display through rclone.
-- Monthly / last-30-days transfer quota display through the Pixeldrain API.
-- Mount / unmount / open drive / startup mount.
-- rclone RC bandwidth controls.
+For a guided walkthrough, see [docs/USER_GUIDE.md](docs/USER_GUIDE.md).
 
-### Tier 2: common rclone remotes
+## What Pixelpipe does
 
-Pixelpipe can now manage and mount additional rclone remotes, including:
+- Mounts each configured remote to its own Windows drive letter.
+- Keeps multiple profiles in one tray menu and main window.
+- Provides guided setup for common rclone providers.
+- Imports existing rclone remotes with `rclone listremotes`.
+- Shows live status, storage where the provider reports it, speed, and session traffic for Pixelpipe-launched mounts.
+- Shows Pixeldrain transfer quota when a Pixeldrain API key is configured.
+- Applies global and per-profile bandwidth limits through rclone RC.
+- Supports per-profile bandwidth schedules, such as slower daytime limits and unlimited overnight transfer.
+- Supports scheduled mount and unmount times per profile.
+- Can watch a local folder and upload new files to a remote by copy or move.
+- Stores Pixelpipe settings under `%APPDATA%\Pixelpipe\`.
+- Stores logs under `%LOCALAPPDATA%\Pixelpipe\logs\`.
+- Keeps timestamped settings backups before destructive profile operations.
+- Includes diagnostics, preflight checks, stale-drive cleanup, and orphan rclone process repair.
 
-- Google Drive
-- MEGA
-- OneDrive
-- Dropbox
-- Box
-- S3-compatible storage, including R2, B2, Wasabi, MinIO, and similar backends through rclone
-- WebDAV / Nextcloud
-- SFTP
-- FTP
+Pixelpipe is not a sync engine. It does not replace rclone's own sync/copy commands, and it does not turn normal public Pixeldrain file links into a writable filesystem.
 
-Provider-specific quota is not guaranteed for every backend. Generic storage usage is shown when `rclone about <remote> --json` supports it.
+## Provider support
 
-### Tier 3: custom rclone remotes
+Pixelpipe uses rclone as the provider layer.
 
-Any existing rclone remote can be imported into Pixelpipe and assigned a drive letter.
+| Tier | Providers | What Pixelpipe handles |
+| --- | --- | --- |
+| 1 | Pixeldrain | Guided Pixeldrain profile, rclone remote setup, optional API key, encrypted quota key storage, storage and transfer-quota display. |
+| 2 | Google Drive, MEGA, OneDrive, Dropbox, Box, S3 / R2 / B2 / Wasabi / DigitalOcean / Storj, WebDAV / Nextcloud / SharePoint, SFTP, FTP / FTPS | Profile setup, mount/unmount, drive letters, logs, diagnostics, bandwidth, schedules, watch folders. Provider-specific login still belongs to rclone where needed. |
+| 3 | Custom rclone remotes | Import any remote that appears in `rclone listremotes`, assign a drive letter, and manage it from Pixelpipe. |
 
-## Two ways to use it
+Provider-specific quota is not guaranteed for every backend. Generic storage usage appears when `rclone about <remote> --json` supports it.
 
-Pixelpipe ships both interfaces side by side; pick whichever you prefer.
+## Interfaces
 
-**Tray menu** (right-click the tray icon). Everything is here: per-profile mount controls, bandwidth, setup, diagnostics, tools. Status text updates live every few seconds while the menu is open.
+Pixelpipe has three everyday surfaces:
 
-**Main window** (`Open Pixelpipe window...` in the tray, or the new Setup wizard exits to it). Five tabs:
+**Tray menu**: right-click the tray icon. This is the fastest route to mount, unmount, add a cloud remote, change bandwidth, run setup, copy diagnostics, open logs, and repair stuck mounts.
 
-- *Profiles*: dashboard cards with live status dots, drive-letter chips, mounted pills, dark storage gauges, session/speed numbers, and Mount/Unmount buttons.
-- *Activity*: a colour-coded timeline parsed from the UI log (mount / unmount / schedule / transfer / watch / error), filterable by category.
-- *Diagnostics*: the same data you get from "Copy diagnostics", plus repair buttons.
-- *Logs*: per-profile rclone log and the Pixelpipe UI log in a tail viewer with a substring filter.
-- *Settings*: bandwidth, startup, verbose logging, re-run setup wizard, check for updates.
+**Main window**: choose `Open Pixelpipe window...` from the tray. It has tabs for Profiles, Activity, Diagnostics, Logs, and Settings.
 
-**Quick controls popup** (`Quick controls...` in the tray). Small always-on-top window with aggregate live speed, session traffic, bandwidth dropdown, and per-profile status. Designed to sit in a corner during active transfers.
-
-**Setup wizard** runs on first launch and walks through rclone / WinFsp / your first rclone remote / optional API key. Re-runnable any time from the Settings tab or the Setup tray submenu.
+**Quick controls popup**: choose `Quick controls...` from the tray. It is a compact always-on-top panel for aggregate speed, session traffic, bandwidth, and per-profile status.
 
 ## Screenshots
 
-The main-window Profiles tab — live status dots, drive-letter chips, a dark storage gauge, and the four primary mount actions per card:
+The main-window Profiles tab:
 
 ![Profiles tab](docs/screenshots/profiles-tab.png)
 
-The tray menu, with a live status header and each profile as an expandable submenu:
+The tray menu:
 
 ![Tray menu](docs/screenshots/tray-menu.png)
 
-Adding a cloud remote — nine first-class providers plus custom rclone remotes:
+Adding a cloud remote:
 
 ![Add cloud remote](docs/screenshots/add-cloud-remote.png)
 
-More in [docs/SCREENSHOTS.md](docs/SCREENSHOTS.md) (per-profile submenu, Settings tab).
-
-## Features
-
-- Multi-profile tray menu for multiple cloud remotes.
-- Mount and unmount each remote independently.
-- Primary profile double-click toggle.
-- Add guided profiles for Pixeldrain, Google Drive, MEGA, OneDrive, Dropbox, Box, S3, WebDAV, SFTP, and custom rclone remotes.
-- Import existing rclone remotes with `rclone listremotes`.
-- Per-profile preflight checks for rclone, WinFsp, remote configuration, drive-letter availability, RC port availability, and backend storage response.
-- Per-profile drive letters.
-- Per-profile network/fixed drive mode.
-- Per-profile startup auto-mount.
-- Low-overhead and full-cache mount modes.
-- Global bandwidth limit profiles, applied live through rclone RC.
-- Live session traffic and current speed for Pixelpipe-launched mounts.
-- Generic storage usage where the backend reports it.
-- PixelDrain transfer quota display when an API key is configured.
-- First-run setup for rclone, WinFsp, Pixeldrain remote, and optional API key.
-- Portable rclone download fallback.
-- winget install helpers for rclone and WinFsp.
-- Themed dark tray menu.
-- Diagnostics / repair window.
-- Settings JSON under `%APPDATA%\Pixelpipe\settings.json`.
-- Logs under `%LOCALAPPDATA%\Pixelpipe\logs\`.
-- Rolling GitHub Actions build on every push.
+More screenshots are in [docs/SCREENSHOTS.md](docs/SCREENSHOTS.md).
 
 ## Requirements
 
 Pixelpipe is for Windows 10/11.
 
-Under the hood it uses:
+It needs:
 
 - rclone
 - WinFsp
-- One or more configured rclone remotes
+- at least one configured rclone remote
 
-Pixeldrain filesystem access still requires Pixeldrain's filesystem feature. Pixelpipe does not turn normal public Pixeldrain file links into a writable filesystem.
+The first-run wizard can help install or find rclone and WinFsp. Pixelpipe can also download a portable rclone build to:
 
-## Quick start
+```text
+%USERPROFILE%\Apps\rclone\rclone.exe
+```
 
-Pixelpipe ships in two equivalent formats; pick the one that fits how you want to use it.
+Pixeldrain filesystem access requires Pixeldrain's filesystem feature. Pixelpipe does not make ordinary public Pixeldrain links mountable as a drive.
+
+## Download choices
 
 | Download | Use when |
 | --- | --- |
-| **`Pixelpipe.exe`** (or the `-Windows-x64.zip` bundle) | You want a single portable executable. Drop it anywhere — Desktop, a USB stick, a synced folder — and double-click. Nothing is written to Program Files; settings live under `%APPDATA%\Pixelpipe\`. |
-| **`Pixelpipe-Setup.exe`** | You want Pixelpipe registered with Windows: Start Menu entry, optional Desktop shortcut, optional auto-start with Windows, Add/Remove Programs entry. Installs to `%LOCALAPPDATA%\Programs\Pixelpipe\` per-user (no admin rights required). |
+| `Pixelpipe.exe` | You want one portable executable. Drop it anywhere and run it. |
+| `Pixelpipe-Windows-x64.zip` | You want the portable executable plus README, license, and docs together. |
+| `Pixelpipe-Setup.exe` | You want Start Menu registration, optional Desktop shortcut, optional startup entry, and an Add/Remove Programs entry. Installs per-user to `%LOCALAPPDATA%\Programs\Pixelpipe\`. |
 
-Both produce the same tray app and read the same settings file. You can install with the setup, uninstall it, and switch to the portable exe (or vice versa) without losing your profile config.
+All formats use the same settings file. You can move between portable and installed builds without losing profiles.
 
-### First run: Windows SmartScreen warning
+## First-run SmartScreen warning
 
-Pixelpipe's downloads are **not code-signed** (a signing certificate is a recurring paid cost this project doesn't carry yet). The first time you run `Pixelpipe.exe` or `Pixelpipe-Setup.exe`, Windows SmartScreen will show a blue **"Windows protected your PC"** dialog calling it an *unrecognized app*. This is expected for any unsigned open-source app — it is **not** a sign of malware.
+Pixelpipe builds are not code-signed. Windows SmartScreen may show **"Windows protected your PC"** and call the file an unrecognized app the first time you run a downloaded build.
 
-To run it:
+That warning is expected for unsigned open-source software. It is not, by itself, a malware detection.
 
-1. Click **More info** (the small link in the dialog).
-2. Click the **Run anyway** button that appears.
+To run Pixelpipe:
 
-You only have to do this once per downloaded file. If you want to verify the download is genuine first, the release ships a `SHA256SUMS.txt` — compare it against:
+1. Click **More info**.
+2. Click **Run anyway**.
+
+To verify the download first, compare the release's `SHA256SUMS.txt` with:
 
 ```powershell
 Get-FileHash .\Pixelpipe.exe -Algorithm SHA256
 ```
 
-Do **not** run Pixelpipe as Administrator unless you specifically need an elevated mount. Admin-mounted drives can be hidden from normal File Explorer.
+Do not run Pixelpipe as Administrator unless you intentionally need an elevated mount. Admin-mounted drives can be hidden from normal File Explorer.
 
-On first launch, Pixelpipe checks:
+## Common workflows
 
-1. rclone
-2. WinFsp
-3. configured rclone remotes
-4. optional PixelDrain API key for quota display
-5. startup preference
-
-The default Pixeldrain profile uses:
-
-```text
-Remote: Pixeldrain:
-Drive:  P:
-Mode:   network drive
-```
-
-## Adding other services
+### Add a remote
 
 Right-click the tray icon:
 
@@ -166,101 +134,69 @@ Right-click the tray icon:
 Add cloud remote
 ```
 
-Then choose one of the guided entries:
+Choose a provider. OAuth providers such as Google Drive, OneDrive, Dropbox, and Box use rclone's own browser sign-in flow. Credential-form providers collect the needed fields once, write them into rclone's config, then create the Pixelpipe profile.
 
-```text
-Google Drive
-MEGA
-OneDrive
-Dropbox
-Box
-S3 / R2 / B2 / Wasabi
-WebDAV / Nextcloud
-SFTP
-Custom existing rclone remote
-```
+### Import existing remotes
 
-For OAuth or credential-heavy services, Pixelpipe opens `rclone config` rather than trying to reimplement every provider's login flow. Create the remote in rclone, then return to Pixelpipe and mount it.
-
-## Importing existing rclone remotes
-
-Right-click the tray icon:
+If you already use rclone:
 
 ```text
 Import existing rclone remotes
 ```
 
-Pixelpipe reads `rclone listremotes`, adds any missing remotes as profiles, assigns available drive letters, and lets you edit the result from:
+Pixelpipe reads `rclone listremotes`, skips remotes it already knows about, and assigns available drive letters.
+
+### Test a profile before mounting
+
+Open a profile menu and choose:
 
 ```text
-Manage remotes...
+Test profile
 ```
 
-## API key and quota display
+The preflight checks rclone, WinFsp, the remote config, drive-letter availability, RC port availability, and backend storage response.
 
-The PixelDrain API key is optional.
-
-Without it:
-
-- mounting can still work,
-- rclone storage checks may still work,
-- PixelDrain transfer quota will be unavailable.
-
-With it:
-
-- Pixelpipe stores the key encrypted for your Windows user using DPAPI,
-- the key is used to query Pixeldrain transfer quota,
-- the key is not written to plain text settings.
-
-## Bandwidth limits
-
-The tray menu includes:
-
-```text
-Bandwidth limit
-- Unlimited
-- 512 KB/s
-- 1 MB/s
-- 5 MB/s
-- 10 MB/s
-- 25 MB/s
-- 50 MB/s
-- 100 MB/s
-- 250 MB/s
-- Custom...
-```
-
-When remotes are mounted by Pixelpipe, bandwidth changes are applied live through rclone RC. If no remotes are mounted, the setting is saved for the next mount.
-
-## Diagnostics
+### Change bandwidth
 
 Use:
 
 ```text
-Diagnostics / repair...
+Bandwidth limit
 ```
 
-It shows:
+Bandwidth changes apply live to Pixelpipe-launched mounts through rclone RC. Per-profile overrides and bandwidth schedules live in the profile editor.
 
-- rclone availability
-- WinFsp availability
-- configured profile list
-- provider, remote, drive, mount mode, and RC port
-- whether each rclone remote exists
-- current status, speed, session traffic, storage text
-- log file paths
-- recent rclone log tails
+### Use schedules or watch folders
 
-It also provides repair buttons for rclone, WinFsp, rclone config, stale drive cleanup, settings, logs, and restart.
+Open the main window, go to Profiles, open a profile's menu, and choose `Edit`.
+
+- General: label, provider, remote, drive letter, mount mode, startup auto-mount.
+- Bandwidth: per-profile bandwidth limit and optional time-based bandwidth schedule.
+- Schedule: automatic mount and unmount times by day.
+- Watch: upload new files from a local folder by copy or move.
+
+Details are in [docs/USER_GUIDE.md](docs/USER_GUIDE.md).
+
+## Diagnostics and repair
+
+Start here when something feels wrong:
+
+```text
+Tools / diagnostics -> Copy diagnostics
+```
+
+Diagnostics include dependency status, profile settings, mount state, RC ports, storage text, speed/session data, watch-folder state, log paths, and recent log tails. Secret-looking values are scrubbed before copying.
+
+Useful repair actions are also under `Tools / diagnostics`, including log folder access, settings backups, stale-drive cleanup, and orphan rclone process scanning.
 
 ## Command-line flags
 
 ```text
-Pixelpipe.exe /automount        Mount every profile tagged AutoMount=true and show a balloon with the count. Used by the Windows Startup entry.
-Pixelpipe.exe /smoketest-menu   Run the tray menu placement and theme sanity check, then exit 0/non-zero. Used by CI.
+Pixelpipe.exe /automount        Mount every profile with AutoMount=true. Used by the Windows startup entry.
+Pixelpipe.exe /smoketest-menu   Run tray-menu placement/theme checks, then exit 0/non-zero. Used by CI.
 ```
 
-`/automount` is wired up automatically when you toggle `Auto-mount at Windows startup` in the tray menu. You normally don't need to invoke it by hand.
+You normally do not need to run these by hand.
 
 ## Building from source
 
@@ -268,26 +204,37 @@ From the repository root:
 
 ```powershell
 .\scripts\build-release.ps1
+.\scripts\run-tests.ps1
 ```
 
-Or double-click:
+Or use the SDK-style project files:
 
-```text
-Build-Pixelpipe.bat
+```powershell
+dotnet build -c Release Pixelpipe.csproj
+dotnet run --project Pixelpipe.Tests.csproj -c Release
 ```
 
-The build script compiles the WinForms app with the current repository icon at:
+The PowerShell scripts remain the canonical CI build path. The `.csproj` files are for IDEs, analyzers, and developer convenience.
 
-```text
-assets\pixelpipe.ico
-```
+For contributor details, see [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
-Do not replace that icon unless you intentionally want to change the app icon.
+## Documentation map
+
+- [User guide](docs/USER_GUIDE.md): friendly walkthrough for setup and everyday use.
+- [FAQ](docs/FAQ.md): quick answers.
+- [Troubleshooting](docs/TROUBLESHOOTING.md): symptom-first fixes.
+- [Configuration reference](docs/CONFIGURATION.md): settings file and profile fields.
+- [Multi-remote support](docs/MULTI_REMOTE.md): provider tiers and limitations.
+- [Screenshots](docs/SCREENSHOTS.md): visual tour.
+- [Development](docs/DEVELOPMENT.md): source layout, build, tests, CI.
+- [Smoke test checklist](docs/SMOKE_TEST.md): manual QA pass.
+- [Documentation audit](docs/DOCUMENTATION_AUDIT.md): what this docs pass verified and how to prevent drift.
+- [Security](SECURITY.md): secrets, logs, admin guidance, vulnerability reporting.
 
 ## Security notes
 
-- Pixelpipe does not store provider passwords except the optional PixelDrain API key.
-- The PixelDrain API key is encrypted with Windows DPAPI for the current Windows user.
-- Other provider credentials remain in rclone's own config system.
+- Pixelpipe does not store provider passwords in `settings.json`.
+- The optional Pixeldrain API key is encrypted with Windows DPAPI for the current Windows user.
+- Other provider credentials are stored by rclone in rclone's own config system.
 - Pixelpipe does not need Administrator by default.
-- **Downloads are unsigned, so Windows SmartScreen flags them as an "unrecognized app" on first run.** This is expected for an unsigned open-source build — click **More info → Run anyway**. See [First run: Windows SmartScreen warning](#first-run-windows-smartscreen-warning) above, or verify the download against `SHA256SUMS.txt` if you want certainty. A signed release would remove the prompt but requires a paid code-signing certificate the project doesn't have yet.
+- Downloads are unsigned, so SmartScreen may warn on first run. Verify with `SHA256SUMS.txt` if you want extra certainty before running.

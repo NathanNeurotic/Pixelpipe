@@ -1,6 +1,6 @@
 # Screenshots
 
-Captured from Pixelpipe v0.15.4 on Windows 11. All images live in `docs/screenshots/`.
+Captured from Pixelpipe v0.15.4 on Windows 11. The v0.16.x UI remains representative unless a later screenshot note says otherwise. All images live in `docs/screenshots/`.
 
 ## Main window — Profiles tab
 
@@ -22,7 +22,7 @@ Hovering a profile expands its full detail — remote, drive, provider, status, 
 
 ## Add cloud remote
 
-Nine first-class providers plus custom rclone remotes. OAuth providers (Drive, OneDrive, Dropbox, Box) complete sign-in through the rclone config terminal; the rest collect credentials in an in-app form and never put secrets on the command line.
+Guided providers plus custom rclone remotes. OAuth providers (Drive, OneDrive, Dropbox, Box) complete sign-in through the rclone config terminal; form-based providers collect credentials in-app, write rclone config, and keep secrets out of Pixelpipe settings.
 
 ![Add cloud remote menu](screenshots/add-cloud-remote.png)
 
