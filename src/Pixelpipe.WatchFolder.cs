@@ -332,13 +332,5 @@ namespace Pixelpipe
             return baseUtc.AddSeconds(WatchRetryBackoffSec[idx]);
         }
 
-        private bool LooksLikeRcloneError(string output)
-        {
-            if (String.IsNullOrEmpty(output)) return false;
-            if (output.IndexOf("Error", StringComparison.OrdinalIgnoreCase) >= 0) return true;
-            if (output.IndexOf("Failed", StringComparison.OrdinalIgnoreCase) >= 0) return true;
-            if (output.IndexOf("couldn't", StringComparison.OrdinalIgnoreCase) >= 0) return true;
-            return false;
-        }
     }
 }

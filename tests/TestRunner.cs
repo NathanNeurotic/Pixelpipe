@@ -51,7 +51,7 @@ namespace Pixelpipe.Tests
             Run("BuildProfilesExportJson", TestBuildProfilesExportJson);
             Run("TryParseProfilesExportJson", TestTryParseProfilesExportJson);
             Run("PlanProfileImport", TestPlanProfileImport);
-            Run("BuildRcloneConfigCreateArgs", TestBuildRcloneConfigCreateArgs);
+            Run("ValidateRcloneConfigInput", TestValidateRcloneConfigInput);
             Run("NormalizeWatchMode", TestNormalizeWatchMode);
             Run("BuildWatchUploadArgs", TestBuildWatchUploadArgs);
             Run("ComputeWatchNextRetryUtc", TestComputeWatchNextRetryUtc);
@@ -500,6 +500,12 @@ namespace Pixelpipe.Tests
             string benign = TrayContext.ScrubSecrets("rclone version v1.71.1");
             AssertEqual("rclone version v1.71.1", benign);
 
+            string authHeader = TrayContext.ScrubSecrets("Authorization: Basic Zm9vOmJhcg==");
+            AssertEqual("Authorization: Basic ***", authHeader);
+
+            string rcArg = TrayContext.ScrubSecrets("--rc-pass launch-secret");
+            AssertEqual("--rc-pass ***", rcArg);
+
             AssertEqual(null, TrayContext.ScrubSecrets(null));
             AssertEqual("", TrayContext.ScrubSecrets(""));
         }
@@ -713,36 +719,20 @@ namespace Pixelpipe.Tests
             AssertEqual("already-here", plan.AlreadyPresent[0].Id);
         }
 
-        private static void TestBuildRcloneConfigCreateArgs()
+        private static void TestValidateRcloneConfigInput()
         {
-            // No fields → just "config create <name> <type> --non-interactive".
-            string a = TrayContext.BuildRcloneConfigCreateArgs("MyDrive", "drive", null);
-            AssertEqual("config create \"MyDrive\" drive --non-interactive", a);
+            List<KeyValuePair<string, string>> fields = new List<KeyValuePair<string, string>>();
+            fields.Add(new KeyValuePair<string, string>("access_key_id", "AKIA EXAMPLE"));
+            fields.Add(new KeyValuePair<string, string>("secret_access_key", "secret"));
+            AssertEqual(null, TrayContext.ValidateRcloneConfigInput("ColdStorage", "s3", fields));
 
-            // Single field, simple value.
-            List<KeyValuePair<string, string>> one = new List<KeyValuePair<string, string>>();
-            one.Add(new KeyValuePair<string, string>("user", "alice"));
-            string b = TrayContext.BuildRcloneConfigCreateArgs("MyFTP", "ftp", one);
-            AssertEqual("config create \"MyFTP\" ftp user \"alice\" --non-interactive", b);
+            AssertContains(TrayContext.ValidateRcloneConfigInput("Bad:Name", "s3", fields), "trailing colon");
+            AssertContains(TrayContext.ValidateRcloneConfigInput("Bad\nName", "s3", fields), "newline");
+            AssertContains(TrayContext.ValidateRcloneConfigInput("ColdStorage", "s 3", fields), "unsupported");
 
-            // Multiple fields preserve order; quoting handles whitespace and quotes.
-            List<KeyValuePair<string, string>> many = new List<KeyValuePair<string, string>>();
-            many.Add(new KeyValuePair<string, string>("provider", "Wasabi"));
-            many.Add(new KeyValuePair<string, string>("access_key_id", "AKIA EXAMPLE"));
-            many.Add(new KeyValuePair<string, string>("secret_access_key", "secret\"with\"quotes"));
-            string c = TrayContext.BuildRcloneConfigCreateArgs("Cold", "s3", many);
-            AssertContains(c, "config create \"Cold\" s3 ");
-            AssertContains(c, "provider \"Wasabi\"");
-            AssertContains(c, "access_key_id \"AKIA EXAMPLE\"");
-            AssertContains(c, "secret_access_key \"secret\\\"with\\\"quotes\"");
-            AssertContains(c, "--non-interactive");
-
-            // Empty key is skipped without throwing.
-            List<KeyValuePair<string, string>> withEmptyKey = new List<KeyValuePair<string, string>>();
-            withEmptyKey.Add(new KeyValuePair<string, string>("", "ignored"));
-            withEmptyKey.Add(new KeyValuePair<string, string>("user", "bob"));
-            string d = TrayContext.BuildRcloneConfigCreateArgs("X", "sftp", withEmptyKey);
-            AssertEqual("config create \"X\" sftp user \"bob\" --non-interactive", d);
+            List<KeyValuePair<string, string>> injected = new List<KeyValuePair<string, string>>();
+            injected.Add(new KeyValuePair<string, string>("secret_access_key", "one\r\ntwo"));
+            AssertContains(TrayContext.ValidateRcloneConfigInput("ColdStorage", "s3", injected), "newline");
         }
 
         private static void TestNormalizeWatchMode()

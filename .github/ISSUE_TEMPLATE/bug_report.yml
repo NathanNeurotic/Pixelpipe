@@ -6,12 +6,12 @@ body:
   - type: markdown
     attributes:
       value: |
-        Open Pixelpipe -> Diagnostics / repair -> Copy, then paste the output below.
+        Open Pixelpipe -> Diagnostics / repair -> Copy, review the redacted output, then paste it below.
   - type: textarea
     id: diagnostics
     attributes:
       label: Pixelpipe diagnostics
-      description: Paste the full diagnostics output.
+      description: Paste the redacted diagnostics output. Do not include raw logs, API keys, tokens, or private file paths you do not want public.
       render: text
     validations:
       required: true

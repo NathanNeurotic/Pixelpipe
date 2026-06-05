@@ -56,7 +56,7 @@ namespace Pixelpipe
             bool mounted = IsMounted(p);
             if (mounted)
             {
-                string stats = RunRcloneCapture("rc core/stats " + RcCommonFlags(p.RcPort), 3500);
+                string stats = RunRcloneCaptureRc("rc core/stats " + RcCommonFlags(p.RcPort), 3500);
                 if (!String.IsNullOrEmpty(stats))
                 {
                     // BUG-3 (v0.13.4): parse the rc stats JSON properly so
@@ -385,54 +385,15 @@ namespace Pixelpipe
         {
             // TLS protocol and Expect100Continue are configured once in Program.ConfigureModernTls.
             string token = Convert.ToBase64String(Encoding.ASCII.GetBytes(":" + apiKey));
-            try
-            {
-                HttpWebRequest req = (HttpWebRequest)WebRequest.Create(url);
-                req.Method = "GET";
-                req.Timeout = timeoutMs;
-                req.ReadWriteTimeout = timeoutMs;
-                req.UserAgent = "Pixelpipe/1.0";
-                req.Headers[HttpRequestHeader.Authorization] = "Basic " + token;
-                using (HttpWebResponse resp = (HttpWebResponse)req.GetResponse())
-                using (Stream stream = resp.GetResponseStream())
-                using (StreamReader reader = new StreamReader(stream, Encoding.UTF8)) return reader.ReadToEnd();
-            }
-            catch (WebException ex)
-            {
-                if (ex.Response != null) throw;
-                string fallback = CurlGetPixeldrain(url, token, timeoutMs);
-                if (!String.IsNullOrWhiteSpace(fallback)) return fallback;
-                throw;
-            }
-            catch
-            {
-                string fallback = CurlGetPixeldrain(url, token, timeoutMs);
-                if (!String.IsNullOrWhiteSpace(fallback)) return fallback;
-                throw;
-            }
-        }
-
-        private string CurlGetPixeldrain(string url, string basicToken, int timeoutMs)
-        {
-            try
-            {
-                string curl = FindCurlPath();
-                if (String.IsNullOrWhiteSpace(curl)) return "";
-                ProcessStartInfo psi = new ProcessStartInfo();
-                psi.FileName = curl;
-                psi.Arguments = "-fsSL --connect-timeout 8 --max-time " + Math.Max(10, timeoutMs / 1000).ToString() + " -H " + QuoteArg("Authorization: Basic " + basicToken) + " -H " + QuoteArg("User-Agent: Pixelpipe/1.0 curl-fallback") + " " + QuoteArg(url);
-                psi.UseShellExecute = false;
-                psi.CreateNoWindow = true;
-                psi.RedirectStandardOutput = true;
-                psi.RedirectStandardError = true;
-                Process p = Process.Start(psi);
-                if (p == null) return "";
-                if (!p.WaitForExit(timeoutMs + 3000)) { try { p.Kill(); } catch { } return ""; }
-                string stdout = p.StandardOutput.ReadToEnd();
-                if (p.ExitCode == 0) return stdout;
-                return "";
-            }
-            catch { return ""; }
+            HttpWebRequest req = (HttpWebRequest)WebRequest.Create(url);
+            req.Method = "GET";
+            req.Timeout = timeoutMs;
+            req.ReadWriteTimeout = timeoutMs;
+            req.UserAgent = "Pixelpipe/1.0";
+            req.Headers[HttpRequestHeader.Authorization] = "Basic " + token;
+            using (HttpWebResponse resp = (HttpWebResponse)req.GetResponse())
+            using (Stream stream = resp.GetResponseStream())
+            using (StreamReader reader = new StreamReader(stream, Encoding.UTF8)) return reader.ReadToEnd();
         }
     }
 }

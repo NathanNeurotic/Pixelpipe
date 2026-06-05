@@ -80,10 +80,11 @@ namespace Pixelpipe
 
     // Single-instance protocol via a named pipe. The first Pixelpipe to
     // launch creates the mutex AND starts a pipe server. A second launch
-    // tries to connect to the pipe — if the server responds within 2 s the
-    // existing instance is healthy, the new one tells it to show the main
-    // window and exits. If the connect times out the existing process is
-    // hung, the new one terminates it and takes over the mutex.
+    // tries to connect to the pipe. The caller may retry for a short startup
+    // grace period; if the server responds, the existing instance is healthy,
+    // the new one tells it to show the main window and exits. If the pipe
+    // never answers, the existing process is treated as hung, terminated,
+    // and the new instance takes over the mutex.
     //
     // Without this safeguard the previous behaviour was: new launch saw the
     // mutex was held, showed "Pixelpipe is already running", and exited —
@@ -189,6 +190,18 @@ namespace Pixelpipe
                 // existing instance can't be talked to. Caller treats as hung.
                 return false;
             }
+        }
+
+        public static bool TryWakeExistingWithRetry(int attempts, int delayMs)
+        {
+            if (attempts < 1) attempts = 1;
+            if (delayMs < 0) delayMs = 0;
+            for (int i = 0; i < attempts; i++)
+            {
+                if (TryWakeExisting()) return true;
+                if (i < attempts - 1 && delayMs > 0) Thread.Sleep(delayMs);
+            }
+            return false;
         }
 
         // If the existing instance is hung, kill every other Pixelpipe process

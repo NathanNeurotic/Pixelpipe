@@ -35,11 +35,11 @@ namespace Pixelpipe
             {
                 if (!createdNew)
                 {
-                    // Existing instance might be healthy OR hung. Try the
-                    // wake-pipe first; if it answers within 2 s we yield to
-                    // it. If it doesn't, the holder is hung — terminate any
-                    // other Pixelpipe.exe and re-acquire the mutex.
-                    bool woke = SingleInstanceChannel.TryWakeExisting();
+                    // Existing instance might be healthy, still starting, or
+                    // hung. Retry the wake pipe before any termination so a
+                    // second launch during early startup does not kill the
+                    // first instance before it has created the pipe server.
+                    bool woke = SingleInstanceChannel.TryWakeExistingWithRetry(5, 700);
                     if (woke)
                     {
                         if (!HasArg(args, "/automount"))

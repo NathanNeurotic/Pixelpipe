@@ -120,7 +120,7 @@ namespace Pixelpipe
 
                 apiKeyBox = new TextBox();
                 apiKeyBox.UseSystemPasswordChar = true;
-                apiKeyBox.Width = 540;
+                apiKeyBox.Width = LogicalToDeviceUnits(500);
                 apiKeyBox.Margin = new Padding(0, 0, 0, 8);
                 apiKeyBox.BackColor = WindowTheme.InputBg;
                 apiKeyBox.ForeColor = FgColor;

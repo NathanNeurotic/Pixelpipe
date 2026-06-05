@@ -403,12 +403,5 @@ namespace Pixelpipe
             }
             return "rclone.exe";
         }
-
-        private string FindCurlPath()
-        {
-            string systemCurl = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "curl.exe");
-            if (File.Exists(systemCurl)) return systemCurl;
-            return "curl.exe";
-        }
     }
 }

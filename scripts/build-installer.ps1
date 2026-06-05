@@ -32,7 +32,16 @@ Write-Host "Using ISCC: $Iscc"
 $Exe = Join-Path $Root 'dist\Pixelpipe.exe'
 if (!(Test-Path $Exe)) { throw "Build Pixelpipe.exe first: $Exe" }
 
-& $Iscc (Join-Path $Root 'installer\Pixelpipe.iss')
+$Changelog = Get-Content -Raw -Path (Join-Path $Root 'CHANGELOG.md')
+$VersionMatch = [regex]::Match($Changelog, '(?m)^##\s+(?<version>\d+\.\d+\.\d+)\s*$')
+if (!$VersionMatch.Success) { throw 'Could not find a version header (## X.Y.Z) in CHANGELOG.md' }
+$Version = $VersionMatch.Groups['version'].Value
+$Iss = Join-Path $Root 'installer\Pixelpipe.iss'
+$IssContent = Get-Content -Raw -Path $Iss
+$UpdatedIss = [regex]::Replace($IssContent, '#define MyAppVersion "\d+\.\d+\.\d+"', "#define MyAppVersion `"$Version`"")
+Set-Content -Path $Iss -Value $UpdatedIss -Encoding utf8
+
+& $Iscc $Iss
 if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed with code $LASTEXITCODE" }
 
 $Setup = Join-Path $Root 'dist\Pixelpipe-Setup.exe'

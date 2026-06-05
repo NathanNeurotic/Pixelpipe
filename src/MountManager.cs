@@ -20,7 +20,8 @@ namespace Pixelpipe
         // Pixelpipe has used since v0.5.x with all the cache-mode, VFS,
         // network-mode, RC, and bandwidth flags in one place. Caller passes
         // RcCommonFlags + effective bandwidth so this class doesn't need to
-        // know about the auth token / per-profile bandwidth resolution.
+        // know about the per-profile bandwidth resolution. RC credentials are
+        // passed via environment variables, not argv.
         internal static string BuildMountArgs(RemoteProfile p, bool fullCache, string rcCommonFlags, string effectiveBandwidth)
         {
             if (p == null) return "";
@@ -52,11 +53,19 @@ namespace Pixelpipe
         // crash / sign-out. Returns the started Process; caller is
         // responsible for the post-launch monitor (1900 ms wait + exit
         // check + UI feedback).
-        internal static Process StartMountProcess(string rclonePath, string args, Action<string> logJobWarn)
+        internal static Process StartMountProcess(string rclonePath, string args, System.Collections.Generic.Dictionary<string, string> envOverrides, Action<string> logJobWarn)
         {
             ProcessStartInfo psi = new ProcessStartInfo();
             psi.FileName = rclonePath;
             psi.Arguments = args;
+            if (envOverrides != null)
+            {
+                foreach (System.Collections.Generic.KeyValuePair<string, string> kv in envOverrides)
+                {
+                    if (String.IsNullOrEmpty(kv.Key)) continue;
+                    psi.EnvironmentVariables[kv.Key] = kv.Value ?? "";
+                }
+            }
             psi.UseShellExecute = false;
             psi.CreateNoWindow = true;
             psi.WindowStyle = ProcessWindowStyle.Hidden;

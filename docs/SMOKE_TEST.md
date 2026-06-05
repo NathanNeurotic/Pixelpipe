@@ -33,6 +33,14 @@ Expected:
 
 ## Launch and baseline
 
+- Run the optional rclone local-backend watch smoke when rclone is installed:
+
+```powershell
+.\scripts\watch-folder-smoke.ps1
+```
+
+It should copy one file, move one file, observe a non-zero failure for a missing source, and kill a deliberately long-running rclone `rcd` timeout probe.
+
 - Run Pixelpipe normally, not as Administrator.
 - Confirm the tray icon appears.
 - Confirm the tooltip is short and reflects mounted/unmounted state.

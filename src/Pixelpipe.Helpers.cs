@@ -259,58 +259,15 @@ namespace Pixelpipe
             catch (Exception ex) { return ex.Message; }
         }
 
-        // PERF-4 (v0.13.1): static compiled regexes for hot-path scrapers.
-        // Each capture-helper call would otherwise build a fresh Regex —
-        // each Pixelpipe refresh tick calls ExtractLong/ExtractDouble multiple
-        // times per profile. Compiling once at type-init time eliminates the
-        // construct/finalise churn.
-        private static readonly System.Collections.Generic.Dictionary<string, Regex> ExtractLongRegexes = new System.Collections.Generic.Dictionary<string, Regex>(StringComparer.Ordinal);
-        private static readonly System.Collections.Generic.Dictionary<string, Regex> ExtractDoubleRegexes = new System.Collections.Generic.Dictionary<string, Regex>(StringComparer.Ordinal);
-        private static readonly object ExtractLongLock = new object();
-        private static readonly object ExtractDoubleLock = new object();
-
-        private long ExtractLong(string text, string key)
+        private string RunRcloneCaptureRc(string arguments, int timeoutMs)
         {
             try
             {
-                Regex re;
-                lock (ExtractLongLock)
-                {
-                    if (!ExtractLongRegexes.TryGetValue(key, out re))
-                    {
-                        re = new Regex("\\\"" + Regex.Escape(key) + "\\\"\\s*:\\s*(-?[0-9]+)", RegexOptions.Compiled);
-                        ExtractLongRegexes[key] = re;
-                    }
-                }
-                Match m = re.Match(text ?? "");
-                if (!m.Success) return -1;
-                long value;
-                if (Int64.TryParse(m.Groups[1].Value, out value)) return value;
+                ProcessResult r = RcloneInvoker.Run(arguments, timeoutMs, RcEnvironmentVariables());
+                if (!String.IsNullOrEmpty(r.LaunchError)) return r.LaunchError;
+                return r.CombinedOutput;
             }
-            catch { }
-            return -1;
-        }
-
-        private double ExtractDouble(string text, string key)
-        {
-            try
-            {
-                Regex re;
-                lock (ExtractDoubleLock)
-                {
-                    if (!ExtractDoubleRegexes.TryGetValue(key, out re))
-                    {
-                        re = new Regex("\\\"" + Regex.Escape(key) + "\\\"\\s*:\\s*(-?[0-9]+(?:\\.[0-9]+)?)", RegexOptions.Compiled);
-                        ExtractDoubleRegexes[key] = re;
-                    }
-                }
-                Match m = re.Match(text ?? "");
-                if (!m.Success) return 0.0;
-                double value;
-                if (Double.TryParse(m.Groups[1].Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out value)) return value;
-            }
-            catch { }
-            return 0.0;
+            catch (Exception ex) { return ex.Message; }
         }
 
         internal static string FormatBytes(double bytes)

@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
-using System.Text;
 using System.Threading;
 using System.Windows.Forms;
 
@@ -36,32 +35,6 @@ namespace Pixelpipe
                 Required = required;
                 Choices = choices;
             }
-        }
-
-        // Build the `--non-interactive` argument string for `rclone config create`.
-        // Pure helper so tests can verify quoting and field ordering without
-        // talking to rclone. Returns: "config create <quotedName> <type> k1 v1 k2 v2 ... --non-interactive"
-        internal static string BuildRcloneConfigCreateArgs(string remoteName, string rcloneType, List<KeyValuePair<string, string>> fields)
-        {
-            StringBuilder sb = new StringBuilder();
-            sb.Append("config create ");
-            sb.Append(QuoteArg(remoteName));
-            sb.Append(' ');
-            sb.Append(rcloneType);
-            if (fields != null)
-            {
-                for (int i = 0; i < fields.Count; i++)
-                {
-                    KeyValuePair<string, string> kv = fields[i];
-                    if (String.IsNullOrEmpty(kv.Key)) continue;
-                    sb.Append(' ');
-                    sb.Append(kv.Key);
-                    sb.Append(' ');
-                    sb.Append(QuoteArg(kv.Value ?? ""));
-                }
-            }
-            sb.Append(" --non-interactive");
-            return sb.ToString();
         }
 
         // Generic per-field input dialog. Builds a labeled form, validates required

@@ -688,10 +688,10 @@ namespace Pixelpipe
                 // inner TableLayoutPanel, WinForms could resolve the circular
                 // "I size to my child / child sizes to me" dependency to a
                 // ~30px-wide collapsed GroupBox, which only showed the first
-                // character of each label. Locking the MinimumSize ensures
-                // every Settings group is wide enough to display its content.
+                // character of each label. A modest minimum prevents that
+                // collapse while still fitting comfortably in the main window.
                 g.AutoSizeMode = AutoSizeMode.GrowOnly;
-                g.MinimumSize = new Size(960, 0);
+                g.MinimumSize = new Size(720, 0);
                 g.Padding = new Padding(8, 10, 8, 10);
                 g.Margin = new Padding(0, 0, 0, 12);
                 g.ForeColor = FgColor;
